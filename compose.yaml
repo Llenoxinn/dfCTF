@@ -1,0 +1,50 @@
+name: dfctf
+
+services:
+  database:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dfctf}
+      POSTGRES_USER: ${POSTGRES_USER:-dfctf}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - backend
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-dfctf}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}@database:5432/${POSTGRES_DB:-dfctf}
+      ARTIFACT_DIR: /app/.data/artifacts
+    depends_on:
+      database:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - artifact-data:/app/.data/artifacts
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+
+volumes:
+  postgres-data:
+  artifact-data:
+
+networks:
+  backend:

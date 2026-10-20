@@ -1,0 +1,16 @@
+node_modules
+.next
+.data
+.git
+.github
+.env
+.env.*
+!.env.example
+coverage
+test-results
+playwright-report
+*.tsbuildinfo
+npm-debug.log*
+docs
+.superpowers
+.remember
