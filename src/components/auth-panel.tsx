@@ -58,7 +58,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
     finally { setBusy(false); }
   }
 
-  async function social(provider: "google" | "github") {
+  async function social(provider: "google" | "facebook" | "github") {
     setBusy(true); setError("");
     try {
       const result = await api<{ url?: string }>("/api/auth/sign-in/social", { method: "POST", body: JSON.stringify({ provider, callbackURL: window.location.origin }) });
@@ -105,13 +105,36 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
           {mode === "mfa" ? <div className="field"><label htmlFor="mfa-code">{backup ? "Backup code" : "Authenticator code"}</label><input id="mfa-code" className={backup ? "mono" : "mono code-input"} autoComplete="one-time-code" inputMode={backup ? "text" : "numeric"} value={code} onChange={e => setCode(e.target.value)} required placeholder={backup ? "One unused backup code" : "000000"} pattern={backup ? undefined : "[0-9]{6}"} maxLength={backup ? 50 : 6} /><button type="button" className="text-button" onClick={() => { setBackup(v => !v); setCode(""); }}>{backup ? "Use your authenticator app instead" : "Use a backup code instead"}</button></div> : null}
           <button className="button button-primary block" type="submit" disabled={busy}>{busy ? <><Spinner />Working</> : action}</button>
         </form>
-        {(mode === "signin" || mode === "signup") && (bootstrap.providers.google || bootstrap.providers.github) ? <><div className="divider"><span>or continue with</span></div><div className="social">{bootstrap.providers.google ? <button className="button button-secondary" onClick={() => social("google")} disabled={busy}>Google</button> : null}{bootstrap.providers.github ? <button className="button button-secondary" onClick={() => social("github")} disabled={busy}>GitHub</button> : null}</div></> : null}
+        {mode === "signin" || mode === "signup" ? <>
+          <div className="divider"><span>or continue with</span></div>
+          <div className="social" role="group" aria-label="Social sign-in options" aria-describedby={!bootstrap.providers.google || !bootstrap.providers.facebook ? "social-availability" : undefined}>
+            {(["google", "facebook"] as const).map(provider => <button key={provider} type="button" className="button button-secondary social-button" onClick={() => social(provider)} disabled={busy || !bootstrap.providers[provider]}>
+              <SocialIcon provider={provider} />
+              <span>Continue with {provider === "google" ? "Google" : "Facebook"}</span>
+              {!bootstrap.providers[provider] ? <small className="social-status">Coming soon</small> : null}
+            </button>)}
+            {bootstrap.providers.github ? <button type="button" className="button button-secondary social-button" onClick={() => social("github")} disabled={busy}>Continue with GitHub</button> : null}
+          </div>
+          {!bootstrap.providers.google || !bootstrap.providers.facebook ? <p className="fine social-help" id="social-availability">{!bootstrap.providers.google && !bootstrap.providers.facebook ? "Google and Facebook sign-in are" : `${!bootstrap.providers.google ? "Google" : "Facebook"} sign-in is`} coming soon. You can continue with email and password.</p> : null}
+        </> : null}
         {mode === "forgot" || mode === "reset" || mode === "mfa" ? <button className="text-button back-link" onClick={() => changeMode("signin")}><Icon name="back" size={16} />Back to sign in</button> : null}
         {mode === "signin" ? <p className="fine">New here? Create an account, verify your email, and pick a codename. It takes about a minute.</p> : null}
         {bootstrap.localMail ? <div className="dev-box"><p>Local development: the generated accounts are in <code>.data/bootstrap.txt</code>.</p><LocalInbox /></div> : null}
       </div>
     </main>
   </div>;
+}
+
+function SocialIcon({ provider }: { provider: "google" | "facebook" }) {
+  return provider === "google" ? <svg className="social-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.9-1.75 2.98-4.33 2.98-7.36Z" />
+    <path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.51c-.9.6-2.05.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.07v2.59A10 10 0 0 0 12 22Z" />
+    <path fill="#FBBC05" d="M6.41 13.92a6 6 0 0 1 0-3.84V7.49H3.07a10 10 0 0 0 0 9.02l3.34-2.59Z" />
+    <path fill="#EA4335" d="M12 5.96c1.47 0 2.79.5 3.82 1.49l2.87-2.87A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.93 5.49l3.34 2.59C7.2 7.72 9.4 5.96 12 5.96Z" />
+  </svg> : <svg className="social-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <circle cx="12" cy="12" r="10" fill="#1877F2" />
+    <path fill="#fff" d="M13.5 21.89v-7.01h2.33l.35-2.73H13.5v-1.74c0-.79.22-1.33 1.35-1.33h1.44V6.64a19 19 0 0 0-2.1-.11c-2.08 0-3.5 1.27-3.5 3.6v2.02H8.35v2.73h2.34v7.03a10 10 0 0 0 2.81-.02Z" />
+  </svg>;
 }
 
 export function LocalInbox() {
