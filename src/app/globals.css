@@ -490,6 +490,59 @@ a.card:active { transform: scale(.98); }
 .challenge-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; align-items: start; }
 .challenge-main { display: grid; gap: 24px; min-width: 0; }
 .challenge-side { position: sticky; top: 84px; }
+.first-blood { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 20px; background: var(--surface-2); }
+.first-blood > div { display: grid; gap: 4px; }
+.first-blood strong { color: var(--accent-text); font-size: .875rem; }
+.first-blood time { margin-left: auto; color: var(--muted); font-size: .8125rem; }
+.solver-caption { padding-bottom: 0; }
+.challenge-solvers { list-style: none; margin: 0; padding: 0 20px 8px; }
+.challenge-solvers li { display: grid; grid-template-columns: 24px 28px minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 14px 0; border-bottom: 1px solid var(--line); font-size: .875rem; }
+.solver-name { overflow-wrap: anywhere; }
+.challenge-solvers time { grid-column: 3 / -1; color: var(--muted); font-size: .8125rem; font-variant-numeric: tabular-nums; }
+.rules-nav { justify-content: space-between; }
+.rules-main { max-width: 1160px; margin: 0 auto; padding: 56px 32px 80px; }
+.rules-main .page-head { margin-bottom: 40px; }
+.rules-main .page-head p { max-width: 65ch; }
+.rules-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; align-items: start; }
+.rules-index { position: sticky; top: 96px; display: grid; gap: 16px; font-size: .875rem; }
+.rules-index a { color: var(--muted); text-underline-offset: 4px; }
+.rules-copy { min-width: 0; max-width: 72ch; }
+.rules-copy section { scroll-margin-top: 96px; padding: 0 0 32px; margin-bottom: 32px; border-bottom: 1px solid var(--line); }
+.rules-copy h2 { font-size: 1.375rem; margin-bottom: 16px; }
+.rules-copy p { line-height: 1.75; margin: 0 0 16px; }
+.rules-copy .rules-note { color: var(--muted); font-size: .8125rem; margin-top: 24px; }
+.rules-note code { margin-left: 8px; color: var(--text); overflow-wrap: anywhere; }
+.rules-copy .rules-checkpoint { border: 0; margin-bottom: 0; padding-bottom: 0; }
+.competition-list { list-style: none; margin: 0; padding: 0; }
+.competition-list li { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 28px 0; border-bottom: 1px solid var(--line); }
+.competition-list h2 { margin: 12px 0 8px; font-size: 1.375rem; }
+.competition-list p { max-width: 70ch; color: var(--muted); margin-bottom: 12px; overflow-wrap: anywhere; }
+.competition-list .button { flex-shrink: 0; }
+.competition-description, .competition-notes p { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch; line-height: 1.7; }
+.competition-notes h3 { margin-bottom: 12px; }
+.competition-fields { border: 0; min-width: 0; }
+.competition-fields > .field, .competition-fields > .two { max-width: 800px; }
+.competition-choices { list-style: none; padding: 0; margin-top: 16px; }
+.competition-choices li { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.competition-choices li > label:first-child { display: flex; align-items: center; gap: 12px; flex: 1; }
+.competition-choices input[type="checkbox"] { width: 18px; min-height: 18px; height: 18px; accent-color: var(--accent); }
+.competition-choices .field { max-width: 180px; }
+.competition-score-wrap { overflow-x: auto; }
+.competition-scoreboard { width: 100%; border-collapse: collapse; text-align: left; }
+.competition-scoreboard th, .competition-scoreboard td { padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.competition-scoreboard th { font-size: .8125rem; font-weight: 500; color: var(--muted); }
+.competition-scoreboard td { font-size: .875rem; overflow-wrap: anywhere; }
+.competition-scoreboard th:last-child, .competition-scoreboard td:last-child { text-align: right; }
+@media (max-width: 1500px) { .app-search { display: none; } }
+@media (max-width: 700px) {
+  .rules-main { padding: 32px 16px 56px; }
+  .rules-layout { grid-template-columns: 1fr; gap: 32px; }
+  .rules-index { position: static; gap: 12px; }
+  .first-blood time { width: 100%; margin-left: 48px; }
+  .competition-list li { align-items: start; flex-direction: column; gap: 16px; }
+  .competition-scoreboard th, .competition-scoreboard td { padding: 12px; }
+  .competition-fields .two { grid-template-columns: 1fr; }
+}
 .submit { display: grid; gap: 14px; padding: 20px; }
 .submit h2 { font-size: 1.25rem; }
 .captured { display: grid; gap: 12px; justify-items: start; }

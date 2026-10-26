@@ -8,6 +8,20 @@
       "when": 1792407228266,
       "tag": "0000_little_colleen_wing",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793005826583,
+      "tag": "0001_dashing_blob",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793007355654,
+      "tag": "0002_closed_human_fly",
+      "breakpoints": true
     }
   ]
 }

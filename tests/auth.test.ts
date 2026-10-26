@@ -2,12 +2,15 @@ import { createHmac, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createStore } from "@/server/db";
-import { createAuth, headersAfterAuth, type Auth } from "@/server/auth";
+import { createAuth, headersAfterAuth, isEmailAllowed, type Auth } from "@/server/auth";
 import { getViewer, hasStaffVerification, markStaffVerified, requireAccess } from "@/server/access";
 import { account, allowlist, rateLimit, session, staffVerification, user, verification } from "@/server/schema";
 import { POST as setupMfa } from "@/app/api/v1/auth/mfa/setup/route";
 import { POST as verifyMfa } from "@/app/api/v1/auth/mfa/verify/route";
 import { GET as listAllowlist, POST as addAllowlist } from "@/app/api/v1/staff/allowlist/route";
+import { GET as bootstrap } from "@/app/api/v1/auth/bootstrap/route";
+import { DELETE as revokeAccess } from "@/app/api/v1/staff/allowlist/[id]/route";
+import { GET as listHostedCompetitions,POST as createHostedCompetition } from "@/app/api/v1/staff/competitions/route";
 
 const outbound = vi.hoisted(() => ({ messages: [] as { to: string; url: string }[] }));
 vi.mock("@/server/mail", () => ({
@@ -46,7 +49,6 @@ function authenticatorCode(secret: string) {
 }
 
 async function provision(email: string, role: "participant" | "admin" = "participant") {
-  await store.db.insert(allowlist).values({ id: randomUUID(), email });
   const registered = await auth.api.signUpEmail({ body: { email, name: "Private Provider Name", password } });
   const emailMessage = outbound.messages.filter((message) => message.to === email).at(-1)!;
   expect(emailMessage).toBeDefined();
@@ -75,7 +77,18 @@ afterAll(async () => {
 });
 beforeEach(async () => { await store.db.delete(rateLimit); });
 
-describe("authentication and private access", () => {
+describe("open registration and account access", () => {
+  it("protects competition hosting with the admin role and current-session MFA",async()=>{
+    const host=await provision("competition-admin@example.test","admin"),player=await provision("competition-participant@example.test");
+    const body={title:"Hosted event",description:"An original competition on an independent CTFd host.",platform:"ctfd",externalUrl:"https://ctf.example.test",startsAt:new Date(Date.now()+60_000).toISOString(),endsAt:new Date(Date.now()+3_600_000).toISOString()};
+    expect((await createHostedCompetition(applicationRequest("/api/v1/staff/competitions",body,player.headers),undefined)).status).toBe(403);
+    const blocked=await createHostedCompetition(applicationRequest("/api/v1/staff/competitions",body,host.headers),undefined);
+    expect(blocked.status).toBe(403);expect((await blocked.json()).error.code).toBe("MFA_REQUIRED");
+    await store.db.update(user).set({twoFactorEnabled:true}).where(eq(user.id,host.id));await markStaffVerified((await getViewer(host.headers))!);
+    expect((await createHostedCompetition(applicationRequest("/api/v1/staff/competitions",body,host.headers),undefined)).status).toBe(201);
+    const response=await listHostedCompetitions(new Request(`${base}/api/v1/staff/competitions`,{headers:host.headers}),undefined);
+    expect(await response.json()).toEqual(expect.arrayContaining([expect.objectContaining({title:"Hosted event",status:"draft",platform:"ctfd"})]));
+  });
   it("lists only active access entries and reactivates revoked or expired addresses", async () => {
     const identity=await provision("list-admin@example.test","admin");
     await store.db.update(user).set({twoFactorEnabled:true}).where(eq(user.id,identity.id));
@@ -103,19 +116,47 @@ describe("authentication and private access", () => {
     const restoredEmails=(await (await listAllowlist(request(),undefined)).json() as {email:string}[]).map(e=>e.email);
     expect(restoredEmails).toEqual(expect.arrayContaining(entries.map(e=>e.email)));
   });
-  it("rejects signup without an active allowlist entry", async () => {
+  it("admits a new player without an invitation only after email verification", async () => {
+    const email="new-player@example.test";
+    expect(await store.db.select().from(allowlist).where(eq(allowlist.email,email))).toHaveLength(0);
+    const registered=await auth.api.signUpEmail({body:{email,name:"Private Provider Name",password}});
+    expect(registered.user).toMatchObject({email,emailVerified:false,role:"participant"});
+    await expect(auth.api.signInEmail({body:{email,password}})).rejects.toMatchObject({statusCode:403});
+    const message=outbound.messages.filter(entry=>entry.to===email).at(-1)!;
+    await auth.api.verifyEmail({query:{token:new URL(message.url).searchParams.get("token")!}});
+    const signedIn=await auth.api.signInEmail({body:{email,password},asResponse:true});
+    expect(signedIn.status).toBe(200);
+    const headers=headersAfterAuth(new Request(base),signedIn);
+    expect((await requireAccess(headers)).user.id).toBe(registered.user.id);
+    const response=await bootstrap(new Request(`${base}/api/v1/auth/bootstrap`,{headers}),undefined);
+    expect(await response.json()).toMatchObject({hasAccess:true,staffVerified:false,user:{email,role:"participant",emailVerified:true,codename:null}});
+    await expect(requireAccess(headers,{staff:true})).rejects.toMatchObject({code:"STAFF_REQUIRED"});
+    expect(await store.db.select().from(allowlist).where(eq(allowlist.email,email))).toHaveLength(1);
+    expect(await isEmailAllowed(`  ${email.toUpperCase()}  `)).toBe(true);
+  });
+
+  it("keeps verified accounts usable when they have no legacy access entry", async () => {
+    const identity=await provision("no-access-entry@example.test");
+    await store.db.delete(allowlist).where(eq(allowlist.email,identity.email));
+    expect((await requireAccess(identity.headers)).user.id).toBe(identity.id);
+  });
+
+  it("blocks signup for suspended or expired email addresses without restoring their access", async () => {
     // Better Auth deliberately returns a synthetic success for denied signup to
     // avoid disclosing whether an email already exists. No identity is created.
-    await auth.api.signUpEmail({ body: { email: "outsider@example.test", name: "Outsider", password } });
-    expect(await store.db.select().from(user).where(eq(user.email, "outsider@example.test"))).toHaveLength(0);
-    expect(outbound.messages.some((message) => message.to === "outsider@example.test")).toBe(false);
-    await store.db.insert(allowlist).values({ id: randomUUID(), email: "expired@example.test", expiresAt: new Date(Date.now() - 1000) });
-    await auth.api.signUpEmail({ body: { email: "expired@example.test", name: "Expired", password } });
-    expect(await store.db.select().from(user).where(eq(user.email, "expired@example.test"))).toHaveLength(0);
+    for(const entry of [
+      {id:randomUUID(),email:"suspended-signup@example.test",revokedAt:new Date()},
+      {id:randomUUID(),email:"expired@example.test",expiresAt:new Date(Date.now()-1000)},
+    ]) {
+      await store.db.insert(allowlist).values(entry);
+      await auth.api.signUpEmail({body:{email:entry.email,name:"Blocked identity",password}});
+      expect(await store.db.select().from(user).where(eq(user.email,entry.email))).toHaveLength(0);
+      expect(outbound.messages.some(message=>message.to===entry.email)).toBe(false);
+      expect(await isEmailAllowed(entry.email)).toBe(false);
+    }
   });
 
   it("rejects unverified password login and rechecks verification on protected operations", async () => {
-    await store.db.insert(allowlist).values({ id: randomUUID(), email: "unverified@example.test" });
     await auth.api.signUpEmail({ body: { email: "unverified@example.test", name: "Private", password } });
     await expect(auth.api.signInEmail({ body: { email: "unverified@example.test", password } })).rejects.toMatchObject({ statusCode: 403 });
     const identity = await provision("verification-revoked@example.test");
@@ -124,12 +165,35 @@ describe("authentication and private access", () => {
     await expect(requireAccess(identity.headers)).rejects.toMatchObject({ status: 403, code: "EMAIL_UNVERIFIED" });
   });
 
-  it("blocks an existing session and new login immediately after allowlist revocation", async () => {
+  it("blocks an existing session, bootstrap access, and new login immediately after account revocation", async () => {
     const identity = await provision("revoked@example.test");
     expect((await requireAccess(identity.headers)).user.id).toBe(identity.id);
     await store.db.update(allowlist).set({ revokedAt: new Date() }).where(eq(allowlist.email, identity.email));
     await expect(requireAccess(identity.headers)).rejects.toMatchObject({ status: 403, code: "ACCESS_REVOKED" });
     await expect(auth.api.signInEmail({ body: { email: identity.email, password } })).rejects.toMatchObject({ statusCode: 403 });
+    const response=await bootstrap(new Request(`${base}/api/v1/auth/bootstrap`,{headers:identity.headers}),undefined);
+    expect(await response.json()).toMatchObject({hasAccess:false,staffVerified:false});
+    const accounts=await auth.handler(new Request(`${base}/api/auth/list-accounts`,{headers:identity.headers}));
+    expect(accounts.status).toBe(403);
+  });
+
+  it("lets a verified admin suspend and restore an openly registered account through the real routes", async () => {
+    const admin=await provision("moderator@example.test","admin");
+    await store.db.update(user).set({twoFactorEnabled:true}).where(eq(user.id,admin.id));
+    await markStaffVerified((await getViewer(admin.headers))!);
+    const player=await provision("moderated-player@example.test");
+    const listing=await listAllowlist(new Request(`${base}/api/v1/staff/allowlist`,{headers:admin.headers}),undefined);
+    const entry=(await listing.json() as {id:string;email:string}[]).find(row=>row.email===player.email)!;
+    expect(entry).toBeDefined();
+    const request=(headers:Headers)=>{const next=new Headers(headers);next.set("origin",base);next.set("x-dfctf-request","1");return new Request(`${base}/api/v1/staff/allowlist/${entry.id}`,{method:"DELETE",headers:next});};
+    const context={params:Promise.resolve({id:entry.id})};
+    expect((await revokeAccess(request(player.headers),context)).status).toBe(403);
+    expect((await revokeAccess(request(admin.headers),context)).status).toBe(200);
+    await expect(requireAccess(player.headers)).rejects.toMatchObject({code:"ACCESS_REVOKED"});
+    const restored=await addAllowlist(applicationRequest("/api/v1/staff/allowlist",{email:player.email},admin.headers),undefined);
+    expect(restored.status).toBe(201);
+    expect((await requireAccess(player.headers)).user.id).toBe(player.id);
+    expect((await auth.api.signInEmail({body:{email:player.email,password},asResponse:true})).status).toBe(200);
   });
 
   it("keeps provider names private and rejects participant staff access", async () => {

@@ -26,12 +26,16 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
     const resetToken = params.get("token");
     if (resetToken && (params.get("reset") === "1" || window.location.pathname.includes("reset"))) { setToken(resetToken); setMode("reset"); }
     if (params.has("verified")) setMessage("Your email is verified. Sign in to continue.");
+    if (params.get("passwordReset") === "1") setMessage("Password updated. Sign in with your new password.");
     if (params.get("error")) setError("This link could not be used. Request a new email and try again.");
   }, []);
 
   useEffect(() => { setMode(m => m === "reset" || m === "mfa" ? m : initialMode); }, [initialMode]);
 
-  function changeMode(next: AuthMode) { setMode(next); setError(""); setMessage(""); setPassword(""); }
+  function changeMode(next: AuthMode) {
+    if (mode === "reset" && next === "signin") { window.location.replace("/?auth=signin"); return; }
+    setMode(next); setError(""); setMessage(""); setPassword("");
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(""); setMessage("");
@@ -41,7 +45,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
         setMessage("If this address has an account, a reset link is on its way. Check your email.");
       } else if (mode === "reset") {
         await api("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ token, newPassword: password }) });
-        window.history.replaceState(null, "", "/?auth=signin"); setMode("signin"); setMessage("Password updated. Sign in with your new password."); setPassword("");
+        window.location.replace("/?auth=signin&passwordReset=1");
       } else if (mode === "mfa") {
         await api("/api/v1/auth/mfa/verify", { method: "POST", body: JSON.stringify({ code, method: backup ? "backup" : "totp" }) });
         await refresh();

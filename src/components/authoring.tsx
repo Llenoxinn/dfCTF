@@ -8,8 +8,9 @@ import { api, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, Loading
 type EditorData = {
   title: string; category: Category; difficulty: Level; summary: string; description: string;
   solution: string; flag: string; flagFormat: string; tags: string; xp: number; estimatedMinutes: number;
+  visibility: "practice" | "competition";
 };
-const blank: EditorData = { title: "", category: "General skills", difficulty: "Easy", summary: "", description: "", solution: "", flag: "", flagFormat: "dfCTF{...}", tags: "", xp: 100, estimatedMinutes: 20 };
+const blank: EditorData = { title: "", category: "General skills", difficulty: "Easy", summary: "", description: "", solution: "", flag: "", flagFormat: "dfCTF{...}", tags: "", xp: 100, estimatedMinutes: 20, visibility: "practice" };
 type StaffDetail = ChallengeDetail & { authorId?: string; canPublish?: boolean };
 const STATUS_LABEL: Record<ChallengeStatus, string> = { draft: "Draft", review: "In review", published: "Live", archived: "Archived" };
 const BADGE: Record<ChallengeStatus, string> = { draft: "[draft]", review: "[in review]", published: "[live]", archived: "[archived]" };
@@ -27,6 +28,12 @@ export default function Authoring({ bootstrap, goSettings }: { bootstrap: Bootst
   const load = useCallback(async () => { setBusy(true); try { setItems(await api("/api/v1/staff/challenges")); setError(""); } catch (err) { setError(err instanceof Error ? err.message : "Could not load the authoring workspace."); } finally { setBusy(false); } }, []);
   useEffect(() => { if (bootstrap.staffVerified) void load(); }, [bootstrap.staffVerified, load]);
   const canCreate = bootstrap.user?.role === "author" || bootstrap.user?.role === "admin";
+  async function addRules() {
+    setBusy(true); setError("");
+    try { const draft = await api<{ id: string }>("/api/v1/staff/challenges/rules", { method: "POST" }); setSelected(draft.id); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not create the rules challenge."); }
+    finally { setBusy(false); }
+  }
 
   if (!bootstrap.staffVerified) return <>
     <div className="page-head"><div><h1>Authoring</h1><p>Write challenges, review other people’s, and publish them to the board.</p></div></div>
@@ -37,7 +44,7 @@ export default function Authoring({ bootstrap, goSettings }: { bootstrap: Bootst
   const shown = filter ? items.filter(i => i.status === filter) : items;
   const n = (s: ChallengeStatus) => items.filter(i => i.status === s).length;
   return <>
-    <div className="page-head"><div><h1>Authoring</h1><p>Write challenges, review other people’s, and publish them to the board.</p></div>{canCreate ? <button className="button button-primary" onClick={() => setSelected("new")}><Icon name="plus" size={16} />New challenge</button> : null}</div>
+    <div className="page-head"><div><h1>Authoring</h1><p>Write challenges, review other people’s, and publish them to the board.</p></div>{canCreate ? <div className="head-actions"><button className="button button-secondary" onClick={addRules} disabled={busy}>Rules challenge</button><button className="button button-primary" onClick={() => setSelected("new")}><Icon name="plus" size={16} />New challenge</button></div> : null}</div>
     <ol className="workflow" aria-label="Publishing workflow">
       {([["draft", "Write the description, walkthrough, and flag. Attach files."], ["review", "Someone other than the author downloads the files and solves it."], ["published", "The reviewer’s correct flag publishes it to the board."]] as const).map(([s, t]) => <li key={s}><strong className={s === "published" ? "accent" : ""}>{n(s)}</strong><div><StatusBadge status={s} /><span className="muted">{t}</span></div></li>)}
     </ol>
@@ -70,13 +77,13 @@ function ChallengeEditor({ id, role, viewerId, close }: { id: string; role: stri
   const [testFlag, setTestFlag] = useState("");
   const read = useCallback(async (challengeId: string) => {
     const data = await api<StaffDetail>(`/api/v1/staff/challenges/${encodeURIComponent(challengeId)}`);
-    setDetail(data); setForm({ title: data.title, category: data.category, difficulty: data.difficulty, summary: data.summary, description: data.description, solution: data.solution ?? "", flag: "", flagFormat: data.flagFormat, tags: data.tags.join(", "), xp: data.xp, estimatedMinutes: data.estimatedMinutes });
+    setDetail(data); setForm({ title: data.title, category: data.category, difficulty: data.difficulty, summary: data.summary, description: data.description, solution: data.solution ?? "", flag: "", flagFormat: data.flagFormat, tags: data.tags.join(", "), xp: data.xp, estimatedMinutes: data.estimatedMinutes, visibility: data.visibility ?? "practice" });
   }, []);
   useEffect(() => { if (id === "new") return; read(id).catch(err => setError(err.message)).finally(() => setLoading(false)); }, [id, read]);
   const editable = !detail || detail.status === "draft" && (role === "admin" || role === "author" && detail.authorId === viewerId);
   const canReview = role === "reviewer" || role === "admin";
   const canWithdraw = detail?.status === "review" && (role === "admin" || role === "author" && detail.authorId === viewerId);
-  const dirty = !detail || files.length > 0 || !!form.flag || form.title !== detail.title || form.summary !== detail.summary || form.description !== detail.description || form.solution !== detail.solution || form.category !== detail.category || form.difficulty !== detail.difficulty || form.xp !== detail.xp || form.estimatedMinutes !== detail.estimatedMinutes || form.flagFormat !== detail.flagFormat || form.tags !== detail.tags.join(", ");
+  const dirty = !detail || files.length > 0 || !!form.flag || form.title !== detail.title || form.summary !== detail.summary || form.description !== detail.description || form.solution !== detail.solution || form.category !== detail.category || form.difficulty !== detail.difficulty || form.xp !== detail.xp || form.estimatedMinutes !== detail.estimatedMinutes || form.flagFormat !== detail.flagFormat || form.tags !== detail.tags.join(", ") || form.visibility !== (detail.visibility ?? "practice");
   function field<K extends keyof EditorData>(key: K, value: EditorData[K]) { setForm(f => ({ ...f, [key]: value })); }
 
   async function save(event: FormEvent) {
@@ -134,6 +141,7 @@ function ChallengeEditor({ id, role, viewerId, close }: { id: string; role: stri
       </div>
       <aside className="editor-side">
         <section className="panel"><div className="panel-head"><h2>Details</h2></div><div className="panel-pad stack">
+          <label className="field"><span>Availability</span><select value={form.visibility} onChange={e => field("visibility", e.target.value as EditorData["visibility"])} disabled={!editable || busy}><option value="practice">Practice library</option><option value="competition">Competition only</option></select><small>Competition-only challenges stay out of practice. After independent review, an admin can add them to one event.</small></label>
           <label className="field"><span>Category</span><select value={form.category} onChange={e => field("category", e.target.value as Category)} disabled={!editable || busy}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
           <div className="field"><span>Difficulty</span><div className="segmented block" role="group" aria-label="Difficulty">{DIFFICULTIES.map(d => <button key={d} type="button" aria-pressed={form.difficulty === d} disabled={!editable || busy} onClick={() => field("difficulty", d)}><Pips value={d} />{d}</button>)}</div></div>
           <div className="two"><label className="field"><span>Points</span><input className="mono" type="number" value={form.xp} onChange={e => field("xp", Number(e.target.value))} min={0} max={1000} required readOnly={!editable || busy} /></label><label className="field"><span>Minutes</span><input className="mono" type="number" value={form.estimatedMinutes} onChange={e => field("estimatedMinutes", Number(e.target.value))} min={1} max={480} required readOnly={!editable || busy} /></label></div>
@@ -155,7 +163,7 @@ function ChallengeEditor({ id, role, viewerId, close }: { id: string; role: stri
             </> : <Notice>Waiting for an independent reviewer. Authors can’t publish their own challenges.</Notice>}
             {canWithdraw ? <button type="button" className="button button-secondary" disabled={busy} onClick={() => transition("draft")}>Return to draft</button> : null}
           </> : detail?.status === "published" ? <>
-            <Notice type="success">Live on the board.</Notice>
+            <Notice type="success">{detail.visibility === "competition" ? "Reviewed and ready for a competition. Hidden from the practice library." : "Live on the board."}</Notice>
             {role === "admin" ? <button type="button" className="button button-secondary" disabled={busy} onClick={() => { if (window.confirm("Archive this challenge? Players will no longer be able to open it.")) void transition("archived"); }}><Icon name="archive" size={16} />Archive challenge</button> : null}
           </> : <Notice>{detail?.status === "draft" ? "The author is still writing this draft. Review opens once it’s sent for review." : "This challenge is archived."}</Notice>}
         </div></section>

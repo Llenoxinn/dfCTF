@@ -7,6 +7,7 @@ import type { Database } from "./db";
 import { audit, challengeRecord } from "./challenges";
 import { HttpError } from "./http";
 import type { Viewer } from "@/lib/types";
+import { requireCompetitionChallenge } from "./competition-access";
 
 const types=new Set([".txt",".csv",".json",".log",".pcap",".zip",".png",".jpg",".jpeg",".pdf"]);
 export const MAX_ARTIFACT_BYTES=10*1024*1024;
@@ -41,10 +42,11 @@ export async function saveArtifact(db:Database,viewer:Viewer,id:string,name:stri
     });
   } catch(error) {await unlink(location).catch(()=>{});throw error;}
 }
-export async function downloadArtifact(db:Database,viewer:Viewer,id:string,fileId:string,staff=false) {
+export async function downloadArtifact(db:Database,viewer:Viewer,id:string,fileId:string,staff=false,competitionId?:string) {
   const row=await challengeRecord(db,id);
+  if(competitionId)await requireCompetitionChallenge(db,viewer,id,competitionId);
   if(staff){if(!["author","reviewer","admin"].includes(viewer.role)||(viewer.role==="author"&&row.challenge.authorId!==viewer.id))throw new HttpError(404,"NOT_FOUND","File unavailable.");}
-  else if(row.challenge.status!=="published")throw new HttpError(404,"NOT_FOUND","File unavailable.");
+  else if(row.challenge.status!=="published"||(!competitionId&&row.challenge.visibility!=="practice"))throw new HttpError(404,"NOT_FOUND","File unavailable.");
   const [file]=await db.select().from(artifacts).where(and(eq(artifacts.id,fileId),eq(artifacts.versionId,row.version.id)));
   if(!file)throw new HttpError(404,"NOT_FOUND","File unavailable.");
   let bytes:Buffer;try{bytes=await readFile(artifactPath(file.storageKey));}catch{throw new HttpError(404,"NOT_FOUND","This file is temporarily unavailable.");}

@@ -10,6 +10,7 @@ export const challengeInput=z.object({
   title:z.string().trim().min(3).max(80), summary:z.string().trim().min(10).max(240),
   description:z.string().trim().min(20).max(20000), solution:z.string().trim().min(20).max(50000),
   category:z.enum(CATEGORIES),difficulty:z.enum(DIFFICULTIES),
+  visibility:z.enum(["practice","competition"]).optional(),
   tags:tagsInput.default([]),
   xp:z.number().int().min(0).max(1000),estimatedMinutes:z.number().int().min(1).max(480),
   flag:z.string().trim().min(8).max(200).regex(/^dfctf\{[^\r\n{}]+\}$/i, "Use dfCTF{your_flag}.").transform(canonicalFlag),

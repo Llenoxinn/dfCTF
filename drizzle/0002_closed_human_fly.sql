@@ -1,0 +1,22 @@
+ALTER TABLE "allowlist" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "artifacts" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "audit_events" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "challenge_versions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "challenges" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "competition_challenges" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "competition_registrations" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "competition_solves" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "competition_submissions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "competitions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "app_rate_limits" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "request_results" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "solves" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "submissions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "xp_ledger" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "auth_account" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "auth_rate_limit" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "auth_session" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "staff_session_verification" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "auth_two_factor" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "auth_user" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "auth_verification" ENABLE ROW LEVEL SECURITY;

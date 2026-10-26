@@ -7,14 +7,16 @@ import { countdownParts } from "@/lib/week";
 import AuthPanel, { LocalInbox, type AuthMode } from "./auth-panel";
 import Authoring from "./authoring";
 import AccountSecurity from "./account-security";
+import Competitions, { type CompetitionRoute } from "./competitions";
 import Landing from "./landing";
 import { ChallengeCard, type CardState } from "./cards";
 import { Heatmap, Radar, RaceChart, SolveGrid } from "./viz";
 import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Notice, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
 
-type View = "practice" | "leaderboard" | "progress" | "authoring" | "settings";
+type View = "practice" | "leaderboard" | "progress" | "competitions" | "authoring" | "settings";
 const VIEWS: { id: View; label: string; staff?: boolean }[] = [
   { id: "practice", label: "Challenges" }, { id: "leaderboard", label: "Leaderboard" }, { id: "progress", label: "Progress" },
+  { id: "competitions", label: "Competitions" },
   { id: "authoring", label: "Authoring", staff: true }, { id: "settings", label: "Settings" },
 ];
 
@@ -39,6 +41,7 @@ export default function Workspace() {
   const [bootError, setBootError] = useState("");
   const [view, setView] = useState<View>("practice");
   const [selected, setSelected] = useState("");
+  const [competitionRoute,setCompetitionRoute] = useState<CompetitionRoute>({eventId:"",challengeId:""});
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
   const [challenges, setChallenges] = useState<ChallengeSummary[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -58,10 +61,11 @@ export default function Workspace() {
       const params = new URLSearchParams(window.location.search);
       const requested = params.get("view");
       setView(VIEWS.some(v => v.id === requested) ? requested as View : "practice");
-      setSelected(params.get("challenge") ?? "");
+      setSelected(requested === "competitions" ? "" : params.get("challenge") ?? "");
+      setCompetitionRoute({eventId:params.get("competition")??"",challengeId:requested==="competitions"?params.get("challenge")??"":""});
       const auth = params.get("auth");
       const linkFlow = params.has("token") || params.has("verified") || params.has("error");
-      setAuthMode(auth === "signup" ? "signup" : auth === "signin" || linkFlow ? "signin" : null);
+      setAuthMode(params.get("reset") === "1" && params.has("token") ? "reset" : auth === "signup" ? "signup" : auth === "signin" || linkFlow ? "signin" : null);
     }
     readLocation(); window.addEventListener("popstate", readLocation);
     return () => window.removeEventListener("popstate", readLocation);
@@ -86,9 +90,15 @@ export default function Workspace() {
 
   function navigate(next: View, challenge = "") {
     setView(next); setSelected(challenge);
+    setCompetitionRoute({eventId:"",challengeId:""});
     window.history.pushState(null, "", hrefFor(next, challenge));
     window.scrollTo({ top: 0, behavior: "instant" });
     document.getElementById("main-content")?.focus({ preventScroll: true });
+  }
+  function openCompetition(eventId="",challengeId="") {
+    setView("competitions");setSelected("");setCompetitionRoute({eventId,challengeId});
+    const params=new URLSearchParams({view:"competitions",...(eventId?{competition:eventId}:{}),...(challengeId?{challenge:challengeId}:{})});
+    window.history.pushState(null,"",`/?${params}`);window.scrollTo({top:0,behavior:"instant"});
   }
   function openAuth(mode: AuthMode | null) {
     setAuthMode(mode);
@@ -102,7 +112,7 @@ export default function Workspace() {
 
   if (bootError && !bootstrap) return <div className="center-screen"><Wordmark /><div className="gate-card"><Notice type="error">{bootError}</Notice><button className="button button-primary" onClick={refresh}>Try again</button></div></div>;
   if (!bootstrap) return <div className="center-screen"><Wordmark /><Loading label="Opening dfCTF" /></div>;
-  if (!bootstrap.user) return authMode ? <AuthPanel bootstrap={bootstrap} refresh={refresh} initialMode={authMode} back={() => openAuth(null)} /> : <Landing signIn={() => openAuth("signin")} createAccount={() => openAuth("signup")} />;
+  if (authMode === "reset" || !bootstrap.user) return authMode ? <AuthPanel key={authMode === "reset" ? "reset" : "account"} bootstrap={bootstrap} refresh={refresh} initialMode={authMode} back={() => openAuth(null)} /> : <Landing signIn={() => openAuth("signin")} createAccount={() => openAuth("signup")} />;
   if (!bootstrap.hasAccess) return <AccessGate bootstrap={bootstrap} refresh={refresh} signOut={signOut} />;
   if (!bootstrap.user.codename) return <Onboarding user={bootstrap.user} refresh={refresh} />;
 
@@ -119,7 +129,7 @@ export default function Workspace() {
       <nav className="tabs" aria-label="Main">{VIEWS.filter(v => !v.staff || staff).flatMap(v => {
         const tab = <a key={v.id} className="tab" href={hrefFor(v.id)} aria-current={activeView === v.id && !selected ? "page" : undefined} data-active={(activeView === v.id && (!weekly || selected !== weekly.id)) || undefined} onClick={e => inPlace(e, () => navigate(v.id))}>{v.label}</a>;
         return v.id === "leaderboard" && weekly ? [tab, <a key="week" className="tab" href={hrefFor("practice", weekly.id)} aria-current={selected === weekly.id ? "page" : undefined} data-active={selected === weekly.id || undefined} onClick={e => inPlace(e, () => navigate("practice", weekly.id))}>This week</a>] : [tab];
-      })}</nav>
+      })}<a className="tab" href="/rules" aria-label="Rules / Mechanics">Rules</a></nav>
       <span className="spacer" />
       <label className="app-search"><span className="sr-only">Search challenges</span><input type="search" placeholder="Search challenges" value={query} onChange={e => { setQuery(e.target.value); if (activeView !== "practice" || selected) navigate("practice"); }} onKeyDown={e => { if (e.key === "Escape") setQuery(""); }} /><kbd aria-hidden="true">/</kbd></label>
       {board?.viewer ? <span className="standing-pill mono"><b>#{board.viewer.rank}</b>{(progress?.totalXp ?? 0).toLocaleString()} pts</span> : <span className="standing-pill mono">{(progress?.totalXp ?? 0).toLocaleString()} pts</span>}
@@ -131,6 +141,7 @@ export default function Workspace() {
       {selected ? <ChallengeView key={selected} id={selected} back={() => navigate("practice")} onSolved={loadData} />
         : activeView === "settings" ? <Settings bootstrap={bootstrap} refresh={refresh} signOut={signOut} board={board} progress={progress} />
         : activeView === "authoring" ? <Authoring bootstrap={bootstrap} goSettings={() => navigate("settings")} />
+        : activeView === "competitions" ? <Competitions bootstrap={bootstrap} route={competitionRoute} open={openCompetition} goSettings={() => navigate("settings")} renderChallenge={(eventId,id,back,onSolved) => <ChallengeView key={`${eventId}:${id}`} id={id} competitionId={eventId} back={back} onSolved={onSolved} />} />
         : dataBusy && !progress ? <Loading label="Loading the board" />
         : activeView === "leaderboard" ? <LeaderboardView initial={board} progress={progress} viewer={codename} />
         : activeView === "progress" ? <ProgressView progress={progress} board={board} total={challenges.length} open={id => navigate("practice", id)} browse={() => navigate("practice")} />
@@ -239,38 +250,48 @@ function ChallengeTable({ items, open }: { items: ChallengeSummary[]; open: (id:
 
 type SubmitResult = { status: "correct" | "incorrect" | "already_solved"; xp: number; totalXp: number; solution?: string };
 
-function ChallengeView({ id, back, onSolved }: { id: string; back: () => void; onSolved: () => Promise<void> }) {
+function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back: () => void; onSolved: () => Promise<void>; competitionId?: string }) {
+  const endpoint = competitionId ? `/api/v1/competitions/${encodeURIComponent(competitionId)}/challenges/${encodeURIComponent(id)}` : `/api/v1/challenges/${encodeURIComponent(id)}`;
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null); const [loadError, setLoadError] = useState(""); const [error, setError] = useState(""); const [flag, setFlag] = useState(""); const [busy, setBusy] = useState(false); const [result, setResult] = useState<SubmitResult | null>(null); const [miss, setMiss] = useState(0);
-  useEffect(() => { let active = true; setChallenge(null); setLoadError(""); setError(""); setResult(null); setFlag(""); api<ChallengeDetail>(`/api/v1/challenges/${encodeURIComponent(id)}`).then(data => { if (active) setChallenge(data); }).catch(err => { if (active) setLoadError(err.message); }); return () => { active = false; }; }, [id]);
+  const [solverError, setSolverError] = useState(""); const [shownSolvers, setShownSolvers] = useState(20);
+  async function refreshSolvers() {
+    try { setChallenge(await api<ChallengeDetail>(endpoint)); setSolverError(""); }
+    catch { setSolverError("Could not refresh the solver list. Your saved progress is unchanged."); }
+  }
+  useEffect(() => { let active = true; setChallenge(null); setLoadError(""); setError(""); setResult(null); setFlag(""); api<ChallengeDetail>(endpoint).then(data => { if (active) setChallenge(data); }).catch(err => { if (active) setLoadError(err.message); }); return () => { active = false; }; }, [endpoint]);
+  useEffect(() => { if (!challenge?.competitionEndsAt || challenge.submissionsOpen === false) return; const delay = new Date(challenge.competitionEndsAt).getTime()-Date.now(); if (delay > 2_147_483_647) return; const timer = window.setTimeout(() => { void refreshSolvers(); void onSolved(); },Math.max(0,delay)); return () => window.clearTimeout(timer); },[challenge?.competitionEndsAt,challenge?.submissionsOpen]);
   async function submit(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError(""); setResult(null);
     try {
-      const response = await api<SubmitResult>(`/api/v1/challenges/${encodeURIComponent(id)}/submissions`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ flag }) });
+      const response = await api<SubmitResult>(`${endpoint}/submissions`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ flag }) });
       setResult(response);
       if (response.status !== "incorrect") { setChallenge(c => c ? { ...c, solved: true, attempted: true, solution: response.solution ?? c.solution } : c); setFlag(""); }
       else { setMiss(m => m + 1); setChallenge(c => c ? { ...c, attempted: true } : c); }
       await onSolved();
+      if (response.status !== "incorrect") await refreshSolvers();
     } catch (err) { setError(err instanceof Error ? err.message : "Could not submit your flag."); } finally { setBusy(false); }
   }
   if (loadError) return <><button className="text-button back-link" onClick={back}><Icon name="back" size={16} />Back to challenges</button><Empty title="This challenge isn’t available" action={<button className="button button-secondary" onClick={back}>Back to challenges</button>}>{loadError}</Empty></>;
   if (!challenge) return <Loading label="Opening the challenge" />;
   const level = challenge.difficulty.toLowerCase();
+  const solvers = challenge.solvers ?? [], latest = solvers.slice(-5).reverse();
+  const firstBlood = solvers.find(s => s.firstBlood);
   return <article className="challenge">
-    <button className="text-button back-link" onClick={back}><Icon name="back" size={16} />Back to challenges</button>
+    <button className="text-button back-link" onClick={back}><Icon name="back" size={16} />{competitionId ? "Back to competition" : "Back to challenges"}</button>
     <header className="challenge-head">
       <div className="tags"><span className="tag">{challenge.category.toLowerCase()}</span><span className={`tag tag-${level}`}>{level}</span>{isWeekly(challenge) ? <span className="tag tag-accent">this week</span> : null}<span className="spacer" /><span className="mono accent strong points">{challenge.xp} pts</span></div>
       <h1>{challenge.title}</h1>
       <p className="challenge-summary">{challenge.summary}</p>
-      <div className="challenge-meta muted">{challenge.solvers?.length ? <span className="solver-stack" aria-hidden="true">{challenge.solvers.map(n => <Identicon key={n} name={n} size={26} />)}</span> : null}
-        <span>{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}{challenge.solvers?.length ? <>, latest by <span className="mono">{challenge.solvers[0]}</span></> : ""}. About {challenge.estimatedMinutes} min. Author <span className="mono">{challenge.author}</span>, version {challenge.version}.</span></div>
+      <div className="challenge-meta muted">{latest.length ? <span className="solver-stack" aria-hidden="true">{latest.map((s,i) => <Identicon key={i} name={s.codename} size={26} />)}</span> : null}
+        <span>{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}{latest.length ? <>, latest by <span className="mono">{latest[0].codename}</span></> : ""}. About {challenge.estimatedMinutes} min. Author <span className="mono">{challenge.author}</span>, version {challenge.version}.</span></div>
     </header>
     <div className="challenge-grid">
       <div className="challenge-main">
-        <section className="panel" aria-labelledby="desc-title"><div className="panel-head"><h2 id="desc-title">Description</h2></div><div className="panel-pad"><Content text={challenge.description} />{challenge.tags.length ? <ul className="tag-list" aria-label="Tags">{challenge.tags.map(t => <li key={t} className="tag">{t}</li>)}</ul> : null}</div></section>
+        <section className="panel" aria-labelledby="desc-title"><div className="panel-head"><h2 id="desc-title">Description</h2></div><div className="panel-pad"><Content text={challenge.description} />{challenge.tags.includes("rules") ? <a className="button button-secondary" href="/rules">Read Rules / Mechanics</a> : null}{challenge.tags.length ? <ul className="tag-list" aria-label="Tags">{challenge.tags.map(t => <li key={t} className="tag">{t}</li>)}</ul> : null}</div></section>
         <section className="panel" aria-labelledby="files-title"><div className="panel-head"><h2 id="files-title">Files</h2><span className="spacer" /><span className="mono muted">{challenge.files.length} {challenge.files.length === 1 ? "file" : "files"}</span></div>
           {challenge.files.length ? <ul className="files">{challenge.files.map(file => <li key={file.id}>
             <div className="file-info"><span className="mono strong">{file.name}</span><span className="mono faint">{humanSize(file.size)}</span><span className="checksum mono">sha256 <code>{file.sha256}</code><CopyButton value={file.sha256} label={`Copy the SHA-256 checksum for ${file.name}`} /></span></div>
-            <a className="button button-secondary" href={`/api/v1/challenges/${encodeURIComponent(id)}/files/${encodeURIComponent(file.id)}`} download><Icon name="download" size={16} />Download</a>
+            <a className="button button-secondary" href={`${endpoint}/files/${encodeURIComponent(file.id)}`} download><Icon name="download" size={16} />Download</a>
           </li>)}</ul> : <p className="muted panel-pad">This challenge has no files. Everything you need is in the description.</p>}
         </section>
         {challenge.solved && challenge.solution ? <section className="panel unlocked" aria-labelledby="walk-title"><div className="panel-head"><h2 id="walk-title">Walkthrough</h2><span className="spacer" /><span className="mono accent">[open]</span></div><div className="panel-pad"><Content text={challenge.solution} /></div></section>
@@ -281,14 +302,15 @@ function ChallengeView({ id, back, onSolved }: { id: string; back: () => void; o
           {challenge.solved ? <div className="captured">
             <div className="verdict verdict-correct"><span className="mono">[x]</span>{result?.status === "correct" ? <DecodeText text="correct" className="mono strong" /> : <span className="mono strong">solved</span>}{result?.status === "correct" ? <span className="fade-up mono strong">+{result.xp} pts</span> : null}</div>
             <h2 id="submit-title">Flag captured</h2>
-            <p className="muted">{result?.status === "correct" ? <>Your total is now <span className="mono">{result.totalXp.toLocaleString()}</span> points.</> : result?.status === "already_solved" ? "You had already solved this one, so no extra points. Your progress is saved." : <>This one is on your record for <span className="mono">{challenge.xp}</span> points.</>}</p>
+            <p className="muted">{result?.status === "correct" ? <>{competitionId ? "Your competition score" : "Your total"} is now <span className="mono">{result.totalXp.toLocaleString()}</span> points.</> : result?.status === "already_solved" ? "You had already solved this one, so no extra points. Your progress is saved." : <>This one is on your record for <span className="mono">{challenge.xp}</span> points.</>}</p>
             <button className="button button-secondary" onClick={back}>Find another challenge</button>
           </div> : <>
             <h2 id="submit-title">Submit the flag</h2>
+            {challenge.submissionsOpen === false ? <Notice>This competition has ended. Submissions are closed.</Notice> : null}
             <p className="muted">Flags look like <code>{challenge.flagFormat.replace(/^dfctf/i, "dfCTF")}</code>. Paste the whole thing, wrapper included.</p>
             <form onSubmit={submit} className="stack">
-              <label className="field"><span>Flag</span><input key={miss} className={`flag-input${result?.status === "incorrect" ? " shake is-wrong" : ""}`} value={flag} onChange={e => setFlag(e.target.value)} placeholder="dfCTF{...}" required maxLength={1000} autoComplete="off" spellCheck={false} autoCapitalize="off" disabled={busy} /></label>
-              <button className="button button-primary block" disabled={busy || !flag.trim()}>{busy ? <><Spinner />Checking</> : "Submit flag"}</button>
+              <label className="field"><span>Flag</span><input key={miss} className={`flag-input${result?.status === "incorrect" ? " shake is-wrong" : ""}`} value={flag} onChange={e => setFlag(e.target.value)} placeholder="dfCTF{...}" required maxLength={1000} autoComplete="off" spellCheck={false} autoCapitalize="off" disabled={busy || challenge.submissionsOpen === false} /></label>
+              <button className="button button-primary block" disabled={busy || !flag.trim() || challenge.submissionsOpen === false}>{busy ? <><Spinner />Checking</> : "Submit flag"}</button>
             </form>
             {result?.status === "incorrect" ? <p className="verdict verdict-wrong mono" role="alert">[ ] incorrect. Nothing was deducted; check the files again.</p> : null}
             {error ? <Notice type="error">{error}</Notice> : null}
@@ -297,7 +319,17 @@ function ChallengeView({ id, back, onSolved }: { id: string; back: () => void; o
         </section>
       </aside>
     </div>
+    <section className="panel" aria-labelledby="solvers-title">
+      <div className="panel-head"><h2 id="solvers-title">Solvers</h2><span className="spacer" /><span className="mono muted">{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}</span><button className="text-button" onClick={refreshSolvers}>Refresh solves</button></div>
+      {solverError ? <div className="panel-pad"><Notice type="error">{solverError}</Notice></div> : null}
+      {firstBlood ? <div className="first-blood"><Identicon name={firstBlood.codename} size={36} /><div><strong>First blood</strong><span className="mono">{firstBlood.codename}</span></div><time dateTime={firstBlood.solvedAt}>{solveTime(firstBlood.solvedAt)}</time></div> : null}
+      {solvers.length ? <><p className="fine panel-pad solver-caption">Earliest solves first. Times are in Philippine time (UTC+8).</p><ol className="challenge-solvers">{solvers.slice(0,shownSolvers).map((s,i) => <li key={`${s.codename}:${i}`}><span className="mono faint">{i+1}</span><Identicon name={s.codename} /><strong className="mono solver-name">{s.codename}</strong>{s.firstBlood ? <span className="tag tag-accent">first blood</span> : null}<time dateTime={s.solvedAt}>{solveTime(s.solvedAt)}</time></li>)}</ol>{shownSolvers < solvers.length ? <div className="panel-pad"><button className="button button-secondary" onClick={() => setShownSolvers(n => n+20)}>Show more solvers</button></div> : null}</> : <p className="muted panel-pad">No solves yet. Capture the flag to claim first blood.</p>}
+    </section>
   </article>;
+}
+
+function solveTime(value: string) {
+  return new Date(value).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 }
 
 export function Content({ text }: { text: string }) {
@@ -372,13 +404,13 @@ function AccessGate({ bootstrap, refresh, signOut }: { bootstrap: Bootstrap; ref
     try { await api("/api/auth/send-verification-email", { method: "POST", body: JSON.stringify({ email: bootstrap.user?.email, callbackURL: `${window.location.origin}/?verified=1` }) }); setMessage("Verification email sent. Open the link, then come back and check again."); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not send email."); } finally { setBusy(false); }
   }
-  async function check() { setBusy(true); await refresh(); setBusy(false); setMessage(verified ? "Your account doesn’t have access yet. Ask a DFC Developers admin to enable this email." : ""); }
+  async function check() { setBusy(true); await refresh(); setBusy(false); setMessage(verified ? "Your account access is still suspended. Contact an administrator if you think this is a mistake." : ""); }
   return <div className="center-screen">
     <Wordmark />
     <div className="gate-card">
-      <ol className="steps-inline" aria-label="Getting in"><li data-done>[x] Account created</li><li data-done={verified || undefined}>{verified ? "[x]" : "[ ]"} Email verified</li><li>[ ] Access enabled</li></ol>
-      <h1>{verified ? "You’re almost in." : "Check your inbox."}</h1>
-      <p className="muted">{verified ? <>An admin needs to enable <strong>{bootstrap.user?.email}</strong> before you can open the challenges.</> : <>We sent a verification link to <strong>{bootstrap.user?.email}</strong>. Open it to confirm the address is yours.</>}</p>
+      <ol className="steps-inline" aria-label="Getting in"><li data-done>[x] Account created</li><li data-done={verified || undefined}>{verified ? "[x]" : "[ ]"} Email verified</li></ol>
+      <h1>{verified ? "Access suspended" : "Check your inbox."}</h1>
+      <p className="muted">{verified ? <>Access for <strong>{bootstrap.user?.email}</strong> is suspended. Contact an administrator if you think this is a mistake.</> : <>We sent a verification link to <strong>{bootstrap.user?.email}</strong>. Open it to confirm the address is yours.</>}</p>
       {message ? <Notice type="success">{message}</Notice> : null}{error ? <Notice type="error">{error}</Notice> : null}
       <div className="stack">
         {!verified ? <button className="button button-primary" onClick={send} disabled={busy}>{busy ? "Sending" : "Resend verification email"}</button> : null}
@@ -465,12 +497,12 @@ function Allowlist() {
   const [entries, setEntries] = useState<{ id: string; email: string; createdAt?: string }[]>([]); const [email, setEmail] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [message, setMessage] = useState(""); const [filter, setFilter] = useState("");
   const load = useCallback(async () => { try { setEntries(await api("/api/v1/staff/allowlist")); } catch (err) { setError(err instanceof Error ? err.message : "Could not load the access list."); } }, []);
   useEffect(() => { void load(); }, [load]);
-  async function add(e: FormEvent) { e.preventDefault(); setBusy(true); setError(""); setMessage(""); try { await api("/api/v1/staff/allowlist", { method: "POST", body: JSON.stringify({ email }) }); setMessage(`Added ${email}. They can register now.`); setEmail(""); await load(); } catch (err) { setError(err instanceof Error ? err.message : "Could not add email."); } finally { setBusy(false); } }
+  async function add(e: FormEvent) { e.preventDefault(); setBusy(true); setError(""); setMessage(""); try { await api("/api/v1/staff/allowlist", { method: "POST", body: JSON.stringify({ email }) }); setMessage(`Restored access for ${email}.`); setEmail(""); await load(); } catch (err) { setError(err instanceof Error ? err.message : "Could not restore access."); } finally { setBusy(false); } }
   async function remove(entry: { id: string; email: string }) { if (!window.confirm(`Revoke access for ${entry.email}? Their next request will be blocked, even if they’re signed in.`)) return; setBusy(true); setError(""); setMessage(""); try { await api(`/api/v1/staff/allowlist/${encodeURIComponent(entry.id)}`, { method: "DELETE" }); setMessage(`Revoked access for ${entry.email}.`); await load(); } catch (err) { setError(err instanceof Error ? err.message : "Could not revoke access."); } finally { setBusy(false); } }
   const shown = entries.filter(entry => entry.email.toLowerCase().includes(filter.toLowerCase()));
-  return <SettingsSection title="Registration access" description="Admins only. These email addresses can create an account. Revoking access blocks the person’s next request.">
+  return <SettingsSection title="Account access" description="Admins only. Anyone can register and verify their email. Revoking access blocks the person’s next request.">
     {error ? <Notice type="error">{error}</Notice> : null}{message ? <Notice type="success">{message}</Notice> : null}
-    <form className="inline-form" onSubmit={add}><label className="field grow"><span className="sr-only">Email address</span><input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="name@example.com" /></label><button className="button button-primary" disabled={busy}><Icon name="plus" size={16} />Add email</button></form>
+    <form className="inline-form" onSubmit={add}><label className="field grow"><span className="sr-only">Email address</span><input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="name@example.com" /></label><button className="button button-primary" disabled={busy}><Icon name="plus" size={16} />Restore access</button></form>
     <div className="list-head"><span className="mono muted">{entries.length} {entries.length === 1 ? "address" : "addresses"}</span>{entries.length > 6 ? <label className="search-box small"><Icon name="search" size={14} /><span className="sr-only">Filter the access list</span><input type="search" value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter" /></label> : null}</div>
     {shown.length ? <ul className="rows">{shown.map(entry => <li key={entry.id}><span className="mono break">{entry.email}</span>{entry.createdAt ? <span className="muted">Added {formatDate(entry.createdAt)}</span> : null}<span className="spacer" /><button className="text-button danger" disabled={busy} onClick={() => remove(entry)} aria-label={`Revoke access for ${entry.email}`}>Revoke</button></li>)}</ul> : <p className="muted">{entries.length ? "No addresses match that filter." : "No one is on the list yet."}</p>}
   </SettingsSection>;

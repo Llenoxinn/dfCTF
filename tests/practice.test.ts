@@ -2,12 +2,15 @@ import { beforeAll,afterAll,describe,it,expect } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { createStore } from "@/server/db";
-import { user,challenges,solves,xpLedger,submissions,requestResults,auditEvents } from "@/server/schema";
+import { user,challenges,challengeVersions,solves,xpLedger,submissions,requestResults,auditEvents } from "@/server/schema";
 import { createChallenge,editChallenge,publishChallenge,challengeDetail,submitFlag,getProgress,listChallenges,consumeLimit } from "@/server/challenges";
 import { saveArtifact,downloadArtifact } from "@/server/files";
 import { flagDigest,matchesFlag } from "@/server/flags";
 import { challengeInput,challengePatchInput,codenameSchema,codenameKey } from "@/server/validation";
 import { checkOrigin } from "@/server/http";
+import { createRulesChallenge,rulesChallenge } from "@/server/rules-challenge";
+import { RULE_FIELD_NOTES } from "@/lib/rules";
+import { getCommunity } from "@/server/community";
 import type { Viewer } from "@/lib/types";
 import { mkdtemp,rm } from "node:fs/promises";
 import os from "node:os";
@@ -23,6 +26,42 @@ async function ready(title:string){const record=await createChallenge(store.db,a
 beforeAll(async()=>{directory=await mkdtemp(path.join(os.tmpdir(),"dfctf-practice-"));process.env.ARTIFACT_DIR=directory;store=await createStore(undefined,true);await store.migrate();for(const v of [author,reviewer,learner])await store.db.insert(user).values({...v,name:"Private account"});});
 afterAll(async()=>{await store?.close();await rm(directory,{recursive:true,force:true});delete process.env.ARTIFACT_DIR;});
 describe("private practice integrity",()=>{
+  it("lists every solver in order, selects one first blood on timestamp ties, and exposes only public identity",async()=>{
+    const c=await ready("Solver attribution");
+    expect((await challengeDetail(store.db,learner,c.id)).solvers).toEqual([]);
+    const at=new Date("2026-10-20T12:00:00Z");
+    const [v]=await store.db.select().from(challengeVersions).where(eq(challengeVersions.challengeId,c.id));
+    for(let i=7;i>=0;i--){
+      const id=`${c.id}-player-${i}`;
+      await store.db.insert(user).values({id,name:"Private legal name",email:`${id}@example.test`,codename:i===7?null:`solver_${i}`});
+      await store.db.insert(solves).values({id:`${c.id}-solve-${i}`,userId:id,challengeId:c.id,versionId:v.id,createdAt:new Date(at.getTime()+Math.max(0,i-1)*1000)});
+    }
+    const detail=await challengeDetail(store.db,learner,c.id);
+    expect(detail.solveCount).toBe(8);
+    expect(detail.solvers?.map(s=>s.codename)).toEqual(["solver_0","solver_1","solver_2","solver_3","solver_4","solver_5","solver_6","Unnamed player"]);
+    expect(detail.solvers?.filter(s=>s.firstBlood)).toEqual([{codename:"solver_0",solvedAt:at.toISOString(),firstBlood:true}]);
+    expect(JSON.stringify(detail.solvers)).not.toMatch(/@example|Private legal name|userId|versionId/);
+    expect(detail.solution).toBeUndefined();
+    const community=await getCommunity(store.db,new Date("2026-10-20T12:00:10Z"));
+    expect(community.recent.filter(s=>s.title==="Solver attribution"&&s.firstBlood).map(s=>s.codename)).toEqual(["solver_0"]);
+  });
+  it("creates the rules challenge once, requires review, and accepts the flag assembled from the published field notes",async()=>{
+    const player={...learner,id:randomUUID(),email:"rules-player@example.test",codename:"rules_player"};
+    await store.db.insert(user).values({...player,name:"Private rules player"});
+    await expect(createRulesChallenge(store.db,learner)).rejects.toMatchObject({status:403});
+    const c=await createRulesChallenge(store.db,author);
+    expect((await createRulesChallenge(store.db,author)).id).toBe(c.id);
+    await expect(createRulesChallenge(store.db,{...reviewer,role:"author"})).rejects.toMatchObject({code:"RULES_CHALLENGE_EXISTS"});
+    await expect(challengeDetail(store.db,learner,c.id)).rejects.toMatchObject({status:404});
+    const draftDetail=await challengeDetail(store.db,author,c.id,true);
+    expect(draftDetail.files).toHaveLength(1);
+    expect(await (await downloadArtifact(store.db,author,c.id,draftDetail.files[0].id,true)).text()).not.toContain(rulesChallenge.flag);
+    await editChallenge(store.db,author,c.id,{status:"review"});
+    await expect(publishChallenge(store.db,{...author,role:"admin"},c.id,rulesChallenge.flag)).rejects.toMatchObject({code:"SELF_REVIEW"});
+    await publishChallenge(store.db,reviewer,c.id,RULE_FIELD_NOTES.join(""));
+    expect(await submitFlag(store.db,player,c.id,RULE_FIELD_NOTES.join(""))).toMatchObject({status:"correct",xp:50});
+    expect((await challengeDetail(store.db,player,c.id)).solvers).toEqual([expect.objectContaining({codename:player.codename,firstBlood:true})]);
+  });
   it("keeps validators and solutions out of unsolved challenge responses",async()=>{
     const c=await ready("Public response boundary");const detail=await challengeDetail(store.db,learner,c.id);
     expect(detail.solution).toBeUndefined();expect(JSON.stringify(detail)).not.toContain(flag);expect(JSON.stringify(detail)).not.toContain(flagDigest(flag));

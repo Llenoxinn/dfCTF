@@ -7,6 +7,8 @@ import { getAuth } from "../src/server/auth";
 import { allowlist,user,challenges,challengeVersions } from "../src/server/schema";
 import { createChallenge,publishChallenge } from "../src/server/challenges";
 import { saveArtifact } from "../src/server/files";
+import { createRulesChallenge, rulesChallenge } from "../src/server/rules-challenge";
+import { editChallenge } from "../src/server/challenges";
 import { codenameKey } from "../src/server/validation";
 import type { Category,Viewer } from "../src/lib/types";
 if(process.env.NODE_ENV==="production")throw new Error("Demo seeding is disabled in production. Use the admin CLI.");
@@ -28,6 +30,9 @@ async function account(email:string,codename:string,role:Viewer["role"]) {
 const owner=await account("owner@dfctf.local","Llenoxinn","admin");
 const learner=await account("learner@dfctf.local","new_operator","participant");
 const reviewer=await account("reviewer@dfctf.local","content_review","reviewer");
+const rules=await createRulesChallenge(db,owner);
+if(rules.status==="draft")await editChallenge(db,owner,rules.id,{status:"review"});
+if(rules.status==="draft"||rules.status==="review")await publishChallenge(db,reviewer,rules.id,rulesChallenge.flag);
 type Seed={title:string;category:Category;summary:string;description:string;solution:string;flag:string;filename:string;data:string|Buffer;tags:string[];minutes:number;difficulty?:"Easy"|"Medium";xp?:number};
 const examples:Seed[]=[
   {title:"First contact",category:"General skills",summary:"Every investigation starts with a closer look. Find your first flag in a field note.",description:"Your first assignment is deliberately small. Download the field note and open it with a text editor or the `cat` command.\n\nA flag is a piece of evidence wrapped in dfCTF{...}. Find the complete flag in the note and submit it exactly as written.\n\nEverything in this exercise is fictional. No outside services or accounts are needed.",solution:"Open field-note.txt in a text editor, or run `cat field-note.txt`. The last line contains the full flag. Copy it including the dfCTF{...} wrapper.\n\nThe core habit: inspect the supplied evidence before trying complicated tools.",flag:"dfCTF{curiosity_opens_doors_a7d4c82e}",filename:"field-note.txt",data:"dfCTF / Training field note\nCase 001: Orientation\nAll targets are fictional. Read the evidence carefully.\n\nRecovered evidence: dfCTF{curiosity_opens_doors_a7d4c82e}\n",tags:["onboarding","files","terminal"],minutes:5},
@@ -47,5 +52,5 @@ for(const seed of examples){
   await publishChallenge(db,reviewer,draft.id,seed.flag);
 }
 if(credentials.length){await mkdir(".data",{recursive:true});await writeFile(".data/bootstrap.txt","dfCTF local development credentials — never use on a public server\n\n"+credentials.join("\n"),{mode:0o600,flag:"a"});}
-console.log("Local seed complete: seven fictional practice challenges. New credentials are in .data/bootstrap.txt.");
+console.log("Local seed complete: eight practice challenges, including Read the fine print. New credentials are in .data/bootstrap.txt.");
 await closeDatabase();

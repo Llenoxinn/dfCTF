@@ -1,13 +1,14 @@
-import { and, eq, desc, sql, count, sum, inArray } from "drizzle-orm";
+import { and, eq, gt, asc, desc, sql, count, sum, inArray } from "drizzle-orm";
 import { randomUUID, createHash } from "node:crypto";
 import type { Database } from "./db";
-import { challenges, challengeVersions, artifacts, solves, submissions, xpLedger, requestResults, rateLimits, auditEvents, user } from "./schema";
+import { challenges, challengeVersions, artifacts, solves, submissions, xpLedger, requestResults, rateLimits, auditEvents, user, competitionChallenges, competitions } from "./schema";
 import { flagDigest, matchesFlag } from "./flags";
 import { HttpError } from "./http";
 import { challengeInput } from "./validation";
 import { CATEGORIES, type ChallengeSummary, type ChallengeDetail, type Category, type Difficulty, type Viewer, type Progress } from "@/lib/types";
 import { currentWeekly, weekEnd } from "@/lib/week";
 import type { z } from "zod";
+import { requireCompetitionChallenge } from "./competition-access";
 
 type Executor=Pick<Database,"select"|"insert"|"update"|"delete">;
 export type ChallengeDraft=z.infer<typeof challengeInput>;
@@ -25,7 +26,7 @@ export async function consumeLimit(db:Executor,key:string,max=10,windowMs=60_000
 }
 export async function listChallenges(db:Database,userId:string,staff?:Viewer):Promise<ChallengeSummary[]> {
   const now=new Date();
-  const visible=staff ? (staff.role==="author"?eq(challenges.authorId,userId):undefined) : eq(challenges.status,"published");
+  const visible=staff ? (staff.role==="author"?eq(challenges.authorId,userId):undefined) : and(eq(challenges.status,"published"),eq(challenges.visibility,"practice"));
   const [rows,mySolves,myAttempts,counts]=await Promise.all([
     db.select({challenge:challenges,version:challengeVersions,author:user.codename}).from(challenges).innerJoin(challengeVersions,current).innerJoin(user,eq(user.id,challenges.authorId)).where(visible).orderBy(desc(challenges.createdAt)),
     db.select({challengeId:solves.challengeId}).from(solves).where(eq(solves.userId,userId)),
@@ -33,39 +34,40 @@ export async function listChallenges(db:Database,userId:string,staff?:Viewer):Pr
     db.select({challengeId:solves.challengeId,total:count()}).from(solves).groupBy(solves.challengeId)
   ]);
   const solved=new Set(mySolves.map(s=>s.challengeId)), attempted=new Set(myAttempts.map(s=>s.challengeId)), countMap=new Map(counts.map(s=>[s.challengeId,s.total]));
+  const assignments=staff?await db.select().from(competitionChallenges):[];
   const weekly=!staff?currentWeekly(rows.map(({challenge:c,version:v})=>({id:c.id,publishedAt:c.publishedAt,tags:v.tags})),now):undefined;
   return rows.map(({challenge:c,version:v,author})=>({id:c.id,slug:c.slug,title:v.title,category:v.category as Category,difficulty:v.difficulty as Difficulty,summary:v.summary,tags:v.tags,xp:v.xp,estimatedMinutes:v.estimatedMinutes,solved:solved.has(c.id),attempted:attempted.has(c.id),solveCount:countMap.get(c.id)||0,status:c.status,
     ...(weekly?.id===c.id?{weeklyEndsAt:weekEnd(now).toISOString()}:{}),
-    ...(staff?{author:author||"dfCTF author",updatedAt:c.updatedAt.toISOString()}:{})}));
+    ...(staff?{author:author||"dfCTF author",updatedAt:c.updatedAt.toISOString(),visibility:c.visibility,competitionId:assignments.find(a=>a.challengeId===c.id)?.competitionId}:{})}));
 }
 export async function challengeRecord(db:Executor,id:string) {
   const [row]=await db.select({challenge:challenges,version:challengeVersions,author:user.codename}).from(challenges).innerJoin(challengeVersions,current).innerJoin(user,eq(user.id,challenges.authorId)).where(eq(challenges.id,id));
   if(!row) throw new HttpError(404,"NOT_FOUND","This challenge is unavailable.");
   return row;
 }
-export async function challengeDetail(db:Database,viewer:Viewer,id:string,staff=false):Promise<ChallengeDetail & {authorId?:string;canPublish?:boolean}> {
+export async function challengeDetail(db:Database,viewer:Viewer,id:string,staff=false,competitionId?:string):Promise<ChallengeDetail & {authorId?:string;canPublish?:boolean}> {
   const now=new Date();
   const row=await challengeRecord(db,id);const c=row.challenge,v=row.version;
-  if(!staff && c.status!=="published") throw new HttpError(404,"NOT_FOUND","This challenge is unavailable.");
+  if(competitionId)await requireCompetitionChallenge(db,viewer,id,competitionId);
+  if(!staff && (c.status!=="published"||(!competitionId&&c.visibility!=="practice"))) throw new HttpError(404,"NOT_FOUND","This challenge is unavailable.");
   if(staff && viewer.role==="author" && c.authorId!==viewer.id) throw new HttpError(404,"NOT_FOUND","This challenge is unavailable.");
-  const [mySolve,myAttempt,files,counts,recentSolvers,weeklyRows]=await Promise.all([
+  const [mySolve,myAttempt,files,solverRows,weeklyRows]=await Promise.all([
     db.select().from(solves).where(and(eq(solves.userId,viewer.id),eq(solves.challengeId,id))).limit(1),
     db.select({id:submissions.id}).from(submissions).where(and(eq(submissions.userId,viewer.id),eq(submissions.challengeId,id))).limit(1),
     db.select({id:artifacts.id,name:artifacts.name,size:artifacts.size,sha256:artifacts.sha256}).from(artifacts).where(eq(artifacts.versionId,v.id)),
-    db.select({total:count()}).from(solves).where(eq(solves.challengeId,id)),
-    db.select({codename:user.codename}).from(solves).innerJoin(user,eq(user.id,solves.userId)).where(eq(solves.challengeId,id)).orderBy(desc(solves.createdAt)).limit(5),
-    db.select({id:challenges.id,publishedAt:challenges.publishedAt,tags:challengeVersions.tags}).from(challenges).innerJoin(challengeVersions,current).where(eq(challenges.status,"published"))
+    db.select({codename:user.codename,solvedAt:solves.createdAt}).from(solves).innerJoin(user,eq(user.id,solves.userId)).where(eq(solves.challengeId,id)).orderBy(asc(solves.createdAt),asc(solves.id)),
+    db.select({id:challenges.id,publishedAt:challenges.publishedAt,tags:challengeVersions.tags}).from(challenges).innerJoin(challengeVersions,current).where(and(eq(challenges.status,"published"),eq(challenges.visibility,"practice")))
   ]);
-  return {id:c.id,slug:c.slug,title:v.title,summary:v.summary,description:v.description,category:v.category as Category,difficulty:v.difficulty as Difficulty,tags:v.tags,xp:v.xp,estimatedMinutes:v.estimatedMinutes,solved:!!mySolve.length,attempted:!!myAttempt.length,solveCount:counts[0].total,status:c.status,flagFormat:v.flagFormat,author:row.author||"dfCTF author",version:v.version,files,solvers:recentSolvers.flatMap(s=>s.codename?[s.codename]:[]),
+  return {id:c.id,slug:c.slug,title:v.title,summary:v.summary,description:v.description,category:v.category as Category,difficulty:v.difficulty as Difficulty,tags:v.tags,xp:v.xp,estimatedMinutes:v.estimatedMinutes,solved:!!mySolve.length,attempted:!!myAttempt.length,solveCount:solverRows.length,status:c.status,flagFormat:v.flagFormat,author:row.author||"dfCTF author",version:v.version,files,solvers:solverRows.map((s,i)=>({codename:s.codename||"Unnamed player",solvedAt:s.solvedAt.toISOString(),firstBlood:i===0})),
     ...(currentWeekly(weeklyRows,now)?.id===c.id?{weeklyEndsAt:weekEnd(now).toISOString()}:{}),
-    ...(mySolve.length||staff?{solution:v.solution}:{}),...(staff?{authorId:c.authorId,canPublish:c.status==="review"&&viewer.role!=="author"&&c.authorId!==viewer.id}:{})};
+    ...(mySolve.length||staff?{solution:v.solution}:{}),...(staff?{visibility:c.visibility,authorId:c.authorId,canPublish:c.status==="review"&&viewer.role!=="author"&&c.authorId!==viewer.id}:{})};
 }
 export async function getProgress(db:Database,userId:string):Promise<Progress> {
   const [awards,completed,attempted,library]=await Promise.all([
     db.select({total:sum(xpLedger.amount)}).from(xpLedger).where(eq(xpLedger.userId,userId)),
     db.select({id:challenges.id,title:challengeVersions.title,slug:challenges.slug,category:challengeVersions.category,solvedAt:solves.createdAt,xp:sql<number>`coalesce(${xpLedger.amount},0)`}).from(solves).innerJoin(challenges,eq(challenges.id,solves.challengeId)).innerJoin(challengeVersions,eq(challengeVersions.id,solves.versionId)).leftJoin(xpLedger,eq(xpLedger.solveId,solves.id)).where(eq(solves.userId,userId)).orderBy(desc(solves.createdAt)),
     db.selectDistinct({challengeId:submissions.challengeId}).from(submissions).where(eq(submissions.userId,userId)),
-    db.select({id:challenges.id,category:challengeVersions.category}).from(challenges).innerJoin(challengeVersions,current).where(eq(challenges.status,"published"))
+    db.select({id:challenges.id,category:challengeVersions.category}).from(challenges).innerJoin(challengeVersions,current).where(and(eq(challenges.status,"published"),eq(challenges.visibility,"practice")))
   ]);
   // Counts compare against the published library; archived solves stay in history and XP only.
   const live=new Set(library.map(c=>c.id)),stillPublished=completed.filter(c=>live.has(c.id));
@@ -83,7 +85,7 @@ export async function submitFlag(db:Database,viewer:Viewer,id:string,flag:string
     if(previous) {if(previous.fingerprint!==fingerprint) throw new HttpError(409,"IDEMPOTENCY_CONFLICT","Use a new request key for a different submission.");return previous.response;}
   }
   const row=await challengeRecord(db,id);
-  if(row.challenge.status!=="published") throw new HttpError(404,"NOT_FOUND","This challenge is unavailable.");
+  if(row.challenge.status!=="published"||row.challenge.visibility!=="practice") throw new HttpError(404,"NOT_FOUND","This challenge is unavailable.");
   await consumeLimit(db,`flag:${viewer.id}:${id}`);
   return db.transaction(async tx=>{
     await tx.select({id:user.id}).from(user).where(eq(user.id,viewer.id)).for("update");
@@ -91,7 +93,7 @@ export async function submitFlag(db:Database,viewer:Viewer,id:string,flag:string
     // Recheck publication inside the transaction so archiving races cannot award a solve.
     await tx.select({id:challenges.id}).from(challenges).where(eq(challenges.id,id)).for("share");
     const fresh=await challengeRecord(tx,id);
-    if(fresh.challenge.status!=="published")throw new HttpError(404,"NOT_FOUND","This challenge is unavailable.");
+    if(fresh.challenge.status!=="published"||fresh.challenge.visibility!=="practice")throw new HttpError(404,"NOT_FOUND","This challenge is unavailable.");
     const correct=matchesFlag(flag,fresh.version.flagHash);
     const [existing]=await tx.select().from(solves).where(and(eq(solves.userId,viewer.id),eq(solves.challengeId,id)));
     await tx.insert(submissions).values({id:randomUUID(),userId:viewer.id,challengeId:id,versionId:fresh.version.id,digest,correct});
@@ -112,8 +114,8 @@ export async function createChallenge(db:Database,viewer:Viewer,input:ChallengeD
   if(!["author","admin"].includes(viewer.role)) throw new HttpError(403,"FORBIDDEN","Only authors and administrators can create drafts.");
   const id=randomUUID(),slug=input.title.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+"-"+id.slice(0,6);
   await db.transaction(async tx=>{
-    await tx.insert(challenges).values({id,slug,familyId:id,authorId:viewer.id});
-    const {flag,...content}=input;
+    const {flag,visibility,...content}=input;
+    await tx.insert(challenges).values({id,slug,familyId:id,authorId:viewer.id,visibility:visibility??"practice"});
     await tx.insert(challengeVersions).values({id:randomUUID(),challengeId:id,version:1,...content,flagHash:flagDigest(flag)});
     await audit(tx,viewer.id,"challenge.create",id);
   });
@@ -124,7 +126,12 @@ export async function editChallenge(db:Database,viewer:Viewer,id:string,input:Pa
     await tx.select().from(challenges).where(eq(challenges.id,id)).for("update");
     const {challenge:c,version:v}=await challengeRecord(tx,id);
     if(!["author","admin"].includes(viewer.role)||(viewer.role==="author"&&c.authorId!==viewer.id))throw new HttpError(404,"NOT_FOUND","This draft is unavailable.");
-    if(input.status==="archived"&&c.status==="published") {await tx.update(challenges).set({status:"archived",updatedAt:new Date()}).where(eq(challenges.id,id));await audit(tx,viewer.id,"challenge.archive",id);return {id,status:"archived"};}
+    if(input.status==="archived"&&c.status==="published") {
+      const linked=await tx.select({id:competitions.id}).from(competitions).innerJoin(competitionChallenges,eq(competitionChallenges.competitionId,competitions.id))
+        .where(and(eq(competitionChallenges.challengeId,id),eq(competitions.status,"published"),gt(competitions.endsAt,new Date()))).limit(1);
+      if(linked.length)throw new HttpError(409,"COMPETITION_LOCKED","This challenge belongs to a published competition that has not ended. Archive the event first if it must be withdrawn.");
+      await tx.update(challenges).set({status:"archived",updatedAt:new Date()}).where(eq(challenges.id,id));await audit(tx,viewer.id,"challenge.archive",id);return {id,status:"archived"};
+    }
     if(input.status==="draft"&&c.status==="review"&&!v.locked) {
       await tx.update(challenges).set({status:"draft",updatedAt:new Date()}).where(eq(challenges.id,id));
       await audit(tx,viewer.id,"challenge.withdraw_review",id);return {id,status:"draft"};
@@ -137,9 +144,9 @@ export async function editChallenge(db:Database,viewer:Viewer,id:string,input:Pa
       await tx.update(challenges).set({status:"review",updatedAt:new Date()}).where(eq(challenges.id,id));
       await audit(tx,viewer.id,"challenge.request_review",id);return {id,status:"review"};
     }
-    const {flag,...updates}=input;
+    const {flag,visibility,...updates}=input;
     await tx.update(challengeVersions).set({...updates,...(flag?{flagHash:flagDigest(flag)}:{})}).where(eq(challengeVersions.id,v.id));
-    await tx.update(challenges).set({updatedAt:new Date()}).where(eq(challenges.id,id));await audit(tx,viewer.id,"challenge.edit",id);return {id,status:"draft"};
+    await tx.update(challenges).set({updatedAt:new Date(),...(visibility?{visibility}:{})}).where(eq(challenges.id,id));await audit(tx,viewer.id,"challenge.edit",id);return {id,status:"draft"};
   });
 }
 export async function publishChallenge(db:Database,viewer:Viewer,id:string,reviewFlag:string) {

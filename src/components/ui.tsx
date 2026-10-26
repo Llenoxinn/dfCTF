@@ -157,8 +157,8 @@ export function ThemeToggle() {
 
 export async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers);
-  if (options?.body instanceof FormData) headers.set("X-dfCTF-Request", "1");
-  else if (options?.body) headers.set("Content-Type", "application/json");
+  if (!["GET", "HEAD", "OPTIONS"].includes((options?.method ?? "GET").toUpperCase())) headers.set("X-dfCTF-Request", "1");
+  if (options?.body && !(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
   const response = await fetch(path, { credentials: "same-origin", ...options, headers });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error?.message || data.message || `Request failed (${response.status}). Please try again.`);

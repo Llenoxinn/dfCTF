@@ -22,6 +22,7 @@ async function mockWorkspace(page: Page, handle?: (route: Route, url: URL) => Pr
     else if (url.pathname === "/api/v1/leaderboard") response = board;
     else if (["/api/auth/list-accounts", "/api/auth/list-sessions"].includes(url.pathname)) response = [];
     else if (url.pathname === "/api/auth/get-session") response = { session: { id: "test-session" } };
+    else if (url.pathname === "/api/v1/community") response = { weekly: null };
     else throw new Error(`Unexpected test request: ${route.request().method()} ${url.pathname}`);
     await route.fulfill({ json: response });
   });
@@ -174,4 +175,140 @@ test("authors can return a challenge from review to an editable draft", async ({
   await expect(page.getByText("Returned to draft.", { exact: false })).toBeVisible();
   await expect(page.getByRole("link", { name: "Download" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Return to draft", exact: true })).toHaveCount(0);
+});
+
+test("players need email verification without an administrator approval step", async ({ page }) => {
+  const state = await mockWorkspace(page);
+  state.bootstrap.user!.role = "participant";
+  state.bootstrap.user!.emailVerified = false;
+  state.bootstrap.user!.codename = null;
+  state.bootstrap.hasAccess = false;
+  state.bootstrap.staffVerified = false;
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Check your inbox.", exact: true })).toBeVisible();
+  await expect(page.getByText("Access enabled", { exact: false })).toHaveCount(0);
+  state.bootstrap.user!.emailVerified = true;
+  state.bootstrap.hasAccess = true;
+  await page.getByRole("button", { name: "Check again", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Choose your codename", exact: true })).toBeVisible();
+});
+
+test("a verified suspended account gets an honest access message and can retry after restoration", async ({ page }) => {
+  const state = await mockWorkspace(page);
+  state.bootstrap.hasAccess = false;
+  state.bootstrap.staffVerified = false;
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Access suspended", exact: true })).toBeVisible();
+  await expect(page.getByText("An admin needs to enable", { exact: false })).toHaveCount(0);
+  state.bootstrap.hasAccess = true;
+  await page.getByRole("button", { name: "Check again", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Challenges", exact: true })).toBeVisible();
+});
+
+test("Settings sends a bodyless revoke request with the required application header", async ({ page }) => {
+  const entries = [{ id: "target-player", email: "target@example.test" }];
+  let revoked = false;
+  const state = await mockWorkspace(page, async (route, url) => {
+    if (url.pathname === "/api/v1/staff/allowlist/target-player") {
+      expect(route.request().method()).toBe("DELETE");
+      expect(route.request().headers()["x-dfctf-request"]).toBe("1");
+      expect(route.request().postData()).toBeNull();
+      revoked = true; entries.length = 0;
+      await route.fulfill({ json: { revoked: true } });
+    } else if (url.pathname === "/api/v1/staff/allowlist") await route.fulfill({ json: entries });
+    else return false;
+    return true;
+  });
+  state.bootstrap.user!.role = "admin";
+  page.on("dialog", dialog => dialog.accept());
+  await page.goto("/?view=settings");
+  await page.getByRole("button", { name: "Revoke access for target@example.test" }).click();
+  await expect(page.getByText("Revoked access for target@example.test.", { exact: true })).toBeVisible();
+  expect(revoked).toBe(true);
+});
+
+test("a password reset link works in an authenticated browser and refreshes the revoked session", async ({ page }) => {
+  let body: unknown;
+  const state = await mockWorkspace(page, async (route, url) => {
+    if (url.pathname !== "/api/auth/reset-password") return false;
+    body = route.request().postDataJSON();
+    state.bootstrap.user = null; state.bootstrap.hasAccess = false; state.bootstrap.staffVerified = false;
+    await route.fulfill({ json: { status: true } });
+    return true;
+  });
+  await page.goto("/?reset=1&token=valid-reset-token");
+  await expect(page.getByRole("heading", { name: "Choose a new password", exact: true })).toBeVisible();
+  await page.getByLabel("New password", { exact: true }).fill("a different long passphrase");
+  await page.getByRole("button", { name: "Update password", exact: true }).click();
+  await expect(page.getByText("Password updated. Sign in with your new password.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to dfCTF", exact: true })).toBeVisible();
+  expect(body).toEqual({ token: "valid-reset-token", newPassword: "a different long passphrase" });
+  expect(page.url()).not.toContain("valid-reset-token");
+});
+
+test("every challenge shows all solvers and a first blood across desktop and mobile", async ({ page }) => {
+  const detail = { ...challenge("solver-case", "Solver attribution case"), solveCount: 22, solvers: Array.from({ length: 22 }, (_, i) => ({
+    codename: `solver_${String(i).padStart(2,"0")}`, solvedAt: new Date(Date.UTC(2026,9,20,4,i)).toISOString(), firstBlood: i === 0,
+  })) };
+  await mockWorkspace(page, async (route, url) => {
+    if (url.pathname !== "/api/v1/challenges/solver-case") return false;
+    await route.fulfill({ json: detail }); return true;
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/?view=practice&challenge=solver-case");
+  const solvers = page.getByRole("region", { name: "Solvers", exact: true });
+  await expect(solvers.locator(".first-blood")).toContainText("solver_00");
+  await expect(solvers.locator(".challenge-solvers li")).toHaveCount(20);
+  await solvers.getByRole("button", { name: "Show more solvers" }).click();
+  await expect(solvers.locator(".challenge-solvers li")).toHaveCount(22);
+  await expect(solvers.locator(".challenge-solvers li").last()).toContainText("solver_21");
+  await expect(solvers.locator("time").first()).toContainText("12:00:00");
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  await page.screenshot({ path: "test-results/solvers-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(solvers).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await page.locator(".submit").evaluate(el => el.compareDocumentPosition(document.querySelector('[aria-labelledby="solvers-title"]')!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
+  await page.screenshot({ path: "test-results/solvers-mobile.png", fullPage: true });
+});
+
+test("an empty solver list refreshes to the new first blood immediately after a correct flag", async ({ page }) => {
+  const detail = { ...challenge("new-blood", "Unsolved training case"), solvers: [] as { codename: string; solvedAt: string; firstBlood: boolean }[] };
+  await mockWorkspace(page, async (route, url) => {
+    if (url.pathname === "/api/v1/challenges/new-blood/submissions") {
+      detail.solved = true; detail.solveCount = 1;
+      detail.solvers.push({ codename: "test_author", solvedAt: "2026-10-20T04:00:00Z", firstBlood: true });
+      await route.fulfill({ json: { status: "correct", xp: 50, totalXp: 50, solution: "Read the supplied training file." } });
+    } else if (url.pathname === "/api/v1/challenges/new-blood") await route.fulfill({ json: detail });
+    else return false;
+    return true;
+  });
+  await page.goto("/?view=practice&challenge=new-blood");
+  await expect(page.getByText("No solves yet. Capture the flag to claim first blood.")).toBeVisible();
+  await page.getByLabel("Flag", { exact: true }).fill("dfCTF{correct}");
+  await page.getByRole("button", { name: "Submit flag", exact: true }).click();
+  const solvers = page.getByRole("region", { name: "Solvers", exact: true });
+  await expect(solvers.locator(".first-blood")).toContainText("test_author");
+  await expect(solvers.locator(".challenge-solvers li")).toHaveCount(1);
+});
+
+test("staff can create the rules challenge draft from Authoring", async ({ page }) => {
+  const detail = { ...challenge("rules-draft", "Read the fine print"), status: "draft", authorId: "test-author", tags: ["rules", "onboarding"], solution: "Collect the field notes from the rules page in reading order.", files: [{ id: "briefing", name: "briefing.txt", size: 180, sha256: "a".repeat(64) }] };
+  let created = false;
+  await mockWorkspace(page, async (route, url) => {
+    if (url.pathname === "/api/v1/staff/challenges") await route.fulfill({ json: [] });
+    else if (url.pathname === "/api/v1/staff/challenges/rules") {
+      expect(route.request().method()).toBe("POST");
+      expect(route.request().headers()["x-dfctf-request"]).toBe("1");
+      created = true; await route.fulfill({ json: { id: detail.id } });
+    } else if (url.pathname === "/api/v1/staff/challenges/rules-draft") await route.fulfill({ json: detail });
+    else return false;
+    return true;
+  });
+  await page.goto("/?view=authoring");
+  await page.getByRole("button", { name: "Rules challenge", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Read the fine print", exact: true })).toBeVisible();
+  await expect(page.getByText("briefing.txt", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send for review", exact: true })).toBeEnabled();
+  expect(created).toBe(true);
 });

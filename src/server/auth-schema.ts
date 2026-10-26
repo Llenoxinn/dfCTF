@@ -14,7 +14,7 @@ export const user = pgTable("auth_user", {
   codenameKey: text("codename_key").unique(),
   role: text("role", { enum: ["participant", "author", "reviewer", "admin"] }).notNull().default("participant"),
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
-});
+}).enableRLS();
 
 export const session = pgTable("auth_session", {
   id: text("id").primaryKey(),
@@ -25,7 +25,7 @@ export const session = pgTable("auth_session", {
   userAgent: text("user_agent"),
   createdAt: date("created_at").notNull().defaultNow(),
   updatedAt: date("updated_at").notNull().defaultNow(),
-}, (table) => [index("auth_session_user_idx").on(table.userId)]);
+}, (table) => [index("auth_session_user_idx").on(table.userId)]).enableRLS();
 
 export const account = pgTable("auth_account", {
   id: text("id").primaryKey(),
@@ -44,7 +44,7 @@ export const account = pgTable("auth_account", {
 }, (table) => [
   uniqueIndex("auth_account_provider_identity_idx").on(table.providerId, table.accountId),
   index("auth_account_user_idx").on(table.userId),
-]);
+]).enableRLS();
 
 export const verification = pgTable("auth_verification", {
   id: text("id").primaryKey(),
@@ -53,7 +53,7 @@ export const verification = pgTable("auth_verification", {
   expiresAt: date("expires_at").notNull(),
   createdAt: date("created_at").notNull().defaultNow(),
   updatedAt: date("updated_at").notNull().defaultNow(),
-}, (table) => [index("auth_verification_identifier_idx").on(table.identifier)]);
+}, (table) => [index("auth_verification_identifier_idx").on(table.identifier)]).enableRLS();
 
 export const twoFactor = pgTable("auth_two_factor", {
   id: text("id").primaryKey(),
@@ -63,17 +63,17 @@ export const twoFactor = pgTable("auth_two_factor", {
   verified: boolean("verified").default(true),
   failedVerificationCount: integer("failed_verification_count").notNull().default(0),
   lockedUntil: date("locked_until"),
-}, (table) => [uniqueIndex("auth_two_factor_user_idx").on(table.userId)]);
+}, (table) => [uniqueIndex("auth_two_factor_user_idx").on(table.userId)]).enableRLS();
 
 export const staffVerification = pgTable("staff_session_verification", {
   sessionId: text("session_id").primaryKey().references(() => session.id, { onDelete: "cascade" }),
   verifiedAt: date("verified_at").notNull().defaultNow(),
   expiresAt: date("expires_at").notNull(),
-});
+}).enableRLS();
 
 export const rateLimit = pgTable("auth_rate_limit", {
   id: text("id").primaryKey(),
   key: text("key").notNull().unique(),
   count: integer("count").notNull(),
   lastRequest: bigint("last_request", { mode: "number" }).notNull(),
-});
+}).enableRLS();

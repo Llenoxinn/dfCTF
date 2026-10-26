@@ -9,12 +9,15 @@ export type ChallengeSummary = {
   solved: boolean; attempted: boolean; solveCount: number; status: ChallengeStatus;
   author?: string; updatedAt?: string;
   weeklyEndsAt?: string;
+  visibility?: "practice" | "competition";
+  competitionId?: string;
 };
 export type ChallengeDetail = ChallengeSummary & {
   description: string; flagFormat: string; author: string; version: number;
   files: {id: string; name: string; size: number; sha256: string}[];
-  solution?: string; solvers?: string[];
+  solution?: string; solvers?: ChallengeSolver[]; competitionEndsAt?: string; submissionsOpen?: boolean;
 };
+export type ChallengeSolver = { codename: string; solvedAt: string; firstBlood: boolean };
 export type Viewer = {
   id: string; email: string; codename: string | null; emailVerified: boolean;
   role: "participant" | "author" | "reviewer" | "admin"; twoFactorEnabled: boolean;
@@ -43,4 +46,14 @@ export type Progress = {
   totalXp: number; solvedCount: number; attemptedCount: number;
   categories: {category: Category; solved: number; total: number}[];
   recentSolves: {id: string; title: string; slug: string; xp: number; solvedAt: string; category: Category}[];
+};
+
+export type Competition = {
+  id: string; title: string; description: string; rules: string; platform: "dfctf" | "ctfd";
+  externalUrl: string | null; status: "draft" | "published" | "archived";
+  startsAt: string; endsAt: string; phase: "upcoming" | "live" | "ended";
+};
+export type CompetitionDetail = Competition & {
+  registered: boolean; participants: number; challenges: ChallengeSummary[]; standings: Standing[];
+  selections?: { challengeId: string; points: number }[];
 };

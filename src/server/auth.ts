@@ -4,7 +4,7 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { nextCookies } from "better-auth/next-js";
 import { twoFactor } from "better-auth/plugins";
 import { hash, verify } from "@node-rs/argon2";
-import { and, eq, gt, isNull, or, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { getDb, type Database } from "./db";
 import * as authSchema from "./auth-schema";
 import { allowlist } from "./schema";
@@ -52,12 +52,10 @@ export function configuredProviders() {
 
 export async function isEmailAllowed(email: string, db?: Database) {
   const connection = db ?? await getDb();
-  const [entry] = await connection.select({ id: allowlist.id }).from(allowlist).where(and(
-    eq(allowlist.email, email.trim().toLowerCase()),
-    isNull(allowlist.revokedAt),
-    or(isNull(allowlist.expiresAt), gt(allowlist.expiresAt, new Date())),
-  )).limit(1);
-  return Boolean(entry);
+  const [entry] = await connection.select({ revokedAt: allowlist.revokedAt, expiresAt: allowlist.expiresAt })
+    .from(allowlist).where(eq(allowlist.email, email.trim().toLowerCase())).limit(1);
+  // Registration is open; existing suspensions and expired access still take effect immediately.
+  return !entry || (!entry.revokedAt && (!entry.expiresAt || entry.expiresAt > new Date()));
 }
 
 export function createAuth(db: Database) {
@@ -167,6 +165,8 @@ export function createAuth(db: Database) {
             if (!(await isEmailAllowed(email, db))) {
               throw new APIError("FORBIDDEN", { code: "ACCESS_DENIED", message: "This email does not have access to dfCTF." });
             }
+            // Track new accounts for admin revocation without reactivating an existing suspension.
+            await db.insert(allowlist).values({ id: crypto.randomUUID(), email }).onConflictDoNothing();
             return { data: { ...identity, email } };
           },
         },

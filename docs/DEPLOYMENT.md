@@ -41,6 +41,10 @@ https://YOUR-HOST/api/auth/callback/github
 
 ## Build, migrate, and start
 
+All schema changes ship as reviewed Drizzle migrations. Use the migration CLI below; no Supabase SQL Editor or hand-applied table changes are required. `DATABASE_MIGRATION_URL` can supply a dedicated migration connection and otherwise defaults to `DATABASE_URL`.
+
+For Supabase-hosted PostgreSQL, use the direct connection for migrations, or its session pooler when the deployment network is IPv4-only. Copy the exact connection from its Connect dialog and keep it server-side. See [Supabase connection modes](https://supabase.com/docs/guides/database/connecting-to-postgres). This app uses a backend table-owner connection and denies direct browser table access through row-level security; see [architecture](ARCHITECTURE.md).
+
 From the repository checkout on the deployment host:
 
 ```powershell
@@ -61,48 +65,44 @@ The Compose database has no public host port. Its health check gates app startup
 
 Do not run `npm run seed` on production. It intentionally refuses to create demo accounts there.
 
-1. Allow the intended administrator's email:
-
-   ```powershell
-   docker compose --env-file .env.production exec app npm run admin -- allow owner@example.edu
-   ```
-
-2. Visit the HTTPS application, register that email, and complete the verification email. Confirm that real SMTP delivery works and choose a codename.
-3. Promote the verified account:
+1. Visit the HTTPS application, register the intended administrator's email, and complete the verification email. Registration is open; no approval command is needed. Confirm that real SMTP delivery works and choose a codename.
+2. Promote the verified account:
 
    ```powershell
    docker compose --env-file .env.production exec app npm run admin -- grant owner@example.edu
    ```
 
-4. Sign in as that administrator, enroll an authenticator, and complete the staff verification prompt. Add only the intended private beta participants and staff.
-5. Create a draft, upload a fictional artifact, and use a separate reviewer account to review it. The reviewer must submit the correct test-solve flag to publish it. Confirm a participant can access the published challenge and cannot access drafts.
+3. Sign in as that administrator, enroll an authenticator, and complete the staff verification prompt. Ordinary players need only register and verify their email. Grant staff roles only to trusted maintainers; admins can suspend or restore account access in Settings.
+4. Create a draft, upload a fictional artifact, and use a separate reviewer account to review it. The reviewer must submit the correct test-solve flag to publish it. Confirm a participant can access the published challenge and cannot access drafts.
 
 Administrative shell access is privileged access to the application's database. Limit who can run these commands and keep a record of production bootstrap operations.
 
-## Private release checks
+## Release checks
 
 Run `npm run check` on the exact revision you intend to deploy. Then complete these checks against staging with its real deployment configuration:
 
 - Registration, verification email, sign-in, password reset, and sign-out work through the public HTTPS origin.
 - Every configured external provider completes its callback and returns to the same account correctly. Test this with real test-provider credentials; mocked or local credential tests do not establish it.
-- A non-allowlisted account cannot reach protected pages, APIs, or artifacts. Revoke an active account's allowlist access and check the next protected request.
+- A new player can register without prior approval. Unverified email cannot reach protected pages, APIs, or artifacts. Suspend an active account and check that its next protected request fails; restoring access must preserve email-verification requirements.
 - A learner chooses a codename, solves a challenge, leaves, returns, and sees one completion and the same XP.
 - Two simultaneous correct submissions award one completion and one reward. Repeated incorrect submissions return a visible cooldown.
 - Authors cannot publish their own drafts through the reviewer flow or edit another author's drafts; publication requires a different reviewer and a correct test-solve flag. Nonstaff accounts cannot invoke privileged operations. Staff actions require current-session MFA verification.
 - Upload limits and allowed extensions are enforced; private artifacts download as attachments and their listed checksums match. Published files remain available after app container replacement.
 - Email is sent through production SMTP; `.data/mail` and the development mailbox API are unavailable.
 - Logs and error responses contain no flag answers, submitted flags, passwords, OAuth codes, or session tokens.
+- Competition-only challenges remain unavailable through practice routes, public counts, and file URLs. An unregistered or early player cannot open them; a registered player can at the start boundary, and submissions close at the end boundary. Event points do not change practice XP.
+- Administrator event settings require current staff MFA. Published schedules and point values stay locked. Test any configured CTFd HTTPS link and its independent host registration flow.
 - A backup can be restored to an isolated host with the required secrets, and a known account's practice progress and artifacts still work.
 
-Before inviting real students, complete the project's privacy review and operational ownership decisions. In particular, the broader plan's automated retention, account export/deletion workflow, full monitoring/alerts, security scans, and full ASVS assessment should not be assumed complete because the app builds. Record which controls were actually verified for the deployment.
+For the first shared deployment, confirm real email delivery, account suspension, a challenge download, and backup restoration. Provide a way for players to contact the maintainer about account or data requests. Record which integrations and controls were actually tested.
 
-Resolve or explicitly accept these concrete security gaps for the private deployment:
+Keep these limitations visible for the deployment:
 
-- Better Auth persists native session tokens in `auth_session.token`. The current adapter has no configured supported token-hashing mechanism; this does not meet the project plan's hashed-session-token storage requirement. Restrict database/backup access now and design, test, and review a supported storage adaptation before claiming that requirement is satisfied. Do not hash this column ad hoc: the authentication library uses it for session lookup.
+- Better Auth persists native session tokens in `auth_session.token`. Restrict database and backup access. Keep the supported authentication integration; do not hash this column ad hoc or build a custom adapter solely to satisfy an old plan. The authentication library uses it for session lookup.
 - Upload checks enforce extensions, size, and selected file signatures; there is no antivirus or malware scanning integration. A valid signature does not establish that a PDF or archive is safe. Keep author uploads trusted, independently scan every real artifact before publication, and implement a quarantine/scanning gate before accepting untrusted author content.
-- Submission, XP, and audit records follow append-only service conventions. The runtime database role has not yet been restricted with separate migration/runtime grants or database rules that prevent record modification. Add and exercise that database hardening before treating these ledgers as tamper-resistant. Keep privileged database access tightly controlled in the meantime.
+- Submission, points, and audit records follow append-only service conventions. The runtime database role has not yet been restricted with separate migration/runtime grants or database rules that prevent record modification. Restrict privileged database access and keep backups; do not describe the ledgers as tamper-resistant.
 
-These gaps are recorded in [MVP implementation notes](MVP.md#production-hardening-gaps) so they remain visible during later release work.
+These limits are recorded in the [side project plan](MVP.md#production-hardening-gaps) so they remain visible during later release work.
 
 ## Back up and restore
 

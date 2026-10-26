@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { Community } from "@/lib/types";
 import { CATEGORIES } from "@/lib/types";
 import { countdownParts, weekEnd } from "@/lib/week";
@@ -8,7 +8,7 @@ import AsciiField from "./ascii-field";
 import FaultyTerminal from "./faulty-terminal";
 import { ChallengeCard } from "./cards";
 import { Countdown, DitherArt, Heatmap, HeatLegend, Hexdump, Ticker } from "./viz";
-import { api, clock, DecodeText, Identicon, InfoTip, Meter, Wordmark } from "./ui";
+import { api, clock, DecodeText, Identicon, InfoTip, Meter, Notice, Wordmark } from "./ui";
 
 const PITCH: Record<string, string> = {
   "General skills": "Linux, encodings, and the terminal habits every other category builds on.",
@@ -29,7 +29,7 @@ const TEXTURES: ((x: number, y: number) => number)[] = [
 const RULES: [string[], string, string][] = [
   [["..####.#.", ".#....##.", "#....###.", "#........", "#........", "#.......#", ".#.....#.", "..#####..", "........."], "Retry for free", "Wrong answers never cost points. Guess, learn, and try again."],
   [["...##....", "..###....", ".####....", "...##....", "...##....", "...##....", "...##....", ".######..", ".######.."], "Points, once", "Your first correct flag earns the points. Re-solving won’t farm more."],
-  [["#########", "#.......#", "#.......#", "#.....#.#", "#....#..#", ".#.#.#.#.", ".#..#..#.", "..#...#..", "...###..."], "Checked on the server", "Flags never ship to your browser, so there’s nothing to peek at."],
+  [["#########", "#.......#", "#.......#", "#.....#.#", "#....#..#", ".#.#.#.#.", ".#..#..#.", "..#...#..", "...###..."], "Checked on the server", "Your submitted flag is checked against a private server-side validator."],
   [[".........", "###...###", "#..#.#..#", "#..#.#..#", "#..#.#..#", "#..#.#..#", "####.####", "....#....", "........."], "Walkthroughs after the solve", "Capture the flag and the author’s write-up unlocks."],
   [["...###...", ".#..#..#.", "#...#...#", "#.......#", "####.####", "#.......#", "#...#...#", ".#..#..#.", "...###..."], "Fictional targets only", "Every system is built for practice. Never attack one you don’t own."],
   [["#########", ".#.....#.", "..#...#..", "...#.#...", "....#....", "...#.#...", "..#.#.#..", ".#.###.#.", "#########"], "A short cooldown", "Several quick misses trigger a brief pause, so brute force doesn’t pay."],
@@ -79,13 +79,21 @@ function LiveChip({ endsAt }: { endsAt: string }) {
 export default function Landing({ signIn, createAccount }: { signIn: () => void; createAccount: () => void }) {
   const [data, setData] = useState<Community | null>(null);
   const [faq, setFaq] = useState(0);
-  useEffect(() => { api<Community>("/api/v1/community").then(setData).catch(() => setData(null)); }, []);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => {
+    setBusy(true); setError("");
+    try { setData(await api<Community>("/api/v1/community")); }
+    catch { setError("Could not load the latest standings and activity. Please try again."); }
+    finally { setBusy(false); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
   const endsAt = useMemo(() => data?.weekly?.endsAt ?? weekEnd().toISOString(), [data]);
   useEffect(() => {
-    const timer = window.setTimeout(() => { api<Community>("/api/v1/community").then(setData).catch(() => undefined); }, Math.max(0, new Date(endsAt).getTime() + 1 - Date.now()));
+    const timer = window.setTimeout(() => void load(), Math.max(0, new Date(endsAt).getTime() + 1 - Date.now()));
     return () => window.clearTimeout(timer);
-  }, [endsAt]);
-  const totalActivity = data?.activity.days.reduce((a, b) => a + b, 0) ?? 0;
+  }, [endsAt, load]);
+  const totalActivity = data?.activity.days.reduce((a, b) => a + b, 0);
   const [range, setRange] = useState<"week" | "all">("week");
   const board = (range === "week" ? data?.top : data?.topAll) ?? [];
 
@@ -94,11 +102,12 @@ export default function Landing({ signIn, createAccount }: { signIn: () => void;
     <header className="site-nav">
       <a className="brand-link" href="/" aria-label="dfCTF home"><Wordmark /></a>
       {data?.weekly ? <LiveChip endsAt={data.weekly.endsAt} /> : null}
-      <nav className="site-links" aria-label="Sections"><a href="#leaderboard">Leaderboard</a><a href="#this-week">This week</a><a href="#categories">Challenges</a><a href="#faq">FAQ</a></nav>
+      <nav className="site-links" aria-label="Sections"><a href="#leaderboard">Leaderboard</a><a href="#this-week">This week</a><a href="#categories">Challenges</a><a href="/rules">Rules / Mechanics</a><a href="#faq">FAQ</a></nav>
       <div className="site-actions"><button className="button button-ghost" onClick={signIn}>Sign in</button><button className="button button-primary" onClick={createAccount}>Start solving</button></div>
     </header>
 
     <main id="landing-main">
+      {error ? <Notice type="error">{error} <button className="text-button" onClick={load} disabled={busy}>Try again</button></Notice> : null}
       <section className="hero">
         <AsciiField className="hero-ascii" />
         <h1 className="hero-title">Solve security challenges.<br />Capture the flag.</h1>
@@ -113,7 +122,7 @@ export default function Landing({ signIn, createAccount }: { signIn: () => void;
       {data?.recent.length ? <Ticker events={data.recent} /> : null}
 
       <section className="proof" aria-label="At a glance">
-        {[[String(CATEGORIES.length), "categories, from OSINT to binary exploitation"], ["3", "difficulty tiers, so there’s always a next step"], ["1", "new challenge every Monday"], ["0", "points lost for a wrong answer"]].map(([n, t], i) => <div key={t} className="proof-fact"><strong className={i === 3 ? "accent" : ""}>{n}</strong><span>{t}</span></div>)}
+        {[[String(CATEGORIES.length), "categories, from OSINT to binary exploitation"], ["3", "difficulty tiers, so there’s always a next step"], ["2", "leaderboard views: this week and all time"], ["0", "points lost for a wrong answer"]].map(([n, t], i) => <div key={t} className="proof-fact"><strong className={i === 3 ? "accent" : ""}>{n}</strong><span>{t}</span></div>)}
       </section>
 
       <section className="band band-center" id="try" aria-labelledby="try-title">
@@ -123,21 +132,21 @@ export default function Landing({ signIn, createAccount }: { signIn: () => void;
       </section>
 
       <section className="band split" id="leaderboard" aria-labelledby="lb-title">
-        <div className="split-copy"><h2 id="lb-title">Every flag moves you up the board.</h2><p>Earn points for every solve and watch the board update the moment your flag lands. Chase this week’s board, or play the long game all semester.</p><button className="button button-secondary" onClick={signIn}>See the full leaderboard</button></div>
+        <div className="split-copy"><h2 id="lb-title">Every flag moves you up the board.</h2><p>Earn points for new solves. Compare this week’s standings, or follow your progress on the all-time board.</p><button className="button button-secondary" onClick={signIn}>See the full leaderboard</button></div>
         <div className="panel">
-          <div className="panel-head"><div className="segmented small" role="group" aria-label="Range">{([["week", "This week"], ["all", "All time"]] as const).map(([v, l]) => <button key={v} type="button" aria-pressed={range === v} onClick={() => setRange(v)}>{l}</button>)}</div><InfoTip text="Points earned in this range. Ties go to whoever reached the score first." /><span className="spacer" /><span className="mono faint">[live]</span></div>
+          <div className="panel-head"><div className="segmented small" role="group" aria-label="Range">{([["week", "This week"], ["all", "All time"]] as const).map(([v, l]) => <button key={v} type="button" aria-pressed={range === v} onClick={() => setRange(v)}>{l}</button>)}</div><InfoTip text="Points earned in this range. Ties go to whoever reached the score first." /><span className="spacer" /><span className="mono faint">[points]</span></div>
           {board.length ? <ol className="standings"><li className="standings-head" aria-hidden="true"><span>#</span><span /><span>Player</span><span /><span className="num">Solves</span><span className="num">Points</span></li>{board.map(s => <li key={s.codename} className={s.rank <= 3 ? "top" : ""}><span className="rank mono">{String(s.rank).padStart(2, "0")}</span><Identicon name={s.codename} /><span className="mono name">{s.codename}</span><Meter value={s.points} max={board[0].points} tone={s.rank <= 3 ? "accent" : "ink"} label={`${s.points} points`} /><span className="mono num muted">{s.solves}</span><span className="mono num strong">{s.points.toLocaleString()}</span></li>)}</ol>
-            : <p className="muted panel-pad">{range === "week" ? "No points yet this week. The first solve puts a name at the top." : "The board fills up as flags land."}</p>}
+            : <p className="muted panel-pad">{!data ? error ? "Standings are temporarily unavailable." : "Loading standings…" : range === "week" ? "No points yet this week. The first solve puts a name at the top." : "The board fills up as flags land."}</p>}
         </div>
       </section>
 
       <section className="band split activity" aria-labelledby="act-title">
-        <div className="split-copy"><div className="title-tip"><h3 id="act-title">Solves across dfCTF</h3><InfoTip text="Each square is one day across all players. More lit pixels means more flags captured that day. The outlined column is this week." /></div><p>Every square is a day. Mondays light up when the weekly challenge drops.</p><p className="stat"><strong>{totalActivity.toLocaleString()}</strong><span>solves in the last 20 weeks</span></p></div>
+        <div className="split-copy"><div className="title-tip"><h3 id="act-title">Solves across dfCTF</h3><InfoTip text="Each square is one day across all players. More lit pixels means more flags captured that day. The outlined column is this week." /></div><p>Every square is a day. See when players are capturing flags.</p><p className="stat"><strong>{totalActivity?.toLocaleString() ?? "—"}</strong><span>solves in the last 20 weeks</span></p></div>
         <div className="heat-wrap">{data ? <Heatmap days={data.activity.days} cell={30} gap={6} weekdays label="Solves per day, last 20 weeks" /> : <div className="skeleton heat-skeleton" />}<div className="heat-foot"><span className="faint">20 weeks ago to this week</span><HeatLegend /></div></div>
       </section>
 
       <section className="band band-surface" id="this-week" aria-labelledby="week-title">
-        <div className="band-head"><h2 id="week-title">A new challenge drops every Monday.</h2><p>One fresh challenge a week, written by DFC Developers. Solve it before Sunday 23:59 to make that week’s board.</p></div>
+        <div className="band-head"><h2 id="week-title">This week’s featured challenge.</h2><p>When a weekly challenge is published, you’ll find it here. Solve before Sunday 23:59 Philippine time to earn points on that week’s board.</p></div>
         <div className="week-grid">
           <div className="week-left">
             <p className="label-dot">{data?.weekly ? "This week closes in" : "The week closes in"}</p>
@@ -145,9 +154,9 @@ export default function Landing({ signIn, createAccount }: { signIn: () => void;
             {data?.weekly ? <><ChallengeCard title={data.weekly.title} category={data.weekly.category} xp={data.weekly.xp} difficulty={data.weekly.difficulty} solveCount={data.weekly.solveCount} state="weekly" /><button className="button button-primary" onClick={signIn}>Open this week’s challenge</button></> : <p className="muted">The next weekly challenge appears here when it drops.</p>}
           </div>
           <div className="panel">
-            <div className="panel-head"><h3>Live solves</h3><InfoTip text="The most recent correct flags. First blood is the first solve of a challenge." /><span className="spacer" /><span className="mono accent">[live]</span></div>
+            <div className="panel-head"><h3>Recent solves</h3><InfoTip text="The most recent correct flags. First blood is the first solve of a challenge." /><span className="spacer" /><span className="mono accent">[recent]</span></div>
             {data?.recent.length ? <ul className="feed">{data.recent.slice(0, 6).map((e, i) => <li key={i}><span className="mono faint">{clock(e.at)}</span><span className="mono strong">{e.codename}</span><span className={e.firstBlood ? "mono accent" : "mono muted"}>{e.firstBlood ? "first blood" : "solved"}</span><span className="feed-title">{e.title}</span><span className="mono accent strong">{e.points ? `+${e.points}` : ""}</span></li>)}</ul>
-              : <p className="muted panel-pad">No solves yet. Be the first.</p>}
+              : <p className="muted panel-pad">{!data ? error ? "Recent solves are temporarily unavailable." : "Loading recent solves…" : "No solves yet. Be the first."}</p>}
           </div>
         </div>
       </section>
@@ -224,7 +233,7 @@ export default function Landing({ signIn, createAccount }: { signIn: () => void;
         <div className="footer-brand"><Wordmark size="lg" /><p>The capture-the-flag platform built by DFC Developers.</p><span className="flag-chip"><span>Flag format</span><code>dfCTF{"{...}"}</code></span></div>
         <nav className="footer-cols" aria-label="Footer">
           <div><h3>Play</h3><a href="#how">How it works</a><a href="#this-week">This week</a><a href="#leaderboard">Leaderboard</a><a href="#try">Try one now</a></div>
-          <div><h3>Community</h3><a href="#made-by">Write a challenge</a><a href="#fair-play">Fair play</a><a href="#faq">FAQ</a></div>
+          <div><h3>Community</h3><a href="#made-by">Write a challenge</a><a href="/rules">Rules / Mechanics</a><a href="#fair-play">Fair play</a><a href="#faq">FAQ</a></div>
           <div><h3>Account</h3><button className="link-button" onClick={signIn}>Sign in</button><button className="link-button" onClick={createAccount}>Create account</button></div>
         </nav>
       </div>

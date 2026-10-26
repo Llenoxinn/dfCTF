@@ -68,14 +68,15 @@ async function solveRows(db: Database, since?: Date): Promise<SolveRow[]> {
   return rows.map(r => ({ ...r, points: Number(r.points) }));
 }
 
-async function firstSolveTimes(db: Database) {
-  const rows = await db.select({ challengeId: solves.challengeId, first: sql<Date>`min(${solves.createdAt})` }).from(solves).groupBy(solves.challengeId);
-  return new Map(rows.map(r => [r.challengeId, new Date(r.first).getTime()]));
+async function firstSolveRecords(db: Database) {
+  const rows = await db.selectDistinctOn([solves.challengeId], { challengeId: solves.challengeId, id: solves.id, at: solves.createdAt })
+    .from(solves).orderBy(solves.challengeId, solves.createdAt, solves.id);
+  return new Map(rows.map(r => [r.challengeId, { id: r.id, at: r.at.getTime() }]));
 }
 
 async function publishedLibrary(db: Database) {
   return db.select({ id: challenges.id, publishedAt: challenges.publishedAt, title: challengeVersions.title, summary: challengeVersions.summary, category: challengeVersions.category, difficulty: challengeVersions.difficulty, xp: challengeVersions.xp, tags: challengeVersions.tags })
-    .from(challenges).innerJoin(challengeVersions, current).where(eq(challenges.status, "published"));
+    .from(challenges).innerJoin(challengeVersions, current).where(and(eq(challenges.status, "published"),eq(challenges.visibility,"practice")));
 }
 
 async function solveCounts(db: Database) {
@@ -101,8 +102,8 @@ export async function getCommunity(db: Database, now = new Date()): Promise<Comm
   const start = weekStart(now), activityStart = new Date(start.getTime() - 19 * 7 * DAY_MS);
   const activityDay = sql<string>`to_char(${solves.createdAt} AT TIME ZONE 'Asia/Manila', 'YYYY-MM-DD')`;
   const [library, counts, firsts, top, topAll, recentRows, activityRows] = await Promise.all([
-    publishedLibrary(db), solveCounts(db), firstSolveTimes(db), topStandings(db, now, start), topStandings(db, now),
-    db.select({ at: solves.createdAt, challengeId: solves.challengeId, codename: user.codename, title: challengeVersions.title, points: sql<number>`coalesce(${xpLedger.amount}, 0)` })
+    publishedLibrary(db), solveCounts(db), firstSolveRecords(db), topStandings(db, now, start), topStandings(db, now),
+    db.select({ id: solves.id, at: solves.createdAt, challengeId: solves.challengeId, codename: user.codename, title: challengeVersions.title, points: sql<number>`coalesce(${xpLedger.amount}, 0)` })
       .from(solves).innerJoin(user, eq(user.id, solves.userId)).innerJoin(challengeVersions, eq(challengeVersions.id, solves.versionId)).leftJoin(xpLedger, eq(xpLedger.solveId, solves.id))
       .orderBy(desc(solves.createdAt)).limit(12),
     db.select({ day: activityDay, total: sql<number>`count(*)` }).from(solves)
@@ -114,7 +115,7 @@ export async function getCommunity(db: Database, now = new Date()): Promise<Comm
     const solvers = await db.select({ codename: user.codename }).from(solves).innerJoin(user, eq(user.id, solves.userId)).where(eq(solves.challengeId, weeklyRow.id)).orderBy(desc(solves.createdAt)).limit(5);
     weekly = { id: weeklyRow.id, title: weeklyRow.title, summary: weeklyRow.summary, category: weeklyRow.category as Category, difficulty: weeklyRow.difficulty as Difficulty, xp: weeklyRow.xp, solveCount: counts.get(weeklyRow.id) ?? 0, solvers: solvers.flatMap(s => (s.codename ? [s.codename] : [])), endsAt: weekEnd(now).toISOString() };
   }
-  const recent: SolveEvent[] = recentRows.flatMap(r => (r.codename ? [{ at: r.at.toISOString(), codename: r.codename, title: r.title, points: Number(r.points), firstBlood: firsts.get(r.challengeId) === r.at.getTime() }] : []));
+  const recent: SolveEvent[] = recentRows.flatMap(r => (r.codename ? [{ at: r.at.toISOString(), codename: r.codename, title: r.title, points: Number(r.points), firstBlood: firsts.get(r.challengeId)?.id === r.id }] : []));
   const activity = dailyCounts([], activityStart, now);
   const activityTotals = new Map(activityRows.map(r => [r.day, Number(r.total)]));
   activity.days = activity.days.map((_, i) => activityTotals.get(dayKey(new Date(activityStart.getTime() + i * DAY_MS))) ?? 0);
@@ -131,7 +132,7 @@ export async function getCommunity(db: Database, now = new Date()): Promise<Comm
 export async function getLeaderboard(db: Database, viewerId: string, range: "week" | "all", now = new Date()): Promise<Leaderboard> {
   const start = weekStart(now), mineStart = new Date(start.getTime() - 15 * 7 * DAY_MS);
   const [rangeRows, weekRows, firsts, library, counts, mySolves] = await Promise.all([
-    range === "week" ? solveRows(db, start) : solveRows(db), solveRows(db, start), firstSolveTimes(db), publishedLibrary(db), solveCounts(db),
+    range === "week" ? solveRows(db, start) : solveRows(db), solveRows(db, start), firstSolveRecords(db), publishedLibrary(db), solveCounts(db),
     db.select({ challengeId: solves.challengeId, at: solves.createdAt }).from(solves).where(eq(solves.userId, viewerId)),
   ]);
   const standings = rankStandings(rangeRows);
@@ -143,7 +144,7 @@ export async function getLeaderboard(db: Database, viewerId: string, range: "wee
     range, weekEndsAt: weekEnd(now).toISOString(), players: standings.length, standings: standings.slice(0, 50).map(plain),
     viewer: me ? { ...plain(me), gap: above ? { codename: above.codename, points: above.points - me.points } : null } : null,
     race: raceRanks(weekRows, start, now),
-    hourly: hourlyCounts(weekRows, firsts, start, now),
+    hourly: hourlyCounts(weekRows, new Map([...firsts].map(([id, first]) => [id, first.at])), start, now),
     challenges: library.map(c => ({ id: c.id, title: c.title, category: c.category as Category, difficulty: c.difficulty as Difficulty, xp: c.xp, solveCount: counts.get(c.id) ?? 0, solved: solved.has(c.id) }))
       .sort((a, b) => CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) || order[a.difficulty] - order[b.difficulty] || a.xp - b.xp),
     mine: dailyCounts(mySolves.map(s => s.at).filter(at => at >= mineStart), mineStart, now),

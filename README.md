@@ -1,8 +1,10 @@
 # dfCTF
 
-A private capture-the-flag practice platform. This first release implements the MVP from the October 19, 2026 project plan: controlled sign-in, a codename, a reviewed library of downloadable challenges, server-side flag validation, persistent progress, and staff authoring.
+A capture-the-flag (CTF) platform built as a side project. Anyone can register, verify their email, choose a codename, solve challenges, and earn points on the weekly and all-time leaderboards.
 
-The application is a custom Next.js modular monolith with React, Better Auth, Drizzle, and PostgreSQL. Development can use embedded PGlite without installing a database server. Production uses a PostgreSQL service and persistent private artifact storage.
+The application is a custom Next.js modular monolith with React, Better Auth, Drizzle, and PostgreSQL. Development can use embedded PGlite without installing a database server. Production uses a PostgreSQL service and persistent artifact storage. [Architecture and invariants](docs/ARCHITECTURE.md) describe authentication, event isolation, scoring, and database ownership.
+
+See the [side project plan](docs/MVP.md) for current scope, the next small release, and known limitations. [PRODUCT.md](PRODUCT.md) describes the product and its constraints.
 
 ## Run locally
 
@@ -19,7 +21,7 @@ npm run dev
 
 Open [dfCTF on localhost](http://127.0.0.1:3000). Use the exact `127.0.0.1` origin shown here; session cookies and authentication callbacks belong to the configured origin.
 
-`seed` creates seven fictional, reviewed practice challenges and development accounts with freshly generated passwords. Their credentials are written only to the ignored `.data/bootstrap.txt` file. The seed is for local development; it refuses to run in production. Do not share that file, use its accounts with real students, or copy the local database into production.
+`seed` creates eight reviewed practice challenges, including **Read the fine print**, and development accounts with freshly generated passwords. Their credentials are written only to the ignored `.data/bootstrap.txt` file. The seed is for local development; it refuses to run in production. Do not share that file, use its accounts with real students, or copy the local database into production.
 
 With `DATABASE_URL` empty, data lives in `.data/postgres`, artifacts in `.data/artifacts`, and development emails in `.data/mail`. Stop the development server before running a database CLI against embedded PGlite: only one application process may open that database directory at a time. Use PostgreSQL when running multiple app processes. Keep `.data` between restarts to retain progress and local secrets.
 
@@ -27,12 +29,14 @@ The app and database scripts load `.env.local`. Leave `LOCAL_MAIL=1` for local d
 
 ## Try the learner flow
 
-1. Sign in with the generated learner account, or allowlist another email and register it. New email/password accounts must verify their email before accessing practice.
+1. Sign in with the generated learner account, or register with any email address. New accounts must verify their email before accessing challenges; no prior approval is needed.
 2. Choose a public codename when prompted. Provider names and email addresses do not become public codenames automatically.
 3. Open the practice library and filter by category, difficulty, or solve status.
 4. Open a challenge, read the objective, and download its file. File sizes and SHA-256 checksums are shown alongside the download.
-5. Investigate the fictional artifact and submit a complete `dfctf{...}` flag. Validation happens on the server. Incorrect attempts do not deduct XP; a cooldown appears when the attempt limit is reached.
-6. A first solve records the challenge version, awards its practice XP once, and unlocks the explanation. Sign out and back in to confirm that progress remains.
+5. Investigate the fictional artifact and submit a complete `dfCTF{...}` flag. Validation happens on the server. Incorrect attempts do not deduct points; a cooldown appears when the attempt limit is reached.
+6. A first solve records the challenge version, awards its practice XP once, and unlocks the explanation. Each challenge lists every solver in completion order, with the first blood highlighted and timestamps in Philippine time. Sign out and back in to confirm that progress remains.
+
+Open **Rules / Mechanics** from the public site or the signed-in Rules tab. The rules prohibit LLM-assisted solving, attacks or abuse of the platform, answer sharing, and plagiarized challenges. Three field notes form the flag for **Read the fine print**. Re-run `npm run seed` with the local app stopped to add it to an existing development database. On a deployment, staff can choose **Authoring → Rules challenge** to create its draft and briefing file, then use the usual independent review and publication flow.
 
 The library covers General skills, OSINT, Steganography, Forensics, Web exploitation, Binary exploitation, and Miscellaneous. MVP web and binary exercises use downloadable material; they do not launch vulnerable services or execute uploaded content.
 
@@ -42,21 +46,37 @@ Weekly standings run Monday 00:00 through Sunday 23:59:59.999 in **Asia/Manila**
 
 Use the generated owner account for local administration. Privileged author, reviewer, and administrator actions require two-factor authentication and verification in the current session. Set up an authenticator in Settings before using Authoring or administrative tools. A fresh sign-in or expired staff grant requires verification again; the staff grant lasts at most 12 hours.
 
-Authors create and edit their own drafts, add an intended solution and flag, and upload artifacts. A draft enters review before publication. A different eligible reviewer checks the content and submits the correct flag to approve publication. Participants can see and download only published content. Administrators manage private access in Settings; the server checks permissions for each operation. The bootstrap CLI grants administrator access, while a general staff-role management interface remains future work.
+Authors create and edit their own drafts, add an intended solution and flag, and upload artifacts. A draft enters review before publication. A different eligible reviewer checks the content and submits the correct flag to approve publication. Participants can see and download only published content. Administrators manage access in Settings; the server checks permissions for each operation. The bootstrap CLI grants administrator access, while a general staff-role management interface remains future work.
 
 If review finds a problem, the author or an administrator can choose **Return to draft**, correct and save the challenge, then send it for independent review again. Published versions stay locked. Staff who already enrolled an authenticator can use a saved backup code in Settings to verify a new or expired session; each code works once.
 
 Artifact uploads accept `.txt`, `.csv`, `.json`, `.log`, `.pcap`, `.zip`, `.png`, `.jpg`, `.jpeg`, and `.pdf` files, up to 10 MiB per file. Files are stored outside the public web directory and served through an authenticated download endpoint. They are never extracted or executed by the application. Extension and signature checks are implemented; malware scanning is not integrated.
 
-## Manage private access
+## Host a competition
 
-Add an email to the allowlist from an administrative shell:
+Open **Competitions → Manage events → Create competition** as an administrator with a verified staff session. Choose **Built-in dfCTF** or **CTFd host link**, then customize the title, description, event notes, and start/end times. Schedule fields use Philippine time (UTC+8).
+
+For a built-in event, create original challenges in Authoring with **Availability → Competition only**. A different reviewer must test-solve and publish them before the host can select them and assign event points. These challenges stay out of practice and can belong to one event. Publish the event when its settings are ready; the schedule, challenge selection, and points then stay locked.
+
+Players join a published built-in event before or during play. Registered players can open its challenge details and files when it starts. New submissions and registrations close exactly at its end time; registered players retain access to results and challenge review. Event points, first blood, and standings are separate from practice XP. The scoreboard refreshes every 30 seconds while the event is open and supports manual refresh.
+
+For a CTFd event, provide the existing host’s HTTPS URL. Its own site handles registration, challenges, hints, and scoring. Administrators can archive an event to withdraw access. Apply database migrations before running the updated application.
+
+## Manage account access
+
+Registration is open to verified emails. New accounts are tracked automatically so an administrator can suspend or restore access in Settings. To suspend an account from an administrative shell:
+
+```powershell
+npm run admin -- revoke person@example.edu
+```
+
+To restore access:
 
 ```powershell
 npm run admin -- allow person@example.edu
 ```
 
-The person can then register, verify their email, and choose a codename. To bootstrap an administrator after that account has been verified:
+Restoring access does not skip email verification. To bootstrap an administrator, first register and verify the account, then run:
 
 ```powershell
 npm run admin -- grant person@example.edu
@@ -73,7 +93,7 @@ Email/password sign-in works locally without provider credentials. Google and Gi
 | Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | `http://127.0.0.1:3000/api/auth/callback/google` |
 | GitHub | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | `http://127.0.0.1:3000/api/auth/callback/github` |
 
-For a deployment, replace `http://127.0.0.1:3000` with the exact HTTPS `APP_URL`. Configure each provider with that exact callback and restart the app after changing credentials. Use separate OAuth applications and secrets for local, staging, and production environments. The allowlist applies to every sign-in route; a valid provider account alone does not grant practice access. Account linking must be initiated while signed in; matching email addresses do not silently merge accounts.
+For a deployment, replace `http://127.0.0.1:3000` with the exact HTTPS `APP_URL`. Configure each provider with that exact callback and restart the app after changing credentials. Use separate OAuth applications and secrets for local, staging, and production environments. Email verification and account suspensions apply to every sign-in route. Account linking must be initiated while signed in; matching email addresses do not silently merge accounts.
 
 Provider configuration is included, but a real Google/GitHub round trip requires your own provider applications and credentials. Do not treat a successful local credentials sign-in as validation of those external flows.
 
@@ -85,7 +105,8 @@ Provider configuration is included, but a real Google/GitHub round trip requires
 | `npm run db:migrate` | Apply the versioned database migrations |
 | `npm run db:generate` | Generate migrations after changing the Drizzle schema |
 | `npm run seed` | Create local fictional content and generated demo credentials |
-| `npm run admin -- allow <email>` | Add an email to the private access allowlist |
+| `npm run admin -- allow <email>` | Restore account access; email verification is still required |
+| `npm run admin -- revoke <email>` | Suspend account access, including existing sessions |
 | `npm run admin -- grant <email>` | Promote an existing verified account to administrator |
 | `npm run typecheck` | TypeScript validation |
 | `npm test` | Automated tests |
@@ -94,12 +115,12 @@ Provider configuration is included, but a real Google/GitHub round trip requires
 | `npm start` | Run a previously built application |
 | `npm run check` | Type checking, tests, and production build |
 
-CI installs the locked dependencies and runs type checking, tests, and the production build. Deployment credentials are not required to compile the application; production runtime configuration is checked when server services are used. Never use bypass values to run a production service.
+CI installs the locked dependencies and runs type checking, tests, the production build, and browser regressions in Chromium. Deployment credentials are not required to compile the application; production runtime configuration is checked when server services are used. Never use bypass values to run a production service.
 
 Run `npm run build` before `npm run test:browser`. The browser suite starts a separate server on `127.0.0.1:3100` and uses mocked accounts and uploads; it does not modify the application database. Windows uses the installed Microsoft Edge browser; other systems need Playwright's Chromium browser.
 
 ## Deploy and review scope
 
-See [deployment and recovery](docs/DEPLOYMENT.md) for Docker, PostgreSQL, TLS, production bootstrap, email, backups, and release checks. See [MVP implementation notes](docs/MVP.md) for product decisions, deferred features, and the acceptance checklist.
+See [deployment and recovery](docs/DEPLOYMENT.md) for Docker, PostgreSQL, TLS, administrator bootstrap, email, backups, and release checks.
 
-This is a private practice MVP. It does not include competitions, event standings, teams or matching, live labs, learning paths, or a complete Skill Passport. Before onboarding real students, address the [documented production hardening gaps](docs/MVP.md#production-hardening-gaps), privacy operations, operational monitoring, and external OAuth verification. The repository is not a claim of ASVS certification or a completed penetration test.
+The current release includes practice, individual timed competitions, progress, and leaderboards. Teams, live targets, and learning paths remain future work. Before sharing a deployment, verify email delivery, access revocation, and backup restoration, and review the [known limitations](docs/MVP.md#production-hardening-gaps). Tests and a successful build do not certify security or validate external services.

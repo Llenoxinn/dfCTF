@@ -1,88 +1,80 @@
-# MVP implementation notes
+# dfCTF side project plan
 
-The October 19, 2026 project plan defines everyday individual practice as the first usable release. This implementation chooses a custom Next.js modular monolith, Better Auth, Drizzle, and PostgreSQL, with PGlite for single-process local development. It keeps competitions and live target infrastructure outside this first release.
+Build a CTF platform that one maintainer can understand, test, and run. The first release focuses on solving challenges, saving progress, and comparing scores. Keep the existing Next.js application, authentication library, database, and file storage.
 
-## Included product surface
+## Current scope
 
-- Email/password authentication with email verification and password reset; configurable Google and GitHub authentication.
-- A private email allowlist enforced for protected application access, including downloads.
-- A public codename for each learner, separate from private email and provider identity.
-- Seven-category practice library with category, difficulty, and progress filters.
-- Downloadable, versioned single-flag challenges, private artifacts, visible file metadata, and server-side flag validation.
-- Persistent solves and practice XP, awarded once for the eligible completion.
-- Basic draft authoring, artifact upload, review, publication, and archival with staff permissions and MFA.
-- Local fictional seed content, production bootstrap commands, versioned migrations, CI, and a container deployment recipe.
-
-The source-of-truth runtime contracts are the server validation schemas, database schema/migrations, permission checks, and tests. UI controls are convenience and feedback; they are not authorization boundaries.
-
-## First-release decisions
-
-| Topic | MVP choice |
+| Area | Implemented behavior |
 | --- | --- |
-| Participation | Individual practice only; no event registration or team requirement |
-| Content format | Downloadable files; the platform never runs challenge targets or uploaded executables |
-| Categories | The seven confirmed categories from the plan; cryptography and reverse engineering remain proposed additions |
-| Challenge lifecycle | Draft → review → published; archival removes practice access |
-| Review | Independent staff review and a correct test-solve flag before publication |
-| Flags | Validated server-side against a keyed digest; no browser-visible answer field |
-| Downloads | Authenticated endpoint reads from a private artifact directory; each request rechecks access |
-| Duplicate solves | A database constraint and transactional award path prevent duplicate credit |
-| Staff roles | Participant, author, reviewer, administrator; narrower event/moderation roles arrive with those features |
-| Staff authentication | Authenticator enrollment plus verification in the current session for privileged actions |
-| Local development | One embedded database process, generated credentials, file mailbox, fictional data |
-| Production | PostgreSQL, HTTPS origin, explicit secrets, SMTP, private allowlist, durable artifacts |
+| Registration | Anyone can register; email verification is required before protected access. No invite or university-domain requirement |
+| Identity | Public codenames; email and provider identity remain account information |
+| Challenges | Seven categories, three difficulties, filtering, downloadable files, and a single flag per version |
+| Scoring | Server-side validation; first eligible solve awards points once per family; wrong answers cost nothing |
+| Progress | Persistent solve history and unlocked walkthroughs |
+| Community | Weekly and all-time standings, recent solves, first-blood labels, and activity charts |
+| Challenge solvers | Full completion list by public codename and Philippine time; one first-blood attribution, without bonus points |
+| Rules / Mechanics | Public fair-play rules and a hidden-flag reading challenge; no LLM-assisted solving, platform abuse, or plagiarized challenges |
+| Competitions | Admin-created built-in events or CTFd host links; configurable schedules, notes, and native fixed points; separate registrations, submissions, solves, and scoreboards |
+| Event privacy | Reviewed competition-only challenges stay out of practice; registered players gain access at the start; submissions close at the end |
+| Weekly feature | Latest published challenge tagged `weekly`, during its publication week only; publishing is manual |
+| Authoring | Draft → review → published → archived. Authors or admins can return review to draft for corrections |
+| Permissions | Author, reviewer, admin; independent test-solve before publication; staff MFA |
+| Moderation | Admins suspend and restore access; suspensions apply to existing sessions and future sign-ins |
+| Development | Embedded PGlite, fictional seed content, generated local credentials, and a file mailbox |
+| Delivery | Type checks, automated tests, browser regressions, and production build in CI |
 
-Seeded challenges are examples for a development environment. Their review metadata establishes the sample workflow; it is not a substitute for human review of production content. A reviewer should independently solve every real challenge and verify that no solution or flag leaks through learner responses before publishing it.
+The source of truth is the validation schemas, database constraints, server permission checks, and tests. UI controls do not replace authorization.
+
+## Next small release
+
+- [x] Describe dfCTF as a CTF side project and document what actually exists.
+- [x] Open registration to verified emails while preserving suspensions and staff permissions.
+- [x] Show a recoverable error when landing-page statistics fail instead of presenting the failure as zero activity.
+- [x] Run browser regressions in CI alongside the existing checks.
+- [ ] Try the full player and staff flows on a staging deployment with fictional data.
+- [ ] Confirm verification and password-reset emails arrive through the configured SMTP provider.
+- [ ] Restore a backup of the database and challenge files, then verify a saved solve and download.
+- [ ] Publish a small set of reviewed challenges and collect feedback from initial players.
+
+Finish these checks before expanding the product. Success means a player can join, verify their email, solve a challenge, return later with the same points, and find another challenge worth opening.
+
+## Keep maintenance small
+
+- Use one application, PostgreSQL, and persistent artifact storage for the first shared deployment. PGlite remains a single-process local option.
+- Keep the existing auth and access checks. The legacy `allowlist` table and routes now track account access and suspensions; a new table or data migration is unnecessary.
+- Promote the initial administrator through the existing server command. Staff-role management UI can wait.
+- Use manual challenge publication. Add scheduling only if maintaining a schedule becomes a real need.
+- Add a regression test for a reproduced bug. Avoid speculative abstractions and new dependencies.
+
+## Release checks
+
+Use fictional accounts and data. See [deployment and recovery](DEPLOYMENT.md) for host setup and backup instructions.
+
+- A new email can register without prior approval; unverified email cannot access challenges or downloads.
+- A verified player can choose a codename, download a published file, submit a flag, and return to saved progress.
+- Duplicate and concurrent correct submissions award one solve and one eligible points entry.
+- Suspended accounts cannot use protected APIs, downloads, account-management operations, or new sign-ins. Restoring access preserves email-verification requirements.
+- Players cannot access drafts or staff tools. Staff need fresh MFA; an author cannot publish their own challenge.
+- Review can return to draft for corrections; publishing locks the content and files.
+- Weekly selection and standings use Philippine time and expire at the correct boundary.
+- Failed data requests show an error with a way to recover.
+- Production SMTP works. Test external OAuth only for providers enabled in the deployment.
+- Restarting the app preserves the database and artifacts; a separate restore drill succeeds.
 
 ## Production hardening gaps
 
-These are explicit differences between the project plan and the current first implementation:
+Keep these limits visible without turning the side project into an enterprise rewrite:
 
-| Requirement | Current behavior | Work still required |
+| Limit | Practical boundary now | Revisit when |
 | --- | --- | --- |
-| Hash stored session tokens | Better Auth's native adapter persists the original session token in `auth_session.token`; no supported hashing option is configured | Review and implement a supported session storage adaptation with end-to-end session, revocation, rotation, and MFA tests; restrict database and backup access meanwhile |
-| Scan uploads for malware | Extension, length, and selected format signatures are checked; archives are never extracted or executed by the server | Add a quarantine/scanning service and publication gate; independently scan real artifacts before publication until integrated |
-| Immutable submissions, XP, and audit records | Service code appends records and enforces award uniqueness, but the database role can still modify those tables | Separate migration and runtime database privileges, add suitable append-only database enforcement, and test direct forbidden updates/deletes |
-| Complete security assessment | Focused automated tests and application controls cover selected boundaries | Run and document deployment-specific security testing; no full ASVS audit or independent penetration test is claimed |
+| No malware-scanning integration | Only trusted staff upload files; inspect and scan real artifacts before publishing. Downloads are attachments, and the server never executes or extracts them | Accepting untrusted challenge authors |
+| Native auth session tokens are stored by Better Auth | Restrict database and backup access. Do not change the token column or invent a custom auth adapter just to satisfy an old plan | A concrete deployment requirement calls for a reviewed storage change |
+| Scoring and audit records are append-only through application code, not protected from a database administrator | Restrict privileged database access; keep backups and transactional scoring checks | More operators or a stronger audit requirement |
+| No self-service account export or deletion | Provide a way to contact the maintainer for account and data requests | Real users request a self-service workflow |
+| Production integrations are environment-dependent | Verify SMTP, configured OAuth providers, and backup restoration on staging | Before sharing that deployment |
 
-These gaps must remain part of release preflight even when type checking, tests, and builds pass. Ad hoc hashing of Better Auth's session column would break its lookups; a production change must integrate with the library's complete session lifecycle.
+Passing tests proves the covered behavior. It does not certify security, validate an external provider, or establish that a backup can be restored.
 
-The initial npm audit reported no high or critical advisories and four moderate findings along Drizzle Kit's legacy esbuild-loader dependency chain (GHSA-67mh-4wv8-2f99). The application does not start an esbuild development server or Drizzle Studio. CI fails on high/critical findings; review this tooling chain again before exposing development tools.
+## Later, only if needed
 
-## Deferred scope
-
-The following are separate roadmap work and must not be inferred from this MVP:
-
-- Competitions, dynamic scoring, tie-breaking/replay, schedules, standings, registration, and roster locks.
-- Exact-four teams, invite links, team finder, matching, study groups, and group workspaces.
-- Isolated live labs, browser terminals, per-user targets, lab networking, and a lab escape threat model implementation.
-- Progressive hints, assistance-aware XP, walkthrough state, private notes/bookmarks, transfer checks, variants, and a full Skill Passport.
-- Learning paths, tutorials, community writeups/moderation, Campus Cases, and event debriefs.
-- Automated data retention, self-service data export/deletion, and final institutional privacy notice approval.
-- A production monitoring/alerting installation, offsite backup automation, a load rehearsal, or a completed independent penetration test.
-
-No event scoring decision is needed to use this release. Introducing events later requires an explicit event-to-challenge version mapping and a scoring specification that settles the dynamic tie-break conflict identified in the project-plan review.
-
-## Acceptance checklist
-
-Use a fresh local database or fictional staging environment. Keep private test credentials out of screenshots and issue reports.
-
-| Journey or boundary | Expected evidence |
-| --- | --- |
-| New approved learner registers | Email verification and codename onboarding lead to the practice library without a team or event |
-| Unapproved identity signs in | Protected pages, API calls, and artifact access remain unavailable |
-| Active access is revoked | A later protected request fails despite the existing login session |
-| Learner investigates a challenge | File download requires authentication; size and checksum correspond to the downloaded file |
-| Incorrect flag | Generic incorrect result; no partial-match clues or XP deduction |
-| First correct flag | One completion and one XP award tied to the challenge version |
-| Duplicate or concurrent correct flags | No second completion or XP award |
-| Learner signs out and returns | Progress remains in the same account |
-| Too many attempts | Rate limit with cooldown; no extra flag information |
-| A learner guesses a draft identifier | Hidden content and its files are unavailable |
-| Author saves and sends a draft to review | Content remains private until an independent reviewer submits the correct test-solve flag and approves |
-| Staff session has no fresh MFA verification | Privileged action is rejected or requests verification |
-| Forbidden file extension or oversized upload | Upload is rejected before publication; uploaded content is never executed |
-| External provider is configured | A real provider callback works at the configured origin and respects the allowlist |
-| App is rebuilt/restarted | Existing database progress and private artifact files are preserved |
-
-Automated checks establish only the behavior those tests cover. Review the test output and run deployment checks in [DEPLOYMENT.md](DEPLOYMENT.md) before calling a private release ready for users.
+Teams, dynamic scoring, live target hosting, native paid hints, learning paths, social features, and a Skill Passport remain separate projects. Choose the next small task from actual player feedback.
