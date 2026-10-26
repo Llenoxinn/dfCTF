@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Bootstrap } from "@/lib/types";
-import { api, formatDate, Icon, Loading, Notice, SettingsSection } from "./ui";
+import { api, formatDate, Loading, Notice, SettingsSection } from "./ui";
 
 type Account = { id: string; providerId: string; createdAt: string };
 type Session = { id: string; token: string; userAgent?: string; createdAt: string; expiresAt: string };
@@ -43,19 +43,18 @@ export default function AccountSecurity({ bootstrap, refresh }: { bootstrap: Boo
 
   return <SettingsSection title="Sessions and sign-in" description="Every browser where you’re signed in, and the providers you can sign in with. Sign out anything you don’t recognize.">
     {error ? <Notice type="error">{error}</Notice> : null}{message ? <Notice type="success">{message}</Notice> : null}
-    {loading ? <Loading label="Loading your sessions"/> : <>
+    {loading ? <Loading label="Loading your sessions" /> : <>
       <h3 className="sub-head">Active sessions</h3>
-      <ul className="plain-list session-list">{ordered.map(session => <li key={session.id}>
-        <span className="file-icon"><Icon name="terminal" size={18}/></span>
+      <ul className="rows">{ordered.map(session => <li key={session.id}>
         <div className="grow"><strong>{deviceName(session.userAgent)}</strong><span className="muted">Signed in {formatDate(session.createdAt)}, expires {formatDate(session.expiresAt)}</span></div>
-        {session.id === current ? <span className="pill pill-progress">This browser</span> : <button className="text-button danger-text" disabled={busy || !session.token} onClick={() => revoke(session)}>Sign out</button>}
+        {session.id === current ? <span className="tag tag-accent">this browser</span> : <button className="text-button danger" disabled={busy || !session.token} onClick={() => revoke(session)}>Sign out</button>}
       </li>)}</ul>
       {providers.length ? <>
         <h3 className="sub-head">Sign-in providers</h3>
-        <p className="fine-print">Link only accounts you own. You can’t remove your last way to sign in.</p>
-        <ul className="plain-list">{providers.map(provider => { const account = accounts.find(a => a.providerId === provider); return <li key={provider}>
+        <p className="fine">Link only accounts you own. You can’t remove your last way to sign in.</p>
+        <ul className="rows">{providers.map(provider => { const account = accounts.find(a => a.providerId === provider); return <li key={provider}>
           <div className="grow"><strong>{provider === "google" ? "Google" : "GitHub"}</strong><span className="muted">{account ? `Connected ${formatDate(account.createdAt)}` : "Not connected"}</span></div>
-          <button className="button button-secondary button-small" onClick={() => account ? disconnect(account) : connect(provider)} disabled={busy || !!account && accounts.length < 2}>{account ? "Disconnect" : "Connect"}</button>
+          <button className="button button-secondary" onClick={() => account ? disconnect(account) : connect(provider)} disabled={busy || !!account && accounts.length < 2}>{account ? "Disconnect" : "Connect"}</button>
         </li>; })}</ul>
       </> : null}
     </>}

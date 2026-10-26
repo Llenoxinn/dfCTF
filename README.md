@@ -38,9 +38,13 @@ The library covers General skills, OSINT, Steganography, Forensics, Web exploita
 
 ## Try the staff flow
 
+Weekly standings run Monday 00:00 through Sunday 23:59:59.999 in **Asia/Manila**, regardless of the server or browser timezone. A published challenge tagged `weekly` is featured only during its publication week; when several qualify, the most recently published challenge is featured. Old challenges remain in the library without receiving a new weekly deadline.
+
 Use the generated owner account for local administration. Privileged author, reviewer, and administrator actions require two-factor authentication and verification in the current session. Set up an authenticator in Settings before using Authoring or administrative tools. A fresh sign-in or expired staff grant requires verification again; the staff grant lasts at most 12 hours.
 
 Authors create and edit their own drafts, add an intended solution and flag, and upload artifacts. A draft enters review before publication. A different eligible reviewer checks the content and submits the correct flag to approve publication. Participants can see and download only published content. Administrators manage private access in Settings; the server checks permissions for each operation. The bootstrap CLI grants administrator access, while a general staff-role management interface remains future work.
+
+If review finds a problem, the author or an administrator can choose **Return to draft**, correct and save the challenge, then send it for independent review again. Published versions stay locked. Staff who already enrolled an authenticator can use a saved backup code in Settings to verify a new or expired session; each code works once.
 
 Artifact uploads accept `.txt`, `.csv`, `.json`, `.log`, `.pcap`, `.zip`, `.png`, `.jpg`, `.jpeg`, and `.pdf` files, up to 10 MiB per file. Files are stored outside the public web directory and served through an authenticated download endpoint. They are never extracted or executed by the application. Extension and signature checks are implemented; malware scanning is not integrated.
 
@@ -85,11 +89,14 @@ Provider configuration is included, but a real Google/GitHub round trip requires
 | `npm run admin -- grant <email>` | Promote an existing verified account to administrator |
 | `npm run typecheck` | TypeScript validation |
 | `npm test` | Automated tests |
+| `npm run test:browser` | Browser regression tests against the production build (Edge on Windows; Playwright Chromium elsewhere) |
 | `npm run build` | Build the production application |
 | `npm start` | Run a previously built application |
 | `npm run check` | Type checking, tests, and production build |
 
 CI installs the locked dependencies and runs type checking, tests, and the production build. Deployment credentials are not required to compile the application; production runtime configuration is checked when server services are used. Never use bypass values to run a production service.
+
+Run `npm run build` before `npm run test:browser`. The browser suite starts a separate server on `127.0.0.1:3100` and uses mocked accounts and uploads; it does not modify the application database. Windows uses the installed Microsoft Edge browser; other systems need Playwright's Chromium browser.
 
 ## Deploy and review scope
 

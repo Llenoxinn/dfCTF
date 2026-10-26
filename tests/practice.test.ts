@@ -2,11 +2,11 @@ import { beforeAll,afterAll,describe,it,expect } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { createStore } from "@/server/db";
-import { user,challenges,solves,xpLedger,submissions,requestResults } from "@/server/schema";
+import { user,challenges,solves,xpLedger,submissions,requestResults,auditEvents } from "@/server/schema";
 import { createChallenge,editChallenge,publishChallenge,challengeDetail,submitFlag,getProgress,listChallenges,consumeLimit } from "@/server/challenges";
 import { saveArtifact,downloadArtifact } from "@/server/files";
 import { flagDigest,matchesFlag } from "@/server/flags";
-import { challengeInput,codenameSchema,codenameKey } from "@/server/validation";
+import { challengeInput,challengePatchInput,codenameSchema,codenameKey } from "@/server/validation";
 import { checkOrigin } from "@/server/http";
 import type { Viewer } from "@/lib/types";
 import { mkdtemp,rm } from "node:fs/promises";
@@ -17,7 +17,7 @@ let store:Awaited<ReturnType<typeof createStore>>,directory:string;
 const author:Viewer={id:randomUUID(),email:"author@example.test",codename:"author_one",emailVerified:true,role:"author",twoFactorEnabled:true};
 const reviewer:Viewer={...author,id:randomUUID(),email:"reviewer@example.test",codename:"reviewer_one",role:"reviewer"};
 const learner:Viewer={...author,id:randomUUID(),email:"learner@example.test",codename:"learner_one",role:"participant",twoFactorEnabled:false};
-const flag="dfctf{test_evidence_d8f19a27}";
+const flag="dfCTF{test_evidence_d8f19a27}";
 function draft(title:string){return challengeInput.parse({title,summary:"A fictional training exercise.",description:"Inspect the training file and recover its flag.",solution:"Open the supplied file and copy the flag including its wrapper.",flag,category:"General skills",difficulty:"Easy",xp:50,estimatedMinutes:5,tags:["training"]});}
 async function ready(title:string){const record=await createChallenge(store.db,author,draft(title));await saveArtifact(store.db,author,record.id,"evidence.txt",Buffer.from(flag));await editChallenge(store.db,author,record.id,{status:"review"});await publishChallenge(store.db,reviewer,record.id,flag);return record;}
 beforeAll(async()=>{directory=await mkdtemp(path.join(os.tmpdir(),"dfctf-practice-"));process.env.ARTIFACT_DIR=directory;store=await createStore(undefined,true);await store.migrate();for(const v of [author,reviewer,learner])await store.db.insert(user).values({...v,name:"Private account"});});
@@ -36,8 +36,46 @@ describe("private practice integrity",()=>{
   it("requires independent review and a correct reviewer test solve",async()=>{
     const c=await createChallenge(store.db,author,draft("Independent approval"));await saveArtifact(store.db,author,c.id,"review.txt",Buffer.from(flag));await editChallenge(store.db,author,c.id,{status:"review"});
     await expect(publishChallenge(store.db,{...author,role:"admin"},c.id,flag)).rejects.toMatchObject({code:"SELF_REVIEW"});
-    await expect(publishChallenge(store.db,reviewer,c.id,"dfctf{wrong_flag}")).rejects.toMatchObject({code:"REVIEW_FLAG_INCORRECT"});
+    await expect(publishChallenge(store.db,reviewer,c.id,"dfCTF{wrong_flag}")).rejects.toMatchObject({code:"REVIEW_FLAG_INCORRECT"});
     await publishChallenge(store.db,reviewer,c.id,flag);await expect(editChallenge(store.db,author,c.id,{title:"Changed after publication"})).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
+  });
+  it("preserves omitted draft fields on PATCH and allows explicitly clearing tags",async()=>{
+    const c=await createChallenge(store.db,author,{...draft("Patch only the title"),tags:["weekly","training"],flagFormat:"dfCTF{answer}"});
+    const patch=challengePatchInput.parse({title:"Renamed challenge"});
+    expect(patch).toEqual({title:"Renamed challenge"});
+    await editChallenge(store.db,author,c.id,patch);
+    expect(await challengeDetail(store.db,author,c.id,true)).toMatchObject({title:"Renamed challenge",tags:["weekly","training"],flagFormat:"dfCTF{answer}"});
+    await editChallenge(store.db,author,c.id,challengePatchInput.parse({tags:[]}));
+    expect((await challengeDetail(store.db,author,c.id,true)).tags).toEqual([]);
+    expect(challengePatchInput.safeParse({status:"published"}).success).toBe(false);
+    expect(challengePatchInput.safeParse({status:"draft",title:"Mixed mutation"}).success).toBe(false);
+    expect(challengePatchInput.safeParse({tags:[" "]}).success).toBe(false);
+    const {tags:unused,...withoutTags}=draft("Default tags on creation");
+    expect(challengeInput.parse(withoutTags).tags).toEqual([]);
+  });
+  it("lets owners and admins withdraw review, correct the draft, and request independent review again",async()=>{
+    const c=await createChallenge(store.db,author,draft("Correct a failed review"));
+    const file=await saveArtifact(store.db,author,c.id,"review.txt",Buffer.from(flag));
+    await editChallenge(store.db,author,c.id,challengePatchInput.parse({status:"review"}));
+    await expect(publishChallenge(store.db,reviewer,c.id,"dfCTF{wrong_flag}")).rejects.toMatchObject({code:"REVIEW_FLAG_INCORRECT"});
+    for(const viewer of [reviewer,learner,{...reviewer,role:"author" as const}]) {
+      await expect(editChallenge(store.db,viewer,c.id,{status:"draft"})).rejects.toMatchObject({status:404});
+    }
+    await expect(editChallenge(store.db,author,c.id,{title:"Edit during review"})).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
+    expect(await editChallenge(store.db,author,c.id,{status:"draft"})).toMatchObject({status:"draft"});
+    const corrected="dfCTF{corrected_review_flag}";
+    await editChallenge(store.db,author,c.id,{title:"Corrected training case",flag:corrected});
+    expect((await challengeDetail(store.db,author,c.id,true)).files.map(f=>f.id)).toEqual([file.id]);
+    await expect(publishChallenge(store.db,reviewer,c.id,corrected)).rejects.toMatchObject({code:"INVALID_STATE"});
+    await editChallenge(store.db,author,c.id,{status:"review"});
+    await editChallenge(store.db,{...reviewer,role:"admin"},c.id,{status:"draft"});
+    await editChallenge(store.db,author,c.id,{status:"review"});
+    await expect(publishChallenge(store.db,reviewer,c.id,flag)).rejects.toMatchObject({code:"REVIEW_FLAG_INCORRECT"});
+    await expect(publishChallenge(store.db,{...author,role:"admin"},c.id,corrected)).rejects.toMatchObject({code:"SELF_REVIEW"});
+    await publishChallenge(store.db,reviewer,c.id,corrected);
+    await expect(editChallenge(store.db,author,c.id,{status:"draft"})).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
+    await expect(editChallenge(store.db,{...reviewer,role:"admin"},c.id,{title:"Published edit"})).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
+    expect((await store.db.select().from(auditEvents).where(eq(auditEvents.targetId,c.id))).filter(e=>e.action==="challenge.withdraw_review")).toHaveLength(2);
   });
   it("persists a solve once under simultaneous correct requests",async()=>{
     const c=await ready("Concurrency award");const responses=await Promise.all([submitFlag(store.db,learner,c.id,flag,"concurrent-one"),submitFlag(store.db,learner,c.id,flag,"concurrent-two")]);
@@ -45,6 +83,14 @@ describe("private practice integrity",()=>{
     expect(await store.db.select().from(solves).where(eq(solves.challengeId,c.id))).toHaveLength(1);
     const records=await store.db.select().from(xpLedger);expect(records.filter(x=>x.userId===learner.id)).toHaveLength(1);
     expect((await getProgress(store.db,learner.id)).totalXp).toBe(50);
+  });
+  it("marks tried cases as attempted and drops archived solves from library counts",async()=>{
+    const c=await ready("Archived after solve");await submitFlag(store.db,learner,c.id,"dfctf{first_guess}");
+    expect((await challengeDetail(store.db,learner,c.id)).attempted).toBe(true);
+    await submitFlag(store.db,learner,c.id,flag);const before=await getProgress(store.db,learner.id);
+    await editChallenge(store.db,author,c.id,{status:"archived"});const after=await getProgress(store.db,learner.id);
+    expect(after.solvedCount).toBe(before.solvedCount-1);expect(after.totalXp).toBe(before.totalXp);
+    for(const cat of after.categories)expect(cat.solved).toBeLessThanOrEqual(cat.total);
   });
   it("replays idempotent requests and rejects reuse with different inputs",async()=>{
     const c=await ready("Idempotent retry");const first=await submitFlag(store.db,learner,c.id,flag,"same-request-key");
@@ -70,6 +116,13 @@ describe("private practice integrity",()=>{
   });
   it("matches flags exactly after whitespace trimming",()=>{
     const digest=flagDigest(flag);expect(matchesFlag(`  ${flag}\n`,digest)).toBe(true);expect(matchesFlag(flag.toUpperCase(),digest)).toBe(false);expect(matchesFlag(flag.slice(0,-1),digest)).toBe(false);
+    expect(matchesFlag(flag.replace("dfCTF{","dfctf{"),digest)).toBe(true);expect(matchesFlag(flag.replace("dfCTF{","DFCTF{"),digest)).toBe(true);
+  });
+  it("accepts the current wrapper for legacy digests without changing the answer's case",()=>{
+    const legacy=flag.replace("dfCTF{","dfctf{"),digest=flagDigest(legacy);
+    for(const candidate of [legacy,flag,flag.replace("dfCTF{","DFCTF{")])expect(matchesFlag(`  ${candidate}\n`,digest)).toBe(true);
+    expect(matchesFlag(flag.toUpperCase(),digest)).toBe(false);
+    expect(matchesFlag(flag.replace("test_evidence","Test_evidence"),digest)).toBe(false);
   });
   it("requires a trusted origin on state changes",()=>{
     expect(()=>checkOrigin(new Request("http://localhost:3000/api/v1/me",{method:"PATCH",headers:{origin:"https://attacker.example","content-type":"application/json"}}))).toThrow();

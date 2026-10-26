@@ -6,6 +6,7 @@ import { flagDigest, matchesFlag } from "./flags";
 import { HttpError } from "./http";
 import { challengeInput } from "./validation";
 import { CATEGORIES, type ChallengeSummary, type ChallengeDetail, type Category, type Difficulty, type Viewer, type Progress } from "@/lib/types";
+import { currentWeekly, weekEnd } from "@/lib/week";
 import type { z } from "zod";
 
 type Executor=Pick<Database,"select"|"insert"|"update"|"delete">;
@@ -22,19 +23,20 @@ export async function consumeLimit(db:Executor,key:string,max=10,windowMs=60_000
   }}).returning();
   if(bucket.count>max) throw new HttpError(429,"RATE_LIMITED","Too many attempts. Wait a moment and try again.",{retryAfter:Math.max(1,Math.ceil((bucket.windowStart.getTime()+windowMs-now.getTime())/1000))});
 }
-export async function listChallenges(db:Database,userId:string,filters:Record<string,string>={},staff?:Viewer):Promise<ChallengeSummary[]> {
+export async function listChallenges(db:Database,userId:string,staff?:Viewer):Promise<ChallengeSummary[]> {
+  const now=new Date();
   const visible=staff ? (staff.role==="author"?eq(challenges.authorId,userId):undefined) : eq(challenges.status,"published");
   const [rows,mySolves,myAttempts,counts]=await Promise.all([
-    db.select({challenge:challenges,version:challengeVersions}).from(challenges).innerJoin(challengeVersions,current).where(visible).orderBy(desc(challenges.createdAt)),
+    db.select({challenge:challenges,version:challengeVersions,author:user.codename}).from(challenges).innerJoin(challengeVersions,current).innerJoin(user,eq(user.id,challenges.authorId)).where(visible).orderBy(desc(challenges.createdAt)),
     db.select({challengeId:solves.challengeId}).from(solves).where(eq(solves.userId,userId)),
     db.selectDistinct({challengeId:submissions.challengeId}).from(submissions).where(eq(submissions.userId,userId)),
     db.select({challengeId:solves.challengeId,total:count()}).from(solves).groupBy(solves.challengeId)
   ]);
   const solved=new Set(mySolves.map(s=>s.challengeId)), attempted=new Set(myAttempts.map(s=>s.challengeId)), countMap=new Map(counts.map(s=>[s.challengeId,s.total]));
-  return rows.map(({challenge:c,version:v})=>({id:c.id,slug:c.slug,title:v.title,category:v.category as Category,difficulty:v.difficulty as Difficulty,summary:v.summary,tags:v.tags,xp:v.xp,estimatedMinutes:v.estimatedMinutes,solved:solved.has(c.id),attempted:attempted.has(c.id),solveCount:countMap.get(c.id)||0,status:c.status})).filter(c=>{
-    const query=(filters.q||"").toLowerCase();
-    return (!query||`${c.title} ${c.summary} ${c.tags.join(" ")}`.toLowerCase().includes(query)) && (!filters.category||c.category===filters.category) && (!filters.difficulty||c.difficulty===filters.difficulty) && (!filters.status||filters.status==="all"||(filters.status==="solved"&&c.solved)||(filters.status==="unattempted"&&!c.attempted&&!c.solved)||(filters.status==="in-progress"&&c.attempted&&!c.solved));
-  });
+  const weekly=!staff?currentWeekly(rows.map(({challenge:c,version:v})=>({id:c.id,publishedAt:c.publishedAt,tags:v.tags})),now):undefined;
+  return rows.map(({challenge:c,version:v,author})=>({id:c.id,slug:c.slug,title:v.title,category:v.category as Category,difficulty:v.difficulty as Difficulty,summary:v.summary,tags:v.tags,xp:v.xp,estimatedMinutes:v.estimatedMinutes,solved:solved.has(c.id),attempted:attempted.has(c.id),solveCount:countMap.get(c.id)||0,status:c.status,
+    ...(weekly?.id===c.id?{weeklyEndsAt:weekEnd(now).toISOString()}:{}),
+    ...(staff?{author:author||"dfCTF author",updatedAt:c.updatedAt.toISOString()}:{})}));
 }
 export async function challengeRecord(db:Executor,id:string) {
   const [row]=await db.select({challenge:challenges,version:challengeVersions,author:user.codename}).from(challenges).innerJoin(challengeVersions,current).innerJoin(user,eq(user.id,challenges.authorId)).where(eq(challenges.id,id));
@@ -42,15 +44,20 @@ export async function challengeRecord(db:Executor,id:string) {
   return row;
 }
 export async function challengeDetail(db:Database,viewer:Viewer,id:string,staff=false):Promise<ChallengeDetail & {authorId?:string;canPublish?:boolean}> {
+  const now=new Date();
   const row=await challengeRecord(db,id);const c=row.challenge,v=row.version;
   if(!staff && c.status!=="published") throw new HttpError(404,"NOT_FOUND","This challenge is unavailable.");
   if(staff && viewer.role==="author" && c.authorId!==viewer.id) throw new HttpError(404,"NOT_FOUND","This challenge is unavailable.");
-  const [mySolve,files,counts]=await Promise.all([
+  const [mySolve,myAttempt,files,counts,recentSolvers,weeklyRows]=await Promise.all([
     db.select().from(solves).where(and(eq(solves.userId,viewer.id),eq(solves.challengeId,id))).limit(1),
+    db.select({id:submissions.id}).from(submissions).where(and(eq(submissions.userId,viewer.id),eq(submissions.challengeId,id))).limit(1),
     db.select({id:artifacts.id,name:artifacts.name,size:artifacts.size,sha256:artifacts.sha256}).from(artifacts).where(eq(artifacts.versionId,v.id)),
-    db.select({total:count()}).from(solves).where(eq(solves.challengeId,id))
+    db.select({total:count()}).from(solves).where(eq(solves.challengeId,id)),
+    db.select({codename:user.codename}).from(solves).innerJoin(user,eq(user.id,solves.userId)).where(eq(solves.challengeId,id)).orderBy(desc(solves.createdAt)).limit(5),
+    db.select({id:challenges.id,publishedAt:challenges.publishedAt,tags:challengeVersions.tags}).from(challenges).innerJoin(challengeVersions,current).where(eq(challenges.status,"published"))
   ]);
-  return {id:c.id,slug:c.slug,title:v.title,summary:v.summary,description:v.description,category:v.category as Category,difficulty:v.difficulty as Difficulty,tags:v.tags,xp:v.xp,estimatedMinutes:v.estimatedMinutes,solved:!!mySolve.length,attempted:false,solveCount:counts[0].total,status:c.status,flagFormat:v.flagFormat,author:row.author||"dfCTF author",version:v.version,files,
+  return {id:c.id,slug:c.slug,title:v.title,summary:v.summary,description:v.description,category:v.category as Category,difficulty:v.difficulty as Difficulty,tags:v.tags,xp:v.xp,estimatedMinutes:v.estimatedMinutes,solved:!!mySolve.length,attempted:!!myAttempt.length,solveCount:counts[0].total,status:c.status,flagFormat:v.flagFormat,author:row.author||"dfCTF author",version:v.version,files,solvers:recentSolvers.flatMap(s=>s.codename?[s.codename]:[]),
+    ...(currentWeekly(weeklyRows,now)?.id===c.id?{weeklyEndsAt:weekEnd(now).toISOString()}:{}),
     ...(mySolve.length||staff?{solution:v.solution}:{}),...(staff?{authorId:c.authorId,canPublish:c.status==="review"&&viewer.role!=="author"&&c.authorId!==viewer.id}:{})};
 }
 export async function getProgress(db:Database,userId:string):Promise<Progress> {
@@ -60,8 +67,10 @@ export async function getProgress(db:Database,userId:string):Promise<Progress> {
     db.selectDistinct({challengeId:submissions.challengeId}).from(submissions).where(eq(submissions.userId,userId)),
     db.select({id:challenges.id,category:challengeVersions.category}).from(challenges).innerJoin(challengeVersions,current).where(eq(challenges.status,"published"))
   ]);
-  return {totalXp:Number(awards[0]?.total||0),solvedCount:completed.length,attemptedCount:attempted.length,
-    categories:CATEGORIES.map(category=>({category,solved:completed.filter(c=>c.category===category).length,total:library.filter(c=>c.category===category).length})),
+  // Counts compare against the published library; archived solves stay in history and XP only.
+  const live=new Set(library.map(c=>c.id)),stillPublished=completed.filter(c=>live.has(c.id));
+  return {totalXp:Number(awards[0]?.total||0),solvedCount:stillPublished.length,attemptedCount:attempted.length,
+    categories:CATEGORIES.map(category=>({category,solved:stillPublished.filter(c=>c.category===category).length,total:library.filter(c=>c.category===category).length})),
     recentSolves:completed.slice(0,20).map(c=>({...c,xp:Number(c.xp),category:c.category as Category,solvedAt:c.solvedAt.toISOString()}))};
 }
 export async function submitFlag(db:Database,viewer:Viewer,id:string,flag:string,idempotencyKey?:string) {
@@ -116,6 +125,10 @@ export async function editChallenge(db:Database,viewer:Viewer,id:string,input:Pa
     const {challenge:c,version:v}=await challengeRecord(tx,id);
     if(!["author","admin"].includes(viewer.role)||(viewer.role==="author"&&c.authorId!==viewer.id))throw new HttpError(404,"NOT_FOUND","This draft is unavailable.");
     if(input.status==="archived"&&c.status==="published") {await tx.update(challenges).set({status:"archived",updatedAt:new Date()}).where(eq(challenges.id,id));await audit(tx,viewer.id,"challenge.archive",id);return {id,status:"archived"};}
+    if(input.status==="draft"&&c.status==="review"&&!v.locked) {
+      await tx.update(challenges).set({status:"draft",updatedAt:new Date()}).where(eq(challenges.id,id));
+      await audit(tx,viewer.id,"challenge.withdraw_review",id);return {id,status:"draft"};
+    }
     if(c.status!=="draft"||v.locked)throw new HttpError(409,"IMMUTABLE_VERSION","This version is locked. Published content cannot be edited.");
     if(input.status) {
       if(input.status!=="review")throw new HttpError(422,"INVALID_STATE","Drafts can only be submitted for independent review.");

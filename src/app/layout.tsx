@@ -1,22 +1,24 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
-import { Atkinson_Hyperlegible_Mono, Atkinson_Hyperlegible_Next } from "next/font/google";
+import { Geist, Geist_Mono, Martian_Mono } from "next/font/google";
 import { THEME_COOKIE, parseTheme } from "@/lib/theme";
 import "./globals.css";
 
-const sans = Atkinson_Hyperlegible_Next({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-const mono = Atkinson_Hyperlegible_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
+const sans = Geist({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
+const mark = Martian_Mono({ subsets: ["latin"], weight: "800", variable: "--font-mark", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "dfCTF · Learn security by solving cases",
-  description: "A private capture-the-flag practice platform. Download fictional evidence, work it on your own machine, and submit the flag.",
+  icons: { icon: { url: "/icon.svg", type: "image/svg+xml", sizes: "any" } },
+  title: "dfCTF: solve security challenges, capture the flag",
+  description: "dfCTF is a capture-the-flag platform by DFC Developers. Solve hands-on security challenges, earn points for every flag, and climb the leaderboard.",
 };
 
 export const viewport: Viewport = {
-  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f3f4fa" }, { media: "(prefers-color-scheme: dark)", color: "#080a1f" }],
+  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#101113" }, { media: "(prefers-color-scheme: dark)", color: "#101113" }],
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
-  return <html lang="en" data-theme={theme ?? undefined} className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning><body>{children}</body></html>;
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value) ?? "dark";
+  return <html lang="en" data-theme={theme} className={`${sans.variable} ${mono.variable} ${mark.variable}`} suppressHydrationWarning><body>{children}</body></html>;
 }

@@ -1,23 +1,21 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
-import type { Bootstrap, ChallengeDetail, ChallengeSummary, Progress, Viewer } from "@/lib/types";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import type { Bootstrap, ChallengeDetail, ChallengeSummary, Leaderboard, Progress, Viewer } from "@/lib/types";
 import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
-import { applyTheme, parseTheme, THEME_COOKIE } from "@/lib/theme";
+import { countdownParts } from "@/lib/week";
 import AuthPanel, { LocalInbox, type AuthMode } from "./auth-panel";
 import Authoring from "./authoring";
 import AccountSecurity from "./account-security";
-import CampusScene from "./campus-scene";
 import Landing from "./landing";
-import { api, Brand, categoryGlyph, CopyButton, Difficulty, Empty, formatDate, GlyphTile, humanSize, Icon, Loading, Meter, Notice, Pixel, SettingsSection, ThemeToggle, useTheme } from "./ui";
+import { ChallengeCard, type CardState } from "./cards";
+import { Heatmap, Radar, RaceChart, SolveGrid } from "./viz";
+import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Notice, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
 
-type View = "dashboard" | "practice" | "progress" | "authoring" | "settings";
-const VIEWS: { id: View; label: string; icon: string; group: "Practice" | "Staff" | "Account" }[] = [
-  { id: "dashboard", label: "Overview", icon: "grid", group: "Practice" },
-  { id: "practice", label: "Library", icon: "flag", group: "Practice" },
-  { id: "progress", label: "Progress", icon: "chart", group: "Practice" },
-  { id: "authoring", label: "Authoring", icon: "edit", group: "Staff" },
-  { id: "settings", label: "Settings", icon: "settings", group: "Account" },
+type View = "practice" | "leaderboard" | "progress" | "authoring" | "settings";
+const VIEWS: { id: View; label: string; staff?: boolean }[] = [
+  { id: "practice", label: "Challenges" }, { id: "leaderboard", label: "Leaderboard" }, { id: "progress", label: "Progress" },
+  { id: "authoring", label: "Authoring", staff: true }, { id: "settings", label: "Settings" },
 ];
 
 function hrefFor(view: View, challenge = "") {
@@ -32,14 +30,20 @@ function inPlace(event: MouseEvent, go: () => void) {
   event.preventDefault(); go();
 }
 
+const isWeekly = (c: { weeklyEndsAt?: string }) => !!c.weeklyEndsAt && new Date(c.weeklyEndsAt).getTime() > Date.now();
+const cardState = (c: ChallengeSummary): CardState => c.solved ? "solved" : isWeekly(c) ? "weekly" : c.attempted ? "progress" : "open";
+const roleName = (role: Viewer["role"]) => ({ participant: "Player", author: "Author", reviewer: "Reviewer", admin: "Administrator" })[role];
+
 export default function Workspace() {
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
   const [bootError, setBootError] = useState("");
-  const [view, setView] = useState<View>("dashboard");
+  const [view, setView] = useState<View>("practice");
   const [selected, setSelected] = useState("");
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
   const [challenges, setChallenges] = useState<ChallengeSummary[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
+  const [board, setBoard] = useState<Leaderboard | null>(null);
+  const [query, setQuery] = useState("");
   const [dataBusy, setDataBusy] = useState(false);
   const [dataError, setDataError] = useState("");
 
@@ -50,16 +54,10 @@ export default function Workspace() {
 
   useEffect(() => {
     void refresh();
-    // Carry a theme chosen before themes moved to a cookie.
-    try {
-      const legacy = parseTheme(window.localStorage.getItem("dfctf-theme-v1"));
-      if (legacy && !document.cookie.includes(`${THEME_COOKIE}=`)) applyTheme(legacy);
-      window.localStorage.removeItem("dfctf-theme-v1");
-    } catch { /* storage unavailable */ }
     function readLocation() {
       const params = new URLSearchParams(window.location.search);
       const requested = params.get("view");
-      setView(VIEWS.some(v => v.id === requested) ? requested as View : "dashboard");
+      setView(VIEWS.some(v => v.id === requested) ? requested as View : "practice");
       setSelected(params.get("challenge") ?? "");
       const auth = params.get("auth");
       const linkFlow = params.has("token") || params.has("verified") || params.has("error");
@@ -71,13 +69,20 @@ export default function Workspace() {
 
   const loadData = useCallback(async () => {
     setDataBusy(true); setDataError("");
-    try { const [items, stats] = await Promise.all([api<ChallengeSummary[]>("/api/v1/challenges"), api<Progress>("/api/v1/progress")]); setChallenges(items); setProgress(stats); }
-    catch (err) { setDataError(err instanceof Error ? err.message : "Could not load your practice data."); }
+    try {
+      const [items, stats, standings] = await Promise.all([api<ChallengeSummary[]>("/api/v1/challenges"), api<Progress>("/api/v1/progress"), api<Leaderboard>("/api/v1/leaderboard?range=week")]);
+      setChallenges(items); setProgress(stats); setBoard(standings);
+    } catch (err) { setDataError(err instanceof Error ? err.message : "Could not load your data."); }
     finally { setDataBusy(false); }
   }, []);
 
   const ready = !!bootstrap?.user && bootstrap.hasAccess && !!bootstrap.user.codename;
   useEffect(() => { if (ready) void loadData(); }, [ready, loadData]);
+  useEffect(() => {
+    if (!ready || !board?.weekEndsAt) return;
+    const timer = window.setTimeout(() => void loadData(), Math.max(0, new Date(board.weekEndsAt).getTime() + 1 - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [ready, board?.weekEndsAt, loadData]);
 
   function navigate(next: View, challenge = "") {
     setView(next); setSelected(challenge);
@@ -91,210 +96,151 @@ export default function Workspace() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }
   async function signOut() {
-    try { await api("/api/auth/sign-out", { method: "POST", body: "{}" }); setChallenges([]); setProgress(null); window.history.pushState(null, "", "/"); setAuthMode(null); await refresh(); }
+    try { await api("/api/auth/sign-out", { method: "POST", body: "{}" }); setChallenges([]); setProgress(null); setBoard(null); window.history.pushState(null, "", "/"); setAuthMode(null); await refresh(); }
     catch (err) { setBootError(err instanceof Error ? err.message : "Could not sign out. Please try again."); }
   }
 
-  if (bootError && !bootstrap) return <div className="center-screen"><Brand/><div className="gate-card"><Notice type="error">{bootError}</Notice><button className="button button-primary" onClick={refresh}>Try again</button></div></div>;
-  if (!bootstrap) return <div className="center-screen"><Brand/><Loading label="Opening dfCTF"/></div>;
-  if (!bootstrap.user) return authMode ? <AuthPanel bootstrap={bootstrap} refresh={refresh} initialMode={authMode} back={() => openAuth(null)}/> : <Landing signIn={() => openAuth("signin")} createAccount={() => openAuth("signup")}/>;
-  if (!bootstrap.hasAccess) return <AccessGate bootstrap={bootstrap} refresh={refresh} signOut={signOut}/>;
-  if (!bootstrap.user.codename) return <Onboarding user={bootstrap.user} refresh={refresh}/>;
+  if (bootError && !bootstrap) return <div className="center-screen"><Wordmark /><div className="gate-card"><Notice type="error">{bootError}</Notice><button className="button button-primary" onClick={refresh}>Try again</button></div></div>;
+  if (!bootstrap) return <div className="center-screen"><Wordmark /><Loading label="Opening dfCTF" /></div>;
+  if (!bootstrap.user) return authMode ? <AuthPanel bootstrap={bootstrap} refresh={refresh} initialMode={authMode} back={() => openAuth(null)} /> : <Landing signIn={() => openAuth("signin")} createAccount={() => openAuth("signup")} />;
+  if (!bootstrap.hasAccess) return <AccessGate bootstrap={bootstrap} refresh={refresh} signOut={signOut} />;
+  if (!bootstrap.user.codename) return <Onboarding user={bootstrap.user} refresh={refresh} />;
 
   const user = bootstrap.user;
+  const codename = user.codename!;
   const staff = user.role !== "participant";
-  const activeView = view === "authoring" && !staff ? "dashboard" : view;
-  const current = VIEWS.find(v => v.id === activeView)!;
+  const activeView = view === "authoring" && !staff ? "practice" : view;
+  const weekly = challenges.find(isWeekly);
 
-  return <div className="app-shell">
+  return <div className="app">
     <a className="skip-link" href="#main-content">Skip to content</a>
-    <aside className="sidebar">
-      <a href={hrefFor("dashboard")} className="brand-link" aria-label="dfCTF overview" onClick={e => inPlace(e, () => navigate("dashboard"))}><Brand/></a>
-      <nav aria-label="Main" className="side-nav">
-        {(["Practice", "Staff", "Account"] as const).map(group => {
-          const items = VIEWS.filter(item => item.group === group && (item.id !== "authoring" || staff));
-          if (!items.length) return null;
-          return <div className="nav-group" key={group}><span className="nav-caption">{group}</span>{items.map(item => <a key={item.id} className="nav-item" href={hrefFor(item.id)} aria-current={activeView === item.id && !selected ? "page" : undefined} data-active={activeView === item.id || undefined} onClick={e => inPlace(e, () => navigate(item.id))}><Icon name={item.icon} size={18}/><span>{item.label}</span>{item.id === "practice" && challenges.length ? <span className="nav-count tabular">{challenges.length}</span> : null}</a>)}</div>;
-        })}
-      </nav>
-      <div className="sidebar-foot">
-        <div className="who"><span className="who-avatar" aria-hidden="true"><Pixel name="flag" size={16}/></span><div><strong>{user.codename}</strong><span>{user.role === "participant" ? `${(progress?.totalXp ?? 0).toLocaleString()} XP` : roleName(user.role)}</span></div><button className="icon-button" onClick={signOut} aria-label="Sign out" title="Sign out"><Icon name="exit" size={18}/></button></div>
-      </div>
-    </aside>
-    <div className="main-shell">
-      <header className="topbar">
-        <nav className="breadcrumb" aria-label="Breadcrumb">{selected ? <><a href={hrefFor("practice")} onClick={e => inPlace(e, () => navigate("practice"))}>Library</a><Icon name="chevron" size={14}/><span aria-current="page">Case</span></> : <span aria-current="page">{current.label}</span>}</nav>
-        <div className="topbar-right"><span className="beta-pill beta-pill-small"><span className="beta-dot" aria-hidden="true"/>Private beta</span><ThemeToggle/></div>
-      </header>
-      <main className="main-content" id="main-content" tabIndex={-1}>
-        {bootError ? <Notice type="error">{bootError}</Notice> : null}
-        {dataError ? <Notice type="error">{dataError} <button className="text-button" onClick={loadData}>Try again</button></Notice> : null}
-        {selected ? <ChallengeView id={selected} back={() => navigate("practice")} onSolved={loadData}/>
-          : activeView === "settings" ? <Settings bootstrap={bootstrap} refresh={refresh} signOut={signOut}/>
-          : activeView === "authoring" ? <Authoring bootstrap={bootstrap} goSettings={() => navigate("settings")}/>
-          : dataBusy && !progress ? <Loading label="Loading your cases"/>
-          : activeView === "practice" ? <Practice challenges={challenges} open={id => navigate("practice", id)}/>
-          : activeView === "progress" ? <ProgressView progress={progress} total={challenges.length} open={id => navigate("practice", id)} browse={() => navigate("practice")}/>
-          : <Dashboard user={user} progress={progress} challenges={challenges} open={id => navigate("practice", id)} browse={() => navigate("practice")} showProgress={() => navigate("progress")}/>}
-      </main>
-    </div>
+    <header className="app-bar">
+      <a href={hrefFor("practice")} className="brand-link" aria-label="dfCTF challenges" onClick={e => inPlace(e, () => navigate("practice"))}><Wordmark /></a>
+      <nav className="tabs" aria-label="Main">{VIEWS.filter(v => !v.staff || staff).flatMap(v => {
+        const tab = <a key={v.id} className="tab" href={hrefFor(v.id)} aria-current={activeView === v.id && !selected ? "page" : undefined} data-active={(activeView === v.id && (!weekly || selected !== weekly.id)) || undefined} onClick={e => inPlace(e, () => navigate(v.id))}>{v.label}</a>;
+        return v.id === "leaderboard" && weekly ? [tab, <a key="week" className="tab" href={hrefFor("practice", weekly.id)} aria-current={selected === weekly.id ? "page" : undefined} data-active={selected === weekly.id || undefined} onClick={e => inPlace(e, () => navigate("practice", weekly.id))}>This week</a>] : [tab];
+      })}</nav>
+      <span className="spacer" />
+      <label className="app-search"><span className="sr-only">Search challenges</span><input type="search" placeholder="Search challenges" value={query} onChange={e => { setQuery(e.target.value); if (activeView !== "practice" || selected) navigate("practice"); }} onKeyDown={e => { if (e.key === "Escape") setQuery(""); }} /><kbd aria-hidden="true">/</kbd></label>
+      {board?.viewer ? <span className="standing-pill mono"><b>#{board.viewer.rank}</b>{(progress?.totalXp ?? 0).toLocaleString()} pts</span> : <span className="standing-pill mono">{(progress?.totalXp ?? 0).toLocaleString()} pts</span>}
+      <ProfileMenu codename={codename} onSettings={() => navigate("settings")} onSignOut={signOut} />
+    </header>
+    <main className="app-main" id="main-content" tabIndex={-1}>
+      {bootError ? <Notice type="error">{bootError}</Notice> : null}
+      {dataError ? <Notice type="error">{dataError} <button className="text-button" onClick={loadData}>Try again</button></Notice> : null}
+      {selected ? <ChallengeView key={selected} id={selected} back={() => navigate("practice")} onSolved={loadData} />
+        : activeView === "settings" ? <Settings bootstrap={bootstrap} refresh={refresh} signOut={signOut} board={board} progress={progress} />
+        : activeView === "authoring" ? <Authoring bootstrap={bootstrap} goSettings={() => navigate("settings")} />
+        : dataBusy && !progress ? <Loading label="Loading the board" />
+        : activeView === "leaderboard" ? <LeaderboardView initial={board} progress={progress} viewer={codename} />
+        : activeView === "progress" ? <ProgressView progress={progress} board={board} total={challenges.length} open={id => navigate("practice", id)} browse={() => navigate("practice")} />
+        : <Library challenges={challenges} progress={progress} board={board} query={query} setQuery={setQuery} open={id => navigate("practice", id)} />}
+    </main>
   </div>;
 }
 
-function roleName(role: Viewer["role"]) { return { participant: "Participant", author: "Author", reviewer: "Reviewer", admin: "Administrator" }[role]; }
-
-function AccessGate({ bootstrap, refresh, signOut }: { bootstrap: Bootstrap; refresh: () => Promise<void>; signOut: () => Promise<void> }) {
-  const [message, setMessage] = useState(""); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
-  const verified = !!bootstrap.user?.emailVerified;
-  async function send() {
-    setBusy(true); setError("");
-    try { await api("/api/auth/send-verification-email", { method: "POST", body: JSON.stringify({ email: bootstrap.user?.email, callbackURL: `${window.location.origin}/?verified=1` }) }); setMessage("Verification email sent. Open the link, then come back and check your access."); }
-    catch (err) { setError(err instanceof Error ? err.message : "Could not send email."); } finally { setBusy(false); }
-  }
-  async function check() { setBusy(true); await refresh(); setBusy(false); setMessage(verified ? "Still waiting on the beta list. Ask your organizer to add this exact email." : ""); }
-  return <div className="center-screen">
-    <div className="gate-top"><Brand/><ThemeToggle compact/></div>
-    <div className="gate-card">
-      <CampusScene width={240} height={90} className="gate-scene"/>
-      <ol className="gate-steps" aria-label="Getting in">
-        <li data-state="done">Account created</li>
-        <li data-state={verified ? "done" : "current"}>Email verified</li>
-        <li data-state={verified ? "current" : "todo"}>Added to the beta list</li>
-      </ol>
-      <h1>{verified ? "You’re almost in." : "Check your inbox."}</h1>
-      <p>{verified ? <>dfCTF is in private beta. Your organizer needs to add <strong>{bootstrap.user?.email}</strong> to the beta list before you can open the library.</> : <>We sent a verification link to <strong>{bootstrap.user?.email}</strong>. Open it to confirm the address belongs to you.</>}</p>
-      {message ? <Notice type="success">{message}</Notice> : null}{error ? <Notice type="error">{error}</Notice> : null}
-      <div className="form-stack">
-        {!verified ? <button className="button button-primary" onClick={send} disabled={busy}>{busy ? "Sending…" : "Resend verification email"}</button> : null}
-        <button className="button button-secondary" onClick={check} disabled={busy}>Check my access</button>
-        <button className="text-button centered" onClick={signOut}>Sign out</button>
-      </div>
-      {bootstrap.localMail ? <LocalInbox/> : null}
-    </div>
+function ProfileMenu({ codename, onSettings, onSignOut }: { codename: string; onSettings: () => void; onSignOut: () => void }) {
+  const [open, setOpen] = useState(false); const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => { if (e instanceof KeyboardEvent ? e.key === "Escape" : !root.current?.contains(e.target as Node)) setOpen(false); };
+    window.addEventListener("pointerdown", close); window.addEventListener("keydown", close);
+    return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", close); };
+  }, [open]);
+  return <div className="profile" ref={root}>
+    <button type="button" className="profile-button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(v => !v)}><Identicon name={codename} you /><span className="mono">{codename}</span><Icon name="down" size={14} /></button>
+    {open ? <div className="menu" role="menu"><button role="menuitem" onClick={() => { setOpen(false); onSettings(); }}>Settings</button><button role="menuitem" onClick={() => { setOpen(false); onSignOut(); }}><Icon name="exit" size={15} />Sign out</button></div> : null}
   </div>;
 }
 
-const CODENAME = /^[A-Za-z0-9_.-]{3,24}$/;
-
-function Onboarding({ user, refresh }: { user: Viewer; refresh: () => Promise<void> }) {
-  const [codename, setCodename] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
-  async function save(e: FormEvent) { e.preventDefault(); setBusy(true); setError(""); try { await api("/api/v1/me", { method: "PATCH", body: JSON.stringify({ codename }) }); await refresh(); } catch (err) { setError(err instanceof Error ? err.message : "Could not save codename."); } finally { setBusy(false); } }
-  const valid = CODENAME.test(codename);
-  return <div className="center-screen">
-    <div className="gate-top"><Brand/><ThemeToggle compact/></div>
-    <div className="gate-card">
-      <h1>Choose your codename</h1>
-      <p>This is the name other people see on dfCTF. Your email, <strong>{user.email}</strong>, stays private.</p>
-      {error ? <Notice type="error">{error}</Notice> : null}
-      <form className="form-stack" onSubmit={save}>
-        <label className="field">Codename<input value={codename} onChange={e => setCodename(e.target.value)} placeholder="packet_fox" minLength={3} maxLength={24} pattern="[A-Za-z0-9_.\-]+" required autoComplete="nickname" spellCheck={false} aria-describedby="codename-help"/><span className="field-help" id="codename-help">3 to 24 characters: letters, numbers, and _ . or -. Some names, like admin or staff, are reserved.</span></label>
-        <div className="codename-preview" aria-live="polite"><span className="who-avatar" aria-hidden="true"><Pixel name="flag" size={16}/></span><div><strong>{codename || "your_codename"}</strong><span>{codename && !valid ? "Not valid yet" : "0 XP, ready for a first case"}</span></div></div>
-        <button className="button button-primary" disabled={busy || !valid}>{busy ? "Saving…" : "Save codename and continue"}</button>
-      </form>
-    </div>
-  </div>;
+function useCountdownLabel(endsAt: string) {
+  const [label, setLabel] = useState("");
+  useEffect(() => { if (!endsAt) return; const tick = () => { const p = countdownParts(new Date(endsAt).getTime() - Date.now()); setLabel(`${p.days}d ${p.hours}h ${String(p.minutes).padStart(2, "0")}m`); }; tick(); const t = window.setInterval(tick, 30_000); return () => window.clearInterval(t); }, [endsAt]);
+  return label;
 }
 
-function Dashboard({ user, progress, challenges, open, browse, showProgress }: { user: Viewer; progress: Progress | null; challenges: ChallengeSummary[]; open: (id: string) => void; browse: () => void; showProgress: () => void }) {
-  const available = challenges.filter(c => !c.solved);
-  const next = available.find(c => c.attempted) ?? available.find(c => c.tags.some(tag => tag.toLowerCase() === "onboarding")) ?? available.find(c => c.category === "General skills" && c.difficulty === "Easy") ?? available.find(c => c.difficulty === "Easy") ?? available[0];
-  const suggestions = available.filter(c => c.id !== next?.id).slice(0, 4);
-  const solved = progress?.solvedCount ?? 0;
-  const recent = progress?.recentSolves.slice(0, 4) ?? [];
+function WeeklyBanner({ challenge, open }: { challenge: ChallengeSummary; open: (id: string) => void }) {
+  const left = useCountdownLabel(challenge.weeklyEndsAt!);
+  return <section className="weekly-banner" aria-label="This week’s challenge">
+    <span className="label-dot accent">This week</span><strong>{challenge.title}</strong>
+    <span className="mono muted">{challenge.category.toLowerCase()}, {challenge.xp} pts{left ? `, ends in ${left}` : ""}</span>
+    <span className="spacer" /><span className="muted">{challenge.solveCount} solved</span>
+    <a className="button button-primary" href={hrefFor("practice", challenge.id)} onClick={e => inPlace(e, () => open(challenge.id))}>{challenge.solved ? "Review challenge" : "Open challenge"}</a>
+  </section>;
+}
+
+type Status = "" | "open" | "solved";
+function Library({ challenges, progress, board, query, setQuery, open }: { challenges: ChallengeSummary[]; progress: Progress | null; board: Leaderboard | null; query: string; setQuery: (v: string) => void; open: (id: string) => void }) {
+  const [status, setStatus] = useState<Status>("");
+  const [cats, setCats] = useState<Set<string>>(new Set());
+  const [levels, setLevels] = useState<Set<string>>(new Set());
+  const [mode, setMode] = useState<"board" | "list">("board");
+  const [sort, setSort] = useState<"points" | "solves" | "newest">("points");
+  const toggle = (set: Set<string>, value: string, update: (s: Set<string>) => void) => { const next = new Set(set); if (next.has(value)) next.delete(value); else next.add(value); update(next); };
+  const filtered = useMemo(() => challenges.filter(c => (!query || `${c.title} ${c.summary} ${c.tags.join(" ")} ${c.category}`.toLowerCase().includes(query.toLowerCase())) && (!cats.size || cats.has(c.category)) && (!levels.size || levels.has(c.difficulty)) && (!status || (status === "solved" ? c.solved : !c.solved)))
+    .sort((a, b) => sort === "points" ? a.xp - b.xp : sort === "solves" ? b.solveCount - a.solveCount : 0), [challenges, query, cats, levels, status, sort]);
+  const count = (fn: (c: ChallengeSummary) => boolean) => challenges.filter(fn).length;
+  const filtering = !!(query || cats.size || levels.size || status);
+  const clear = () => { setQuery(""); setCats(new Set()); setLevels(new Set()); setStatus(""); };
+  const solved = progress?.solvedCount ?? 0, total = challenges.length;
+  const weekly = challenges.find(isWeekly);
+  const usedCats = CATEGORIES.filter(c => challenges.some(x => x.category === c));
+
   return <>
     <div className="page-head">
-      <div><h1>Welcome back, {user.codename}</h1><p>{challenges.length ? <>You’ve solved <span className="tabular">{solved}</span> of <span className="tabular">{challenges.length}</span> cases in the library.</> : "Your organizer hasn’t published any cases yet."}</p></div>
-      <button className="button button-secondary" onClick={browse}>Open the library</button>
-    </div>
-
-    <div className="overview-grid">
-      <section className="panel next-case" aria-labelledby="next-title">
-        {next ? <>
-          <div className="next-head"><span className="panel-label" id="next-title">{next.attempted ? "Pick up where you left off" : "Suggested next case"}</span><Difficulty value={next.difficulty}/></div>
-          <div className="next-body"><GlyphTile name={categoryGlyph(next.category)} size="lg"/><div><span className="category-name">{next.category}</span><h2>{next.title}</h2><p>{next.summary}</p></div></div>
-          <div className="next-foot"><dl className="facts"><div><dt>Time</dt><dd className="tabular">{next.estimatedMinutes} min</dd></div><div><dt>Reward</dt><dd className="tabular">{next.xp} XP</dd></div><div><dt>Solved by</dt><dd className="tabular">{next.solveCount} {next.solveCount === 1 ? "person" : "people"}</dd></div></dl><a className="button button-primary" href={hrefFor("practice", next.id)} onClick={e => inPlace(e, () => open(next.id))}>{next.attempted ? "Continue case" : "Open case"}</a></div>
-        </> : <Empty glyph={challenges.length ? "check" : "flag"} title={challenges.length ? "Every flag captured" : "The library is empty for now"}>{challenges.length ? "You’ve solved every published case. New ones appear here as soon as they’re published." : "Published cases will appear here when your organizer releases them."}</Empty>}
-      </section>
-
-      <section className="panel stat-panel" aria-label="Your numbers">
-        <div className="stat"><span className="stat-label">Practice XP</span><strong className="stat-value tabular">{(progress?.totalXp ?? 0).toLocaleString()}</strong></div>
-        <div className="stat"><span className="stat-label">Flags captured</span><strong className="stat-value tabular">{solved}<small>/{challenges.length}</small></strong><Meter value={solved} total={challenges.length} label="Flags captured"/></div>
-        <div className="stat"><span className="stat-label">Cases started</span><strong className="stat-value tabular">{progress?.attemptedCount ?? 0}</strong></div>
+      <div><h1>Challenges</h1><p>{total ? `${total} challenges in ${usedCats.length} categories. Open any of them, in any order.` : "Challenges appear here once they’re published."}</p></div>
+      <section className="stats-strip" aria-label="Your numbers">
+        <div><span className="stat-label">Solved</span><span className="stat-value">{solved}<small className="mono"> / {total}</small></span><Meter value={solved} max={total} tone="accent" label={`${solved} of ${total} solved`} /></div>
+        <div><span className="stat-label">Points</span><span className="stat-value">{(progress?.totalXp ?? 0).toLocaleString()}</span><span className="stat-sub">{progress?.attemptedCount ?? 0} started</span></div>
+        <div><span className="stat-label">This week</span><span className="stat-value accent">{board?.viewer ? `#${board.viewer.rank}` : "unranked"}</span><span className="stat-sub">{board ? `of ${board.players} ${board.players === 1 ? "player" : "players"}` : ""}</span></div>
+        <div><span className="stat-label title-tip">Last 16 weeks<InfoTip text="Your solves per day over the last 16 weeks. More lit pixels means more flags that day." /></span>{board ? <Heatmap days={board.mine.days} cell={8} gap={3} label="Your solves per day" /> : null}</div>
       </section>
     </div>
-
-    <div className="overview-grid overview-grid-even">
-      <section className="panel" aria-labelledby="skills-title">
-        <div className="panel-head"><h2 id="skills-title">Skill map</h2><button className="text-button" onClick={showProgress}>All progress</button></div>
-        <SkillList categories={progress?.categories ?? []}/>
-      </section>
-      <section className="panel" aria-labelledby="recent-title">
-        <div className="panel-head"><h2 id="recent-title">Recent solves</h2></div>
-        {recent.length ? <RecentList items={recent} open={open}/> : <p className="muted panel-empty">Your solves will appear here, newest first.</p>}
-      </section>
+    {weekly ? <WeeklyBanner challenge={weekly} open={open} /> : null}
+    <div className="library">
+      <aside className="filters" aria-label="Filters">
+        <label className="search-box"><Icon name="search" size={16} /><span className="sr-only">Search challenges</span><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search challenges" /></label>
+        <fieldset><legend>Status</legend><div className="segmented">{([["", "All"], ["open", "Open"], ["solved", "Solved"]] as const).map(([v, l]) => <button key={l} type="button" aria-pressed={status === v} onClick={() => setStatus(v)}>{l}</button>)}</div></fieldset>
+        <fieldset><legend>Category</legend>{CATEGORIES.map(c => <button key={c} type="button" className="check-row" aria-pressed={cats.has(c)} disabled={!count(x => x.category === c)} onClick={() => toggle(cats, c, setCats)}><span className="ascii-check">{cats.has(c) ? "[x]" : "[ ]"}</span>{c}<span className="mono faint">{count(x => x.category === c)}</span></button>)}</fieldset>
+        <fieldset><legend>Difficulty</legend>{DIFFICULTIES.map(d => <button key={d} type="button" className="check-row" aria-pressed={levels.has(d)} onClick={() => toggle(levels, d, setLevels)}><span className="ascii-check">{levels.has(d) ? "[x]" : "[ ]"}</span><i className={`swatch ${d.toLowerCase()}`} aria-hidden="true" />{d}<span className="mono faint">{count(x => x.difficulty === d)}</span></button>)}</fieldset>
+        {filtering ? <button type="button" className="text-button" onClick={clear}>Clear filters</button> : null}
+      </aside>
+      <div className="board">
+        <div className="toolbar">
+          <span className="mono muted" aria-live="polite">{filtered.length} {filtered.length === 1 ? "result" : "results"}</span>
+          {[...cats].map(c => <button key={c} type="button" className="chip" onClick={() => toggle(cats, c, setCats)} aria-label={`Remove filter ${c}`}>{c.toLowerCase()}<Icon name="close" size={12} /></button>)}
+          {[...levels].map(l => <button key={l} type="button" className="chip" onClick={() => toggle(levels, l, setLevels)} aria-label={`Remove filter ${l}`}>{l.toLowerCase()}<Icon name="close" size={12} /></button>)}
+          <span className="spacer" />
+          <div className="segmented small" role="group" aria-label="View">{(["board", "list"] as const).map(m => <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)}>{m === "board" ? "Board" : "List"}</button>)}</div>
+          <label className="select-inline"><span className="muted">Sort</span><select value={sort} onChange={e => setSort(e.target.value as typeof sort)}><option value="points">Points</option><option value="solves">Most solved</option><option value="newest">Newest</option></select></label>
+        </div>
+        {!filtered.length ? <Empty title={total ? "No challenges match" : "The board is empty for now"} action={total ? <button className="button button-secondary" onClick={clear}>Clear filters</button> : undefined}>{total ? "Try a different search or remove a filter." : "Published challenges appear here when an author releases them."}</Empty>
+          : mode === "list" ? <ChallengeTable items={filtered} open={open} />
+          : CATEGORIES.filter(c => filtered.some(x => x.category === c)).map(category => { const items = filtered.filter(x => x.category === category); const all = challenges.filter(x => x.category === category); const done = all.filter(x => x.solved).length; return <section className="category" key={category} aria-labelledby={`cat-${category}`}>
+            <div className="category-head"><h2 id={`cat-${category}`}>{category}</h2><span className="spacer" /><Meter value={done} max={all.length} label={`${done} of ${all.length} solved`} /><span className="mono muted">{done}/{all.length} solved</span></div>
+            <div className="cards">{items.map(c => <ChallengeCard key={c.id} title={c.title} category={c.category} xp={c.xp} difficulty={c.difficulty} solveCount={c.solveCount} state={cardState(c)} href={hrefFor("practice", c.id)} onOpen={e => inPlace(e, () => open(c.id))} />)}</div>
+          </section>; })}
+      </div>
     </div>
-
-    {suggestions.length ? <section className="section-block" aria-labelledby="more-title">
-      <div className="panel-head"><h2 id="more-title">More to explore</h2><button className="text-button" onClick={browse}>See all cases</button></div>
-      <CaseTable items={suggestions} open={open}/>
-    </section> : null}
   </>;
 }
 
-function SkillList({ categories }: { categories: Progress["categories"] }) {
-  const shown = categories.filter(c => c.total > 0);
-  if (!shown.length) return <p className="muted panel-empty">Your skill map fills in as cases are published.</p>;
-  return <ul className="skill-list">{shown.map(c => <li key={c.category}><GlyphTile name={categoryGlyph(c.category)} size="sm"/><span className="skill-name">{c.category}</span><Meter value={c.solved} total={c.total} label={`${c.category}: ${c.solved} of ${c.total} solved`}/><span className="skill-count tabular">{c.solved}/{c.total}</span></li>)}</ul>;
-}
-
-function RecentList({ items, open }: { items: Progress["recentSolves"]; open: (id: string) => void }) {
-  return <ul className="recent-list">{items.map(solve => <li key={solve.id}><a href={hrefFor("practice", solve.id)} onClick={e => inPlace(e, () => open(solve.id))}><GlyphTile name={categoryGlyph(solve.category)} size="sm"/><div><strong>{solve.title}</strong><span>{solve.category}, {formatDate(solve.solvedAt)}</span></div><span className="xp-gain tabular">+{solve.xp} XP</span></a></li>)}</ul>;
-}
-
-function StatusPill({ challenge }: { challenge: ChallengeSummary }) {
-  return challenge.solved ? <span className="pill pill-solved"><Pixel name="check" size={10}/>Solved</span> : challenge.attempted ? <span className="pill pill-progress">In progress</span> : <span className="pill pill-new">Not started</span>;
-}
-
-function CaseTable({ items, open }: { items: ChallengeSummary[]; open: (id: string) => void }) {
-  return <div className="case-table" role="table" aria-label="Cases">
-    <div className="case-row case-row-head" role="row"><span role="columnheader">Case</span><span role="columnheader">Category</span><span role="columnheader">Level</span><span role="columnheader">Time</span><span role="columnheader">XP</span><span role="columnheader">Status</span></div>
-    {items.map(c => <a key={c.id} className="case-row" role="row" href={hrefFor("practice", c.id)} onClick={e => inPlace(e, () => open(c.id))} data-solved={c.solved || undefined}>
-      <span role="cell" className="case-title"><GlyphTile name={categoryGlyph(c.category)}/><span><strong>{c.title}</strong><span>{c.summary}</span></span></span>
-      <span role="cell" className="case-cat">{c.category}</span>
-      <span role="cell" className="case-level"><Difficulty value={c.difficulty}/></span>
-      <span role="cell" className="case-num tabular">{c.estimatedMinutes} min</span>
-      <span role="cell" className="case-num case-xp tabular">{c.xp}</span>
-      <span role="cell" className="case-status"><StatusPill challenge={c}/></span>
+function ChallengeTable({ items, open }: { items: ChallengeSummary[]; open: (id: string) => void }) {
+  return <div className="table" role="table" aria-label="Challenges">
+    <div className="tr th" role="row"><span role="columnheader">Challenge</span><span role="columnheader">Category</span><span role="columnheader">Level</span><span role="columnheader">Time</span><span role="columnheader">Points</span><span role="columnheader">Status</span></div>
+    {items.map(c => <a key={c.id} className={`tr diff-${c.difficulty.toLowerCase()}`} role="row" href={hrefFor("practice", c.id)} onClick={e => inPlace(e, () => open(c.id))}>
+      <span role="cell" className="td-title"><strong>{c.title}</strong><span>{c.summary}</span></span>
+      <span role="cell" className="muted">{c.category}</span><span role="cell"><Difficulty value={c.difficulty} /></span>
+      <span role="cell" className="mono muted">{c.estimatedMinutes} min</span><span role="cell" className="mono strong">{c.xp}</span>
+      <span role="cell" className={`mono ${c.solved ? "accent" : "faint"}`}>{c.solved ? "[x] solved" : c.attempted ? "[~] in progress" : "[ ] open"}</span>
     </a>)}
   </div>;
-}
-
-function Practice({ challenges, open }: { challenges: ChallengeSummary[]; open: (id: string) => void }) {
-  const [query, setQuery] = useState(""); const [category, setCategory] = useState(""); const [difficulty, setDifficulty] = useState(""); const [status, setStatus] = useState("");
-  const filtered = challenges.filter(c => (!query || `${c.title} ${c.summary} ${c.tags.join(" ")}`.toLowerCase().includes(query.toLowerCase())) && (!category || c.category === category) && (!difficulty || c.difficulty === difficulty) && (!status || (status === "solved" ? c.solved : status === "in-progress" ? c.attempted && !c.solved : !c.attempted && !c.solved)));
-  const counts = useMemo(() => Object.fromEntries(CATEGORIES.map(cat => [cat, challenges.filter(c => c.category === cat).length])), [challenges]);
-  const filtering = !!(query || category || difficulty || status);
-  function clear() { setQuery(""); setCategory(""); setDifficulty(""); setStatus(""); }
-  return <>
-    <div className="page-head"><div><h1>Practice library</h1><p>Every case is a fictional investigation with downloadable evidence. Open any of them, in any order.</p></div><span className="count-chip tabular">{challenges.filter(c => c.solved).length}/{challenges.length} solved</span></div>
-    <div className="filter-chips" role="group" aria-label="Category">
-      <button type="button" aria-pressed={!category} onClick={() => setCategory("")}>All<span className="tabular">{challenges.length}</span></button>
-      {CATEGORIES.map(cat => <button type="button" key={cat} aria-pressed={category === cat} onClick={() => setCategory(category === cat ? "" : cat)} disabled={!counts[cat]}><Pixel name={categoryGlyph(cat)} size={12}/>{cat}<span className="tabular">{counts[cat]}</span></button>)}
-    </div>
-    <div className="toolbar">
-      <label className="search-field"><Icon name="search" size={18}/><span className="sr-only">Search cases</span><input type="search" placeholder="Search by title, summary, or tag" value={query} onChange={e => setQuery(e.target.value)}/></label>
-      <label className="select-field"><span className="sr-only">Difficulty</span><select value={difficulty} onChange={e => setDifficulty(e.target.value)}><option value="">Any difficulty</option>{DIFFICULTIES.map(d => <option key={d}>{d}</option>)}</select></label>
-      <label className="select-field"><span className="sr-only">Progress</span><select value={status} onChange={e => setStatus(e.target.value)}><option value="">Any progress</option><option value="unattempted">Not started</option><option value="in-progress">In progress</option><option value="solved">Solved</option></select></label>
-    </div>
-    <div className="results-line" aria-live="polite"><span className="tabular">{filtered.length} {filtered.length === 1 ? "case" : "cases"}</span>{filtering ? <button className="text-button" onClick={clear}><Icon name="close" size={14}/>Clear filters</button> : null}</div>
-    {filtered.length ? <CaseTable items={filtered} open={open}/> : <Empty glyph="osint" title={challenges.length ? "No cases match" : "The library is empty for now"}><p>{challenges.length ? "Try a different search or remove a filter." : "Published cases appear here when your organizer releases them."}</p>{challenges.length ? <button className="button button-secondary" onClick={clear}>Clear filters</button> : null}</Empty>}
-  </>;
 }
 
 type SubmitResult = { status: "correct" | "incorrect" | "already_solved"; xp: number; totalXp: number; solution?: string };
 
 function ChallengeView({ id, back, onSolved }: { id: string; back: () => void; onSolved: () => Promise<void> }) {
-  const [challenge, setChallenge] = useState<ChallengeDetail | null>(null); const [loadError, setLoadError] = useState(""); const [error, setError] = useState(""); const [flag, setFlag] = useState(""); const [busy, setBusy] = useState(false); const [result, setResult] = useState<SubmitResult | null>(null);
+  const [challenge, setChallenge] = useState<ChallengeDetail | null>(null); const [loadError, setLoadError] = useState(""); const [error, setError] = useState(""); const [flag, setFlag] = useState(""); const [busy, setBusy] = useState(false); const [result, setResult] = useState<SubmitResult | null>(null); const [miss, setMiss] = useState(0);
   useEffect(() => { let active = true; setChallenge(null); setLoadError(""); setError(""); setResult(null); setFlag(""); api<ChallengeDetail>(`/api/v1/challenges/${encodeURIComponent(id)}`).then(data => { if (active) setChallenge(data); }).catch(err => { if (active) setLoadError(err.message); }); return () => { active = false; }; }, [id]);
   async function submit(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError(""); setResult(null);
@@ -302,115 +248,185 @@ function ChallengeView({ id, back, onSolved }: { id: string; back: () => void; o
       const response = await api<SubmitResult>(`/api/v1/challenges/${encodeURIComponent(id)}/submissions`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ flag }) });
       setResult(response);
       if (response.status !== "incorrect") { setChallenge(c => c ? { ...c, solved: true, attempted: true, solution: response.solution ?? c.solution } : c); setFlag(""); }
-      else setChallenge(c => c ? { ...c, attempted: true } : c);
+      else { setMiss(m => m + 1); setChallenge(c => c ? { ...c, attempted: true } : c); }
       await onSolved();
-    }
-    catch (err) { setError(err instanceof Error ? err.message : "Could not submit your flag."); } finally { setBusy(false); }
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not submit your flag."); } finally { setBusy(false); }
   }
-  if (loadError) return <><button className="text-button back-link" onClick={back}><Icon name="back" size={16}/>Back to the library</button><Empty glyph="lock" title="This case isn’t available"><p>{loadError}</p><button className="button button-secondary" onClick={back}>Back to the library</button></Empty></>;
-  if (!challenge) return <Loading label="Opening the case"/>;
-  return <>
-    <button className="text-button back-link" onClick={back}><Icon name="back" size={16}/>Back to the library</button>
-    <header className="case-head">
-      <GlyphTile name={categoryGlyph(challenge.category)} size="lg"/>
-      <div>
-        <div className="case-kicker"><span className="category-name">{challenge.category}</span><Difficulty value={challenge.difficulty}/><StatusPill challenge={challenge}/></div>
-        <h1>{challenge.title}</h1>
-        <p className="case-summary">{challenge.summary}</p>
-        <dl className="facts facts-inline"><div><dt>Reward</dt><dd className="tabular">{challenge.xp} XP</dd></div><div><dt>Time</dt><dd className="tabular">About {challenge.estimatedMinutes} min</dd></div><div><dt>Solved by</dt><dd className="tabular">{challenge.solveCount}</dd></div><div><dt>Author</dt><dd>{challenge.author}</dd></div><div><dt>Version</dt><dd className="tabular">{challenge.version}</dd></div></dl>
-      </div>
+  if (loadError) return <><button className="text-button back-link" onClick={back}><Icon name="back" size={16} />Back to challenges</button><Empty title="This challenge isn’t available" action={<button className="button button-secondary" onClick={back}>Back to challenges</button>}>{loadError}</Empty></>;
+  if (!challenge) return <Loading label="Opening the challenge" />;
+  const level = challenge.difficulty.toLowerCase();
+  return <article className="challenge">
+    <button className="text-button back-link" onClick={back}><Icon name="back" size={16} />Back to challenges</button>
+    <header className="challenge-head">
+      <div className="tags"><span className="tag">{challenge.category.toLowerCase()}</span><span className={`tag tag-${level}`}>{level}</span>{isWeekly(challenge) ? <span className="tag tag-accent">this week</span> : null}<span className="spacer" /><span className="mono accent strong points">{challenge.xp} pts</span></div>
+      <h1>{challenge.title}</h1>
+      <p className="challenge-summary">{challenge.summary}</p>
+      <div className="challenge-meta muted">{challenge.solvers?.length ? <span className="solver-stack" aria-hidden="true">{challenge.solvers.map(n => <Identicon key={n} name={n} size={26} />)}</span> : null}
+        <span>{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}{challenge.solvers?.length ? <>, latest by <span className="mono">{challenge.solvers[0]}</span></> : ""}. About {challenge.estimatedMinutes} min. Author <span className="mono">{challenge.author}</span>, version {challenge.version}.</span></div>
     </header>
-    <div className="case-grid">
-      <div className="case-main">
-        <section className="panel prose-panel" aria-labelledby="brief-title"><h2 id="brief-title">The brief</h2><Content text={challenge.description}/>{challenge.tags.length ? <ul className="tag-list" aria-label="Tags">{challenge.tags.map(t => <li key={t}>{t}</li>)}</ul> : null}</section>
-        <section className="panel" aria-labelledby="evidence-title">
-          <div className="panel-head"><h2 id="evidence-title">Evidence</h2><span className="muted tabular">{challenge.files.length} {challenge.files.length === 1 ? "file" : "files"}</span></div>
-          {challenge.files.length ? <><p className="muted">Download the files and work on them on your own machine. Compare the checksum to confirm you have an intact copy.</p><ul className="file-list">{challenge.files.map(file => <li key={file.id} className="file-row">
-            <span className="file-icon"><Icon name="file" size={20}/></span>
-            <div className="file-info"><strong>{file.name}</strong><span className="tabular">{humanSize(file.size)}</span><span className="checksum"><span className="checksum-label">SHA-256</span><code>{file.sha256}</code><CopyButton value={file.sha256} label={`Copy the SHA-256 checksum for ${file.name}`}/></span></div>
-            <a className="button button-secondary button-small" href={`/api/v1/challenges/${encodeURIComponent(id)}/files/${encodeURIComponent(file.id)}`} download><Icon name="download" size={16}/>Download</a>
-          </li>)}</ul></> : <p className="muted">This case has no files. Everything you need is in the brief.</p>}
+    <div className="challenge-grid">
+      <div className="challenge-main">
+        <section className="panel" aria-labelledby="desc-title"><div className="panel-head"><h2 id="desc-title">Description</h2></div><div className="panel-pad"><Content text={challenge.description} />{challenge.tags.length ? <ul className="tag-list" aria-label="Tags">{challenge.tags.map(t => <li key={t} className="tag">{t}</li>)}</ul> : null}</div></section>
+        <section className="panel" aria-labelledby="files-title"><div className="panel-head"><h2 id="files-title">Files</h2><span className="spacer" /><span className="mono muted">{challenge.files.length} {challenge.files.length === 1 ? "file" : "files"}</span></div>
+          {challenge.files.length ? <ul className="files">{challenge.files.map(file => <li key={file.id}>
+            <div className="file-info"><span className="mono strong">{file.name}</span><span className="mono faint">{humanSize(file.size)}</span><span className="checksum mono">sha256 <code>{file.sha256}</code><CopyButton value={file.sha256} label={`Copy the SHA-256 checksum for ${file.name}`} /></span></div>
+            <a className="button button-secondary" href={`/api/v1/challenges/${encodeURIComponent(id)}/files/${encodeURIComponent(file.id)}`} download><Icon name="download" size={16} />Download</a>
+          </li>)}</ul> : <p className="muted panel-pad">This challenge has no files. Everything you need is in the description.</p>}
         </section>
-        {challenge.solved && challenge.solution ? <section className="panel prose-panel walkthrough" aria-labelledby="walk-title"><div className="panel-head"><h2 id="walk-title">Walkthrough</h2><span className="pill pill-solved"><Pixel name="check" size={10}/>Unlocked</span></div><Content text={challenge.solution}/></section>
-          : <section className="panel locked-panel" aria-label="Walkthrough"><Pixel name="lock" size={16}/><div><strong>Walkthrough</strong><p>Opens when you capture the flag, so you can compare your approach with the author’s.</p></div></section>}
+        {challenge.solved && challenge.solution ? <section className="panel unlocked" aria-labelledby="walk-title"><div className="panel-head"><h2 id="walk-title">Walkthrough</h2><span className="spacer" /><span className="mono accent">[open]</span></div><div className="panel-pad"><Content text={challenge.solution} /></div></section>
+          : <section className="locked" aria-label="Walkthrough"><span className="mono faint">[locked]</span>The walkthrough opens after you capture the flag.</section>}
       </div>
-      <aside className="case-aside">
-        <section className="panel submit-panel" aria-labelledby="submit-title">
+      <aside className="challenge-side">
+        <section className="panel submit" aria-labelledby="submit-title">
           {challenge.solved ? <div className="captured">
-            <span className="captured-mark"><Pixel name="flag" size={28}/></span>
+            <div className="verdict verdict-correct"><span className="mono">[x]</span>{result?.status === "correct" ? <DecodeText text="correct" className="mono strong" /> : <span className="mono strong">solved</span>}{result?.status === "correct" ? <span className="fade-up mono strong">+{result.xp} pts</span> : null}</div>
             <h2 id="submit-title">Flag captured</h2>
-            <p>{result?.status === "correct" ? <>You earned <strong className="tabular">{result.xp} XP</strong>. Your total is now <span className="tabular">{result.totalXp.toLocaleString()}</span> XP.</> : result?.status === "already_solved" ? "You’d already solved this one, so no extra XP. Your progress is saved." : <>This case is part of your record. It earned <span className="tabular">{challenge.xp}</span> XP.</>}</p>
-            <button className="button button-secondary" onClick={back}>Find another case</button>
+            <p className="muted">{result?.status === "correct" ? <>Your total is now <span className="mono">{result.totalXp.toLocaleString()}</span> points.</> : result?.status === "already_solved" ? "You had already solved this one, so no extra points. Your progress is saved." : <>This one is on your record for <span className="mono">{challenge.xp}</span> points.</>}</p>
+            <button className="button button-secondary" onClick={back}>Find another challenge</button>
           </div> : <>
             <h2 id="submit-title">Submit the flag</h2>
-            <p className="muted">Flags look like <code className="inline-code">{challenge.flagFormat}</code>. Paste the whole thing, wrapper included.</p>
-            {result?.status === "incorrect" ? <Notice type="error">That’s not the flag. Nothing was deducted; check the evidence again and retry.</Notice> : null}
-            {error ? <Notice type="error">{error}</Notice> : null}
-            <form className="form-stack" onSubmit={submit}>
-              <label className="field">Your flag<input className="flag-input" value={flag} onChange={e => setFlag(e.target.value)} placeholder={challenge.flagFormat} required maxLength={1000} autoComplete="off" spellCheck={false} autoCapitalize="off" disabled={busy}/></label>
-              <button className="button button-primary button-block" disabled={busy || !flag.trim()}>{busy ? <><span className="spinner" aria-hidden="true"/>Checking…</> : "Submit flag"}</button>
+            <p className="muted">Flags look like <code>{challenge.flagFormat.replace(/^dfctf/i, "dfCTF")}</code>. Paste the whole thing, wrapper included.</p>
+            <form onSubmit={submit} className="stack">
+              <label className="field"><span>Flag</span><input key={miss} className={`flag-input${result?.status === "incorrect" ? " shake is-wrong" : ""}`} value={flag} onChange={e => setFlag(e.target.value)} placeholder="dfCTF{...}" required maxLength={1000} autoComplete="off" spellCheck={false} autoCapitalize="off" disabled={busy} /></label>
+              <button className="button button-primary block" disabled={busy || !flag.trim()}>{busy ? <><Spinner />Checking</> : "Submit flag"}</button>
             </form>
-            <p className="fine-print">Wrong answers never cost XP. After several quick misses you’ll see a short cooldown.</p>
+            {result?.status === "incorrect" ? <p className="verdict verdict-wrong mono" role="alert">[ ] incorrect. Nothing was deducted; check the files again.</p> : null}
+            {error ? <Notice type="error">{error}</Notice> : null}
+            <p className="fine">Wrong answers never cost points. After several quick misses you’ll see a short cooldown.</p>
           </>}
         </section>
       </aside>
     </div>
-  </>;
+  </article>;
 }
 
 export function Content({ text }: { text: string }) {
   return <div className="prose">{text.split(/\n\s*\n/).map((paragraph, i) => paragraph.startsWith("### ") ? <h4 key={i}>{paragraph.slice(4)}</h4> : paragraph.startsWith("## ") ? <h3 key={i}>{paragraph.slice(3)}</h3> : paragraph.startsWith("# ") ? <h3 key={i}>{paragraph.slice(2)}</h3> : paragraph.startsWith("```") ? <pre key={i}>{paragraph.replace(/^```[^\n]*\n?/, "").replace(/```$/, "")}</pre> : <p key={i}>{inlineCode(paragraph)}</p>)}</div>;
 }
-
 function inlineCode(text: string) {
-  return text.split(/(`[^`]+`)/).map((part, i) => part.length > 2 && part.startsWith("`") && part.endsWith("`") ? <code key={i} className="inline-code">{part.slice(1, -1)}</code> : part);
+  return text.split(/(`[^`]+`)/).map((part, i) => part.length > 2 && part.startsWith("`") && part.endsWith("`") ? <code key={i}>{part.slice(1, -1)}</code> : part);
 }
 
-function ProgressView({ progress, total, open, browse }: { progress: Progress | null; total: number; open: (id: string) => void; browse: () => void }) {
-  const solved = progress?.solvedCount ?? 0;
-  const pct = total ? Math.round(solved / total * 100) : 0;
+function StandingsTable({ standings, viewer, max }: { standings: Leaderboard["standings"]; viewer: Leaderboard["viewer"]; max: number }) {
+  const shown = standings.slice(0, 15), pinned = viewer && !shown.some(s => s.codename === viewer.codename);
+  const row = (s: Leaderboard["standings"][number], you: boolean) => <li key={s.codename} className={`${s.rank <= 3 ? "top" : ""}${you ? " you" : ""}`}><span className="rank mono">{String(s.rank).padStart(2, "0")}</span><Identicon name={s.codename} you={you} /><span className="mono name">{s.codename}{you ? <em>you</em> : null}</span><Meter value={s.points} max={max} tone={s.rank <= 3 || you ? "accent" : "ink"} label={`${s.points} points`} /><span className="mono num muted">{s.solves}</span><span className="mono num strong">{s.points.toLocaleString()}</span></li>;
+  if (!standings.length) return <p className="muted panel-pad">No points yet in this range. The first solve puts a name at the top.</p>;
+  return <ol className="standings"><li className="standings-head" aria-hidden="true"><span>#</span><span /><span>Player</span><span /><span className="num">Solves</span><span className="num">Points</span></li>{shown.map(s => row(s, s.codename === viewer?.codename))}{pinned ? <><li className="gap mono faint" aria-hidden="true">...</li>{row(viewer, true)}</> : null}</ol>;
+}
+
+function LeaderboardView({ initial, progress, viewer }: { initial: Leaderboard | null; progress: Progress | null; viewer: string }) {
+  const [range, setRange] = useState<"week" | "all">("week");
+  const [data, setData] = useState<Leaderboard | null>(initial);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const left = useCountdownLabel(data?.weekEndsAt ?? "");
+  useEffect(() => { setError(""); if (range === "week" && initial) { setData(initial); return; } let active = true; setData(null); api<Leaderboard>(`/api/v1/leaderboard?range=${range}`).then(d => { if (active) setData(d); }).catch(e => { if (active) setError(e.message); }); return () => { active = false; }; }, [range, initial, retry]);
   return <>
-    <div className="page-head"><div><h1>Your progress</h1><p>Solves, XP, and how your skills spread across the seven categories.</p></div></div>
-    <section className="stat-row" aria-label="Totals">
-      <div className="stat"><span className="stat-label">Practice XP</span><strong className="stat-value tabular">{(progress?.totalXp ?? 0).toLocaleString()}</strong></div>
-      <div className="stat"><span className="stat-label">Flags captured</span><strong className="stat-value tabular">{solved}<small>/{total}</small></strong></div>
-      <div className="stat"><span className="stat-label">Cases started</span><strong className="stat-value tabular">{progress?.attemptedCount ?? 0}</strong></div>
-      <div className="stat"><span className="stat-label">Library explored</span><strong className="stat-value tabular">{pct}<small>%</small></strong><Meter value={solved} total={total} label="Library explored"/></div>
+    <div className="page-head"><div><h1>Leaderboard</h1><p>{range === "week" ? "This week, updated as flags land. Ties go to whoever reached the score first." : "Every point since dfCTF opened. Ties go to whoever reached the score first."}</p></div>
+      <div className="segmented" role="group" aria-label="Range">{([["week", "This week"], ["all", "All time"]] as const).map(([v, l]) => <button key={v} type="button" aria-pressed={range === v} onClick={() => setRange(v)}>{l}</button>)}</div></div>
+    {error ? <Notice type="error">{error} <button className="text-button" onClick={() => setRetry(n => n + 1)}>Try again</button></Notice> : !data ? <Loading label="Loading the leaderboard" /> : <>
+    {range === "week" ? <section className="panel" aria-labelledby="race-title"><div className="panel-head"><h2 id="race-title">Race for #1</h2><InfoTip text="Each line is a player’s rank against all players, sampled at 20:00 Philippine time each day and now. Gaps mean the player had no solves yet. The bars are solves per hour; yellow caps mark hours with a first blood." /><span className="muted hide-sm">How this week’s top players have moved. Hover a name to follow its line.</span><span className="spacer" /><span className="muted">{left} left</span></div><RaceChart race={data.race} hourly={data.hourly} viewer={viewer} /></section> : null}
+    <div className="lb-grid">
+      <section className="panel" aria-labelledby="stand-title"><div className="panel-head"><h2 id="stand-title">Standings</h2><InfoTip text="Points in this range. The meter shows each player’s points relative to the leader." /><span className="spacer" /><span className="muted">{data.players} {data.players === 1 ? "player" : "players"}</span></div><StandingsTable standings={data.standings} viewer={data.viewer} max={data.standings[0]?.points ?? 0} /></section>
+      <div className="lb-side">
+        <section className="panel" aria-labelledby="you-title"><div className="panel-head"><h2 id="you-title">Your standing</h2><InfoTip text="Your rank and points in this range, and how your solves spread across the seven categories." /><span className="spacer" /><span className="mono muted">{viewer}</span></div>
+          <div className="you-stats"><div><strong className="accent">{data.viewer ? `#${data.viewer.rank}` : "unranked"}</strong><span>rank</span></div><div><strong>{(data.viewer?.points ?? 0).toLocaleString()}</strong><span>points</span></div><div><strong>{data.viewer?.solves ?? 0}</strong><span>solves</span></div></div>
+          <p className="muted panel-pad tight">{data.viewer?.gap ? <>{data.viewer.gap.points.toLocaleString()} pts behind #{data.viewer.rank - 1} <span className="mono">{data.viewer.gap.codename}</span>.</> : data.viewer ? "You’re at the top. Hold it." : "Solve a challenge to get on the board."}</p>
+          {progress ? <Radar values={progress.categories.map(c => ({ label: c.category === "Web exploitation" ? "Web" : c.category === "Binary exploitation" ? "Binary" : c.category === "General skills" ? "General" : c.category === "Steganography" ? "Steg" : c.category === "Miscellaneous" ? "Misc" : c.category, solved: c.solved, total: c.total }))} /> : null}
+        </section>
+        <section className="panel" aria-labelledby="who-title"><div className="panel-head"><h2 id="who-title">Who solved what</h2><InfoTip text="One square per challenge, easiest to hardest. Pixel density shows how many players solved it; empty squares have no solves yet. Yellow outlines are yours." /></div><div className="panel-pad"><SolveGrid challenges={data.challenges} /></div></section>
+      </div>
+    </div>
+    </>}
+  </>;
+}
+
+function ProgressView({ progress, board, total, open, browse }: { progress: Progress | null; board: Leaderboard | null; total: number; open: (id: string) => void; browse: () => void }) {
+  const solved = progress?.solvedCount ?? 0;
+  return <>
+    <div className="page-head"><div><h1>Progress</h1><p>Your solves, points, and how they spread across the seven categories.</p></div></div>
+    <section className="stats-strip wide" aria-label="Totals">
+      <div><span className="stat-label">Points</span><span className="stat-value">{(progress?.totalXp ?? 0).toLocaleString()}</span></div>
+      <div><span className="stat-label">Solved</span><span className="stat-value">{solved}<small className="mono"> / {total}</small></span><Meter value={solved} max={total} tone="accent" label={`${solved} of ${total} solved`} /></div>
+      <div><span className="stat-label">Started</span><span className="stat-value">{progress?.attemptedCount ?? 0}</span></div>
+      <div><span className="stat-label">This week</span><span className="stat-value accent">{board?.viewer ? `#${board.viewer.rank}` : "unranked"}</span></div>
     </section>
-    <div className="overview-grid overview-grid-even">
-      <section className="panel" aria-labelledby="cat-title"><div className="panel-head"><h2 id="cat-title">By category</h2></div><SkillList categories={progress?.categories ?? []}/></section>
-      <section className="panel" aria-labelledby="hist-title"><div className="panel-head"><h2 id="hist-title">Solve history</h2></div>{progress?.recentSolves.length ? <RecentList items={progress.recentSolves} open={open}/> : <Empty glyph="flag" title="No solves yet"><p>Your first captured flag will show up here.</p><button className="button button-secondary" onClick={browse}>Open the library</button></Empty>}</section>
+    <div className="lb-grid">
+      <section className="panel" aria-labelledby="hist-title"><div className="panel-head"><h2 id="hist-title">Solve history</h2></div>
+        {progress?.recentSolves.length ? <ul className="history">{progress.recentSolves.map(s => <li key={s.id}><a href={hrefFor("practice", s.id)} onClick={e => inPlace(e, () => open(s.id))}><strong>{s.title}</strong><span className="muted">{s.category}, {formatDate(s.solvedAt)}</span><span className="mono accent strong">+{s.xp}</span></a></li>)}</ul>
+          : <Empty title="No solves yet" action={<button className="button button-secondary" onClick={browse}>Open the challenges</button>}>Your first captured flag shows up here.</Empty>}
+      </section>
+      <div className="lb-side">
+        <section className="panel" aria-labelledby="cat-title"><div className="panel-head"><h2 id="cat-title">By category</h2><InfoTip text="How your solves spread across the seven categories, out of the challenges published in each." /></div>{progress ? <Radar values={progress.categories.map(c => ({ label: c.category.split(" ")[0], solved: c.solved, total: c.total }))} /> : null}</section>
+        <section className="panel" aria-labelledby="days-title"><div className="panel-head"><h2 id="days-title">Last 16 weeks</h2><InfoTip text="Your solves per day. The outlined column is this week." /></div><div className="panel-pad">{board ? <Heatmap days={board.mine.days} cell={16} gap={4} label="Your solves per day" /> : null}</div></section>
+      </div>
     </div>
   </>;
 }
 
-function Settings({ bootstrap, refresh, signOut }: { bootstrap: Bootstrap; refresh: () => Promise<void>; signOut: () => Promise<void> }) {
+function AccessGate({ bootstrap, refresh, signOut }: { bootstrap: Bootstrap; refresh: () => Promise<void>; signOut: () => Promise<void> }) {
+  const [message, setMessage] = useState(""); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  const verified = !!bootstrap.user?.emailVerified;
+  async function send() {
+    setBusy(true); setError("");
+    try { await api("/api/auth/send-verification-email", { method: "POST", body: JSON.stringify({ email: bootstrap.user?.email, callbackURL: `${window.location.origin}/?verified=1` }) }); setMessage("Verification email sent. Open the link, then come back and check again."); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not send email."); } finally { setBusy(false); }
+  }
+  async function check() { setBusy(true); await refresh(); setBusy(false); setMessage(verified ? "Your account doesn’t have access yet. Ask a DFC Developers admin to enable this email." : ""); }
+  return <div className="center-screen">
+    <Wordmark />
+    <div className="gate-card">
+      <ol className="steps-inline" aria-label="Getting in"><li data-done>[x] Account created</li><li data-done={verified || undefined}>{verified ? "[x]" : "[ ]"} Email verified</li><li>[ ] Access enabled</li></ol>
+      <h1>{verified ? "You’re almost in." : "Check your inbox."}</h1>
+      <p className="muted">{verified ? <>An admin needs to enable <strong>{bootstrap.user?.email}</strong> before you can open the challenges.</> : <>We sent a verification link to <strong>{bootstrap.user?.email}</strong>. Open it to confirm the address is yours.</>}</p>
+      {message ? <Notice type="success">{message}</Notice> : null}{error ? <Notice type="error">{error}</Notice> : null}
+      <div className="stack">
+        {!verified ? <button className="button button-primary" onClick={send} disabled={busy}>{busy ? "Sending" : "Resend verification email"}</button> : null}
+        <button className="button button-secondary" onClick={check} disabled={busy}>Check again</button>
+        <button className="text-button" onClick={signOut}>Sign out</button>
+      </div>
+      {bootstrap.localMail ? <LocalInbox /> : null}
+    </div>
+  </div>;
+}
+
+const CODENAME = /^[A-Za-z0-9_.-]{3,24}$/;
+function Onboarding({ user, refresh }: { user: Viewer; refresh: () => Promise<void> }) {
+  const [codename, setCodename] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  async function save(e: FormEvent) { e.preventDefault(); setBusy(true); setError(""); try { await api("/api/v1/me", { method: "PATCH", body: JSON.stringify({ codename }) }); await refresh(); } catch (err) { setError(err instanceof Error ? err.message : "Could not save codename."); } finally { setBusy(false); } }
+  const valid = CODENAME.test(codename);
+  return <div className="center-screen">
+    <Wordmark />
+    <div className="gate-card">
+      <h1>Choose your codename</h1>
+      <p className="muted">This is the name on the leaderboard. Your email, <strong>{user.email}</strong>, stays private.</p>
+      <div className="codename-preview" aria-live="polite"><Identicon name={codename || "your_codename"} size={56} you /><div><strong className="mono">{codename || "your_codename"}</strong><span className="muted">Your avatar is drawn from your codename. Change a letter, get a new one.</span></div></div>
+      {error ? <Notice type="error">{error}</Notice> : null}
+      <form className="stack" onSubmit={save}>
+        <label className="field"><span>Codename</span><input className="mono" value={codename} onChange={e => setCodename(e.target.value)} placeholder="packet_fox" minLength={3} maxLength={24} pattern="[A-Za-z0-9_.\-]+" required autoComplete="nickname" spellCheck={false} aria-describedby="codename-help" /><small id="codename-help">3 to 24 characters: letters, numbers, and _ . or -. Some names, like admin, are reserved.</small></label>
+        {codename ? <p className={`mono ${valid ? "accent" : "danger"}`}>{valid ? "[x] Looks good" : "[ ] Not valid yet"}</p> : null}
+        <button className="button button-primary block" disabled={busy || !valid}>{busy ? "Saving" : "Save codename and start"}</button>
+      </form>
+    </div>
+  </div>;
+}
+
+function Settings({ bootstrap, refresh, signOut, board, progress }: { bootstrap: Bootstrap; refresh: () => Promise<void>; signOut: () => Promise<void>; board: Leaderboard | null; progress: Progress | null }) {
   const user = bootstrap.user!;
-  const theme = useTheme();
   return <>
     <div className="page-head"><div><h1>Settings</h1><p>Your identity, appearance, and account security.</p></div></div>
-    <div className="settings-stack">
-      <SettingsSection title="Identity" description="Your codename is public. Your email is visible only to you and staff.">
-        <dl className="identity-list">
-          <div><dt>Codename</dt><dd><strong>{user.codename}</strong></dd></div>
-          <div><dt>Email</dt><dd>{user.email}<span className={`pill ${user.emailVerified ? "pill-solved" : "pill-new"}`}>{user.emailVerified ? "Verified" : "Not verified"}</span></dd></div>
-          <div><dt>Role</dt><dd>{roleName(user.role)}</dd></div>
-        </dl>
-        <p className="fine-print">Codenames can’t be changed from here during the private beta. Ask staff if you need a new one.</p>
+    <div className="settings">
+      <SettingsSection title="Identity" description="Your codename and avatar are public on the leaderboard. Your email is visible only to you and staff.">
+        <div className="identity-card"><Identicon name={user.codename!} size={44} you /><div><strong className="mono">{user.codename}</strong><span className="muted">{board?.viewer ? `#${board.viewer.rank} this week, ` : ""}{(progress?.totalXp ?? 0).toLocaleString()} points</span></div></div>
+        <dl className="kv"><div><dt>Email</dt><dd>{user.email}<span className={`tag ${user.emailVerified ? "tag-accent" : ""}`}>{user.emailVerified ? "verified" : "not verified"}</span></dd></div><div><dt>Role</dt><dd>{roleName(user.role)}</dd></div></dl>
+        <p className="fine">Codenames can’t be changed from here yet. Ask staff if you need a new one.</p>
       </SettingsSection>
-      <SettingsSection title="Appearance" description="Day shift is the light theme and night shift is the dark one. The choice is saved in this browser.">
-        <div className="shift-cards">
-          {(["light", "dark"] as const).map(option => <button key={option} type="button" className="shift-card" data-shift={option} aria-pressed={theme === option} onClick={() => applyTheme(option)}>
-            <span className="shift-swatch" aria-hidden="true"><span/><span/><span/></span>
-            <span className="shift-name"><Pixel name={option === "light" ? "sun" : "moon"} size={13}/>{option === "light" ? "Day shift" : "Night shift"}</span>
-          </button>)}
-        </div>
-      </SettingsSection>
-      {user.role !== "participant" ? <MfaSettings bootstrap={bootstrap} refresh={refresh}/> : null}
-      {user.role === "admin" && bootstrap.staffVerified ? <Allowlist/> : null}
-      <AccountSecurity bootstrap={bootstrap} refresh={refresh}/>
-      <SettingsSection title="Account" description="Sign out on this browser. To change your password, use “Forgot password” on the sign-in screen.">
-        <div className="form-stack"><button className="button button-secondary fit-content" onClick={signOut}><Icon name="exit" size={17}/>Sign out</button>{bootstrap.localMail ? <LocalInbox/> : null}</div>
+      <SettingsSection title="Appearance" description="Choose a theme for this browser. Dark is the default."><ThemeToggle /></SettingsSection>
+      {user.role !== "participant" ? <MfaSettings bootstrap={bootstrap} refresh={refresh} /> : null}
+      <AccountSecurity bootstrap={bootstrap} refresh={refresh} />
+      {user.role === "admin" && bootstrap.staffVerified ? <Allowlist /> : null}
+      <SettingsSection title="Account" description="Sign out on this browser. To change your password, use Forgot password on the sign-in screen.">
+        <div className="stack"><button className="button button-secondary fit" onClick={signOut}><Icon name="exit" size={16} />Sign out</button>{bootstrap.localMail ? <LocalInbox /> : null}</div>
       </SettingsSection>
     </div>
   </>;
@@ -418,29 +434,28 @@ function Settings({ bootstrap, refresh, signOut }: { bootstrap: Bootstrap; refre
 
 function MfaSettings({ bootstrap, refresh }: { bootstrap: Bootstrap; refresh: () => Promise<void> }) {
   const [password, setPassword] = useState(""); const [code, setCode] = useState(""); const [setup, setSetup] = useState<{ totpURI: string; backupCodes: string[] } | null>(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  const [backup, setBackup] = useState(false);
   async function start(e: FormEvent) { e.preventDefault(); setBusy(true); setError(""); try { setSetup(await api("/api/v1/auth/mfa/setup", { method: "POST", body: JSON.stringify({ password: password || undefined }) })); setPassword(""); } catch (err) { setError(err instanceof Error ? err.message : "Could not set up authentication."); } finally { setBusy(false); } }
-  async function verify(e: FormEvent) { e.preventDefault(); setBusy(true); setError(""); try { await api("/api/v1/auth/mfa/verify", { method: "POST", body: JSON.stringify({ code }) }); setCode(""); setSetup(null); await refresh(); } catch (err) { setError(err instanceof Error ? err.message : "Could not verify code."); } finally { setBusy(false); } }
+  async function verify(e: FormEvent) { e.preventDefault(); setBusy(true); setError(""); try { await api("/api/v1/auth/mfa/verify", { method: "POST", body: JSON.stringify({ code, method: backup && !setup ? "backup" : "totp" }) }); setCode(""); setSetup(null); await refresh(); } catch (err) { setError(err instanceof Error ? err.message : "Could not verify code."); } finally { setBusy(false); } }
   const secret = setup ? new URL(setup.totpURI).searchParams.get("secret") ?? "" : "";
   const enrolled = !!bootstrap.user?.twoFactorEnabled;
-  return <SettingsSection title="Staff verification" description="Authoring, review, and access management need an authenticator app and a verified session. A verification lasts up to 12 hours.">
-    <ol className="gate-steps gate-steps-inline" aria-label="Staff verification steps">
-      <li data-state={enrolled || setup ? "done" : "current"}>Connect an authenticator</li>
-      <li data-state={bootstrap.staffVerified ? "done" : enrolled || setup ? "current" : "todo"}>Verify this session</li>
-    </ol>
+  return <SettingsSection title="Staff verification" description="Authoring, review, and access tools need an authenticator app and a verified session. A verification lasts up to 12 hours.">
+    <ol className="steps-inline" aria-label="Staff verification steps"><li data-done={enrolled || !!setup || undefined}>{enrolled || setup ? "[x]" : "[ ]"} Authenticator connected</li><li data-done={bootstrap.staffVerified || undefined}>{bootstrap.staffVerified ? "[x]" : "[ ]"} This session verified</li></ol>
     {error ? <Notice type="error">{error}</Notice> : null}
-    {bootstrap.staffVerified ? <Notice type="success">This session is verified. Staff tools are unlocked.</Notice> : !enrolled && !setup ? <form className="form-stack" onSubmit={start}>
-      <label className="field">Current password<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password"/><span className="field-help">Leave this empty if you sign in with Google or GitHub.</span></label>
-      <button className="button button-primary fit-content" disabled={busy}>{busy ? "Preparing…" : "Set up authenticator"}</button>
+    {bootstrap.staffVerified ? <Notice type="success">This session is verified. Staff tools are unlocked.</Notice> : !enrolled && !setup ? <form className="stack" onSubmit={start}>
+      <label className="field"><span>Current password</span><input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" /><small>Leave this empty if you sign in with Google or GitHub.</small></label>
+      <button className="button button-primary fit" disabled={busy}>{busy ? "Preparing" : "Set up authenticator"}</button>
     </form> : <>
       {setup ? <div className="mfa-setup">
         <p>In your authenticator app, add an account with this setup key:</p>
-        <div className="setup-key"><code>{secret}</code><CopyButton value={secret} label="Copy the setup key"/></div>
-        <details><summary>Show the full authenticator link</summary><code className="break-anywhere">{setup.totpURI}</code></details>
-        <div className="backup-codes"><strong>Save these backup codes somewhere safe.</strong><p>Each one works once if you lose your authenticator.</p><pre>{setup.backupCodes.join("\n")}</pre><CopyButton value={setup.backupCodes.join("\n")} label="Copy all backup codes"/></div>
-      </div> : <p className="muted">Enter the current code from your authenticator to unlock staff tools for this session.</p>}
-      <form className="form-stack" onSubmit={verify}>
-        <label className="field">Authenticator code<input className="code-input" value={code} onChange={e => setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" placeholder="000000" required minLength={6} maxLength={20}/></label>
-        <button className="button button-primary fit-content" disabled={busy}>{busy ? "Verifying…" : "Verify code"}</button>
+        <div className="setup-key"><code>{secret}</code><CopyButton value={secret} label="Copy the setup key" /></div>
+        <details><summary>Show the full authenticator link</summary><code className="break">{setup.totpURI}</code></details>
+        <div className="backup-codes"><strong>Save these backup codes somewhere safe.</strong><p className="muted">Each one works once if you lose your authenticator.</p><pre>{setup.backupCodes.join("\n")}</pre><CopyButton value={setup.backupCodes.join("\n")} label="Copy all backup codes" /></div>
+      </div> : <p className="muted">{backup ? "Enter one of your saved backup codes to unlock staff tools for this session. Each code works once." : "Enter the current code from your authenticator to unlock staff tools for this session."}</p>}
+      <form className="stack" onSubmit={verify}>
+        <label className="field"><span>{backup && !setup ? "Backup code" : "Authenticator code"}</span><input className="mono code-input" value={code} onChange={e => setCode(e.target.value)} inputMode={backup && !setup ? "text" : "numeric"} autoComplete="one-time-code" placeholder={backup && !setup ? "Your saved backup code" : "000000"} required minLength={6} maxLength={20} disabled={busy} /></label>
+        <button className="button button-primary fit" disabled={busy}>{busy ? "Verifying" : "Verify code"}</button>
+        {enrolled && !setup ? <button type="button" className="text-button fit" disabled={busy} onClick={() => { setBackup(v => !v); setCode(""); setError(""); }}>{backup ? "Use an authenticator code instead" : "Use a backup code instead"}</button> : null}
       </form>
     </>}
   </SettingsSection>;
@@ -448,16 +463,15 @@ function MfaSettings({ bootstrap, refresh }: { bootstrap: Bootstrap; refresh: ()
 
 function Allowlist() {
   const [entries, setEntries] = useState<{ id: string; email: string; createdAt?: string }[]>([]); const [email, setEmail] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [message, setMessage] = useState(""); const [filter, setFilter] = useState("");
-  const load = useCallback(async () => { try { setEntries(await api("/api/v1/staff/allowlist")); } catch (err) { setError(err instanceof Error ? err.message : "Could not load the beta list."); } }, []);
+  const load = useCallback(async () => { try { setEntries(await api("/api/v1/staff/allowlist")); } catch (err) { setError(err instanceof Error ? err.message : "Could not load the access list."); } }, []);
   useEffect(() => { void load(); }, [load]);
   async function add(e: FormEvent) { e.preventDefault(); setBusy(true); setError(""); setMessage(""); try { await api("/api/v1/staff/allowlist", { method: "POST", body: JSON.stringify({ email }) }); setMessage(`Added ${email}. They can register now.`); setEmail(""); await load(); } catch (err) { setError(err instanceof Error ? err.message : "Could not add email."); } finally { setBusy(false); } }
   async function remove(entry: { id: string; email: string }) { if (!window.confirm(`Revoke access for ${entry.email}? Their next request will be blocked, even if they’re signed in.`)) return; setBusy(true); setError(""); setMessage(""); try { await api(`/api/v1/staff/allowlist/${encodeURIComponent(entry.id)}`, { method: "DELETE" }); setMessage(`Revoked access for ${entry.email}.`); await load(); } catch (err) { setError(err instanceof Error ? err.message : "Could not revoke access."); } finally { setBusy(false); } }
   const shown = entries.filter(entry => entry.email.toLowerCase().includes(filter.toLowerCase()));
-  return <SettingsSection title="Beta list" description="Only these exact email addresses can register and open the library. Revoking access blocks the person’s next request.">
+  return <SettingsSection title="Registration access" description="Admins only. These email addresses can create an account. Revoking access blocks the person’s next request.">
     {error ? <Notice type="error">{error}</Notice> : null}{message ? <Notice type="success">{message}</Notice> : null}
-    <form className="inline-form" onSubmit={add}><label className="field grow">Email address<input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="participant@example.edu"/></label><button className="button button-primary" disabled={busy}><Icon name="plus" size={16}/>Add email</button></form>
-    <div className="list-head"><span className="tabular">{entries.length} {entries.length === 1 ? "address" : "addresses"}</span>{entries.length > 6 ? <label className="search-field search-small"><Icon name="search" size={16}/><span className="sr-only">Filter the beta list</span><input type="search" value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter"/></label> : null}</div>
-    {shown.length ? <ul className="plain-list">{shown.map(entry => <li key={entry.id}><span className="list-primary break-anywhere">{entry.email}</span>{entry.createdAt ? <span className="muted tabular">Added {formatDate(entry.createdAt)}</span> : null}<button className="text-button danger-text" disabled={busy} onClick={() => remove(entry)} aria-label={`Revoke access for ${entry.email}`}>Revoke</button></li>)}</ul> : <p className="muted">{entries.length ? "No addresses match that filter." : "No one is on the beta list yet."}</p>}
+    <form className="inline-form" onSubmit={add}><label className="field grow"><span className="sr-only">Email address</span><input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="name@example.com" /></label><button className="button button-primary" disabled={busy}><Icon name="plus" size={16} />Add email</button></form>
+    <div className="list-head"><span className="mono muted">{entries.length} {entries.length === 1 ? "address" : "addresses"}</span>{entries.length > 6 ? <label className="search-box small"><Icon name="search" size={14} /><span className="sr-only">Filter the access list</span><input type="search" value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter" /></label> : null}</div>
+    {shown.length ? <ul className="rows">{shown.map(entry => <li key={entry.id}><span className="mono break">{entry.email}</span>{entry.createdAt ? <span className="muted">Added {formatDate(entry.createdAt)}</span> : null}<span className="spacer" /><button className="text-button danger" disabled={busy} onClick={() => remove(entry)} aria-label={`Revoke access for ${entry.email}`}>Revoke</button></li>)}</ul> : <p className="muted">{entries.length ? "No addresses match that filter." : "No one is on the list yet."}</p>}
   </SettingsSection>;
 }
-

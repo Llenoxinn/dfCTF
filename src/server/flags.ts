@@ -11,8 +11,12 @@ export function localSecret(name:"auth"|"flags") {
     try {writeFileSync(file,secret,{flag:"wx",mode:0o600});return secret;}catch {return readFileSync(file,"utf8").trim();}
   }
 }
+/** The wrapper is always written dfCTF{...}; players who type it in another case still match. */
+export function canonicalFlag(flag:string) {return flag.trim().replace(/^dfctf\{/i,"dfCTF{");}
 export function flagDigest(flag:string,secret=localSecret("flags")) {return createHmac("sha256",secret).update(flag.trim(),"utf8").digest("hex");}
 export function matchesFlag(candidate:string,expected:string,secret=localSecret("flags")) {
-  const actual=Buffer.from(flagDigest(candidate,secret),"hex"); const stored=Buffer.from(expected,"hex");
-  return stored.length===actual.length && timingSafeEqual(actual,stored);
+  const stored=Buffer.from(expected,"hex");
+  // Older digests used a lowercase wrapper; the answer inside remains case-sensitive.
+  const canonical=canonicalFlag(candidate);
+  return [candidate,canonical,canonical.replace(/^dfCTF\{/,"dfctf{")].some(value=>{const actual=Buffer.from(flagDigest(value,secret),"hex");return stored.length===actual.length&&timingSafeEqual(actual,stored);});
 }

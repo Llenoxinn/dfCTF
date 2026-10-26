@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import type { Bootstrap } from "@/lib/types";
-import CampusScene from "./campus-scene";
-import { api, Brand, Icon, Loading, Notice, ThemeToggle } from "./ui";
+import type { Bootstrap, Community } from "@/lib/types";
+import AsciiField from "./ascii-field";
+import { api, Icon, Loading, Notice, Spinner, Wordmark } from "./ui";
 
 export type AuthMode = "signin" | "signup" | "forgot" | "reset" | "mfa";
 
@@ -18,6 +18,8 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
   const [token, setToken] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [backup, setBackup] = useState(false);
+  const [weekly, setWeekly] = useState<Community["weekly"]>(null);
+  useEffect(() => { api<Community>("/api/v1/community").then(d => setWeekly(d.weekly)).catch(() => undefined); }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -62,46 +64,47 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
 
   const title = { signin: "Sign in to dfCTF", signup: "Create your account", forgot: "Reset your password", reset: "Choose a new password", mfa: "Verify it’s you" }[mode];
   const subtitle = {
-    signin: "Pick up where you left off. Your progress is saved to your account.",
-    signup: "Use the email your organizer added to the beta list. You’ll verify it, then choose a codename.",
+    signin: "Pick up where you left off. Your solves, points, and rank are saved to your account.",
+    signup: "You’ll verify your email, then pick the codename that appears on the leaderboard.",
     forgot: "Enter your account email and we’ll send a link to set a new password.",
     reset: "Use at least 15 characters. A memorable passphrase works well.",
     mfa: "Enter the 6-digit code from your authenticator app.",
   }[mode];
   const action = { signin: "Sign in", signup: "Create account", forgot: "Send reset link", reset: "Update password", mfa: "Verify and continue" }[mode];
+  const brand = back ? <button className="brand-link" onClick={back} aria-label="Back to the dfCTF home page"><Wordmark /></button> : <Wordmark />;
 
-  return <div className="auth-screen">
-    <aside className="auth-art" aria-label="About dfCTF">
-      <div className="auth-art-top">{back ? <button className="brand-link" onClick={back} aria-label="Back to the dfCTF home page"><Brand/></button> : <Brand/>}<ThemeToggle compact/></div>
-      <div className="auth-art-copy"><h1 className="display display-auth">Every case starts with a closer look.</h1><p>Download the evidence, work it on your own machine, and bring back the flag.</p></div>
-      <CampusScene width={300} height={150} className="auth-scene"/>
+  return <div className="auth">
+    <aside className="auth-brand" aria-label="About dfCTF">
+      <AsciiField className="auth-ascii" ox={0.6} oy={1.05} rx={0.7} ry={0.6} fadeFrom={-1} fadeTo={0} />
+      <div className="auth-brand-top">{brand}</div>
+      <div className="auth-pitch"><h1>Every challenge<br />hides a flag.</h1><p>Find it, submit it, and climb the leaderboard. Wrong answers never cost points.</p>
+        {weekly ? <span className="live-chip"><i aria-hidden="true" />This week<span className="mono muted">{weekly.title}, {weekly.xp} pts</span></span> : null}</div>
     </aside>
-
     <main className="auth-main" id="main-content">
-      <div className="auth-mobile-top">{back ? <button className="brand-link" onClick={back} aria-label="Back to the dfCTF home page"><Brand/></button> : <Brand/>}<ThemeToggle compact/></div>
-      <div className="auth-form-wrap">
-        {back && (mode === "signin" || mode === "signup") ? <button className="text-button back-link" onClick={back}><Icon name="back" size={16}/>Home</button> : null}
-        <h2 className="auth-title">{title}</h2>
-        <p className="auth-description">{subtitle}</p>
-        {mode === "signin" || mode === "signup" ? <div className="segmented" role="group" aria-label="Choose an option">
+      <div className="auth-mobile-top">{brand}</div>
+      <div className="auth-form">
+        {back && (mode === "signin" || mode === "signup") ? <button className="text-button back-link" onClick={back}><Icon name="back" size={16} />Home</button> : null}
+        <h2>{title}</h2>
+        <p className="muted">{subtitle}</p>
+        {mode === "signin" || mode === "signup" ? <div className="segmented block" role="group" aria-label="Choose an option">
           <button type="button" aria-pressed={mode === "signin"} onClick={() => changeMode("signin")}>Sign in</button>
           <button type="button" aria-pressed={mode === "signup"} onClick={() => changeMode("signup")}>Create account</button>
         </div> : null}
         {message ? <Notice type="success">{message}</Notice> : null}{error ? <Notice type="error">{error}</Notice> : null}
-        <form onSubmit={submit} className="form-stack">
-          {mode !== "mfa" && mode !== "reset" ? <label className="field">Email address<input type="email" name="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.edu" disabled={busy}/></label> : null}
+        <form onSubmit={submit} className="stack">
+          {mode !== "mfa" && mode !== "reset" ? <label className="field"><span>Email</span><input type="email" name="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" disabled={busy} /></label> : null}
           {mode === "signin" || mode === "signup" || mode === "reset" ? <div className="field">
             <div className="label-row"><label htmlFor="password">{mode === "reset" ? "New password" : "Password"}</label>{mode === "signin" ? <button type="button" className="text-button" onClick={() => changeMode("forgot")}>Forgot password?</button> : null}</div>
-            <div className="password-input"><input id="password" type={showPassword ? "text" : "password"} name="password" required minLength={mode === "signin" ? 1 : 15} maxLength={128} autoComplete={mode === "signin" ? "current-password" : "new-password"} value={password} onChange={e => setPassword(e.target.value)} disabled={busy} aria-describedby={mode !== "signin" ? "password-help" : undefined}/><button type="button" className="password-toggle" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}><Icon name="eye" size={17}/><span>{showPassword ? "Hide" : "Show"}</span></button></div>
-            {mode !== "signin" ? <span className="field-help" id="password-help">At least 15 characters, up to 128. {password.length ? <span className="tabular">{password.length} so far.</span> : null}</span> : null}
+            <div className="password-input"><input id="password" type={showPassword ? "text" : "password"} name="password" required minLength={mode === "signin" ? 1 : 15} maxLength={128} autoComplete={mode === "signin" ? "current-password" : "new-password"} value={password} onChange={e => setPassword(e.target.value)} disabled={busy} aria-describedby={mode !== "signin" ? "password-help" : undefined} /><button type="button" className="password-toggle" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}>{showPassword ? "Hide" : "Show"}</button></div>
+            {mode !== "signin" ? <small id="password-help">At least 15 characters, up to 128. {password.length ? <span className="mono">{password.length} so far.</span> : null}</small> : null}
           </div> : null}
-          {mode === "mfa" ? <div className="field"><label htmlFor="mfa-code">{backup ? "Backup code" : "Authenticator code"}</label><input id="mfa-code" className={backup ? "" : "code-input"} autoComplete="one-time-code" inputMode={backup ? "text" : "numeric"} value={code} onChange={e => setCode(e.target.value)} required placeholder={backup ? "One unused backup code" : "000000"} pattern={backup ? undefined : "[0-9]{6}"} maxLength={backup ? 50 : 6}/><button type="button" className="text-button" onClick={() => { setBackup(v => !v); setCode(""); }}>{backup ? "Use your authenticator app instead" : "Use a backup code instead"}</button></div> : null}
-          <button className="button button-primary button-block" type="submit" disabled={busy}>{busy ? <><span className="spinner" aria-hidden="true"/>Working…</> : action}</button>
+          {mode === "mfa" ? <div className="field"><label htmlFor="mfa-code">{backup ? "Backup code" : "Authenticator code"}</label><input id="mfa-code" className={backup ? "mono" : "mono code-input"} autoComplete="one-time-code" inputMode={backup ? "text" : "numeric"} value={code} onChange={e => setCode(e.target.value)} required placeholder={backup ? "One unused backup code" : "000000"} pattern={backup ? undefined : "[0-9]{6}"} maxLength={backup ? 50 : 6} /><button type="button" className="text-button" onClick={() => { setBackup(v => !v); setCode(""); }}>{backup ? "Use your authenticator app instead" : "Use a backup code instead"}</button></div> : null}
+          <button className="button button-primary block" type="submit" disabled={busy}>{busy ? <><Spinner />Working</> : action}</button>
         </form>
-        {(mode === "signin" || mode === "signup") && (bootstrap.providers.google || bootstrap.providers.github) ? <><div className="divider-label"><span>or continue with</span></div><div className="social-buttons">{bootstrap.providers.google ? <button className="button button-secondary" onClick={() => social("google")} disabled={busy}>Google</button> : null}{bootstrap.providers.github ? <button className="button button-secondary" onClick={() => social("github")} disabled={busy}>GitHub</button> : null}</div></> : null}
-        {mode === "forgot" || mode === "reset" || mode === "mfa" ? <button className="text-button back-link" onClick={() => changeMode("signin")}><Icon name="back" size={16}/>Back to sign in</button> : null}
-        <p className="auth-fine-print"><Icon name="lock" size={15}/>dfCTF is in private beta. Your organizer manages who can enter.</p>
-        {bootstrap.localMail ? <div className="dev-box"><p>Local development: the generated accounts are in <code>.data/bootstrap.txt</code>.</p><LocalInbox/></div> : null}
+        {(mode === "signin" || mode === "signup") && (bootstrap.providers.google || bootstrap.providers.github) ? <><div className="divider"><span>or continue with</span></div><div className="social">{bootstrap.providers.google ? <button className="button button-secondary" onClick={() => social("google")} disabled={busy}>Google</button> : null}{bootstrap.providers.github ? <button className="button button-secondary" onClick={() => social("github")} disabled={busy}>GitHub</button> : null}</div></> : null}
+        {mode === "forgot" || mode === "reset" || mode === "mfa" ? <button className="text-button back-link" onClick={() => changeMode("signin")}><Icon name="back" size={16} />Back to sign in</button> : null}
+        {mode === "signin" ? <p className="fine">New here? Create an account, verify your email, and pick a codename. It takes about a minute.</p> : null}
+        {bootstrap.localMail ? <div className="dev-box"><p>Local development: the generated accounts are in <code>.data/bootstrap.txt</code>.</p><LocalInbox /></div> : null}
       </div>
     </main>
   </div>;
@@ -119,10 +122,10 @@ export function LocalInbox() {
     finally { setBusy(false); }
   }
   return <div className="local-inbox">
-    <button className="text-button" onClick={open ? () => setOpen(false) : load} aria-expanded={open}><Icon name="mail" size={16}/>{open ? "Close the local mailbox" : "Open the local mailbox"}</button>
-    {open ? <div className="inbox-messages">
+    <button className="text-button" onClick={open ? () => setOpen(false) : load} aria-expanded={open}><Icon name="mail" size={16} />{open ? "Close the local mailbox" : "Open the local mailbox"}</button>
+    {open ? <div className="inbox">
       <div className="inbox-head"><strong>Development mail</strong><button className="text-button" onClick={load} disabled={busy}>Refresh</button></div>
-      {busy ? <Loading label="Checking the mailbox"/> : error ? <Notice type="error">{error}</Notice> : messages.length ? messages.map(message => <div className="local-mail-item" key={message.id}><strong>{message.subject}</strong><span>To {message.to}</span><a className="text-button" href={message.url}>Open the link in this email</a></div>) : <p className="muted">No messages yet. Request a verification or reset email and it will appear here.</p>}
+      {busy ? <Loading label="Checking the mailbox" /> : error ? <Notice type="error">{error}</Notice> : messages.length ? messages.map(message => <div className="inbox-item" key={message.id}><strong>{message.subject}</strong><span className="muted">To {message.to}</span><a className="text-button" href={message.url}>Open the link in this email</a></div>) : <p className="muted">No messages yet. Request a verification or reset email and it will appear here.</p>}
     </div> : null}
   </div>;
 }

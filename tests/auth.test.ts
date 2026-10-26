@@ -3,10 +3,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { eq } from "drizzle-orm";
 import { createStore } from "@/server/db";
 import { createAuth, headersAfterAuth, type Auth } from "@/server/auth";
-import { getViewer, hasStaffVerification, requireAccess } from "@/server/access";
+import { getViewer, hasStaffVerification, markStaffVerified, requireAccess } from "@/server/access";
 import { account, allowlist, rateLimit, session, staffVerification, user, verification } from "@/server/schema";
 import { POST as setupMfa } from "@/app/api/v1/auth/mfa/setup/route";
 import { POST as verifyMfa } from "@/app/api/v1/auth/mfa/verify/route";
+import { GET as listAllowlist, POST as addAllowlist } from "@/app/api/v1/staff/allowlist/route";
 
 const outbound = vi.hoisted(() => ({ messages: [] as { to: string; url: string }[] }));
 vi.mock("@/server/mail", () => ({
@@ -75,6 +76,33 @@ afterAll(async () => {
 beforeEach(async () => { await store.db.delete(rateLimit); });
 
 describe("authentication and private access", () => {
+  it("lists only active access entries and reactivates revoked or expired addresses", async () => {
+    const identity=await provision("list-admin@example.test","admin");
+    await store.db.update(user).set({twoFactorEnabled:true}).where(eq(user.id,identity.id));
+    await markStaffVerified((await getViewer(identity.headers))!);
+    const entries=[
+      {id:randomUUID(),email:"list-active@example.test"},
+      {id:randomUUID(),email:"list-future@example.test",expiresAt:new Date(Date.now()+86_400_000)},
+      {id:randomUUID(),email:"list-expired@example.test",expiresAt:new Date(Date.now()-1000)},
+      {id:randomUUID(),email:"list-revoked@example.test",revokedAt:new Date()},
+    ];
+    await store.db.insert(allowlist).values(entries);
+    const request=()=>new Request(`${base}/api/v1/staff/allowlist`,{headers:identity.headers});
+    const response=await listAllowlist(request(),undefined);
+    expect(response.status).toBe(200);
+    const emails=(await response.json() as {email:string}[]).map(e=>e.email);
+    expect(emails).toContain("list-active@example.test");
+    expect(emails).toContain("list-future@example.test");
+    expect(emails).not.toContain("list-expired@example.test");
+    expect(emails).not.toContain("list-revoked@example.test");
+    for(const entry of entries.slice(2)) {
+      const restored=await addAllowlist(applicationRequest("/api/v1/staff/allowlist",{email:entry.email},identity.headers),undefined);
+      expect(restored.status).toBe(201);
+      expect(await restored.json()).toMatchObject({id:entry.id,revokedAt:null,expiresAt:null});
+    }
+    const restoredEmails=(await (await listAllowlist(request(),undefined)).json() as {email:string}[]).map(e=>e.email);
+    expect(restoredEmails).toEqual(expect.arrayContaining(entries.map(e=>e.email)));
+  });
   it("rejects signup without an active allowlist entry", async () => {
     // Better Auth deliberately returns a synthetic success for denied signup to
     // avoid disclosing whether an email already exists. No identity is created.
@@ -191,6 +219,27 @@ describe("authentication and private access", () => {
     for (let index = 0; index < 6; index++) attempts.push(await verifyMfa(applicationRequest("/api/v1/auth/mfa/verify", { code: "invalid" }, verifiedHeaders), undefined));
     expect(attempts.at(-1)?.status).toBe(429);
     expect(await store.db.select().from(session).where(eq(session.userId, identity.id))).not.toHaveLength(0);
+  });
+
+  it("accepts a saved backup code for staff step-up once", async () => {
+    const identity=await provision("backup-step-up@example.test","admin");
+    const enrollment=await setupMfa(applicationRequest("/api/v1/auth/mfa/setup",{password},identity.headers),undefined);
+    expect(enrollment.status).toBe(200);
+    const setup=await enrollment.json() as {totpURI:string;backupCodes:string[]};
+    const code=authenticatorCode(new URL(setup.totpURI).searchParams.get("secret")!);
+    const confirmed=await verifyMfa(applicationRequest("/api/v1/auth/mfa/verify",{code},identity.headers),undefined);
+    expect(confirmed.status).toBe(200);
+    const headers=headersAfterAuth(new Request(base,{headers:identity.headers}),confirmed);
+    const access=await requireAccess(headers,{staff:true});
+    await store.db.delete(staffVerification).where(eq(staffVerification.sessionId,access.session.id));
+    await expect(requireAccess(headers,{staff:true})).rejects.toMatchObject({code:"MFA_REQUIRED"});
+    const body={code:setup.backupCodes[0],method:"backup"};
+    const verified=await verifyMfa(applicationRequest("/api/v1/auth/mfa/verify",body,headers),undefined);
+    expect(verified.status).toBe(200);
+    const verifiedHeaders=headersAfterAuth(new Request(base,{headers}),verified);
+    expect((await requireAccess(verifiedHeaders,{staff:true})).user.id).toBe(identity.id);
+    const reused=await verifyMfa(applicationRequest("/api/v1/auth/mfa/verify",body,verifiedHeaders),undefined);
+    expect(reused.status).toBe(401);
   });
 
   it("prevents OAuth-only staff sessions from retrieving or replacing MFA credentials before step-up", async () => {
