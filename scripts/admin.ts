@@ -15,8 +15,15 @@ if(action==="allow") {
   if(!account?.emailVerified)throw new Error("Register and verify this account's email before granting administrator access.");
   await db.update(user).set({role:"admin"}).where(eq(user.id,account.id));await audit(db,"server-console","role.admin.grant",account.id);
   console.log("Administrator role granted. Enroll and verify an authenticator before using staff tools.");
+} else if(action==="reviewer") {
+  const [account]=await db.select().from(user).where(eq(user.email,email));
+  if(!account?.emailVerified)throw new Error("Register and verify this account's email before granting reviewer access.");
+  // Never demote by accident: administrators can already review.
+  if(account.role==="admin")throw new Error("This account is an administrator, which already includes reviewing. Its role was not changed.");
+  await db.update(user).set({role:"reviewer"}).where(eq(user.id,account.id));await audit(db,"server-console","role.reviewer.grant",account.id);
+  console.log("Reviewer role granted. The reviewer must link an authenticator in Settings before reviewing.");
 } else if(action==="revoke") {
   const [entry]=await db.update(allowlist).set({revokedAt:new Date()}).where(eq(allowlist.email,email)).returning();
   if(!entry)throw new Error("No matching account access entry.");await audit(db,"server-console","allowlist.revoke",entry.id);console.log("Access revoked. Existing sessions cannot access protected operations.");
-} else throw new Error("Usage: npm run admin -- allow|grant|revoke email@example.edu");
+} else throw new Error("Usage: npm run admin -- allow|grant|reviewer|revoke email@example.edu");
 await closeDatabase();

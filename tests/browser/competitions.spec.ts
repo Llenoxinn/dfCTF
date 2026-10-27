@@ -42,6 +42,8 @@ test("players join, solve through the event API, and see event points without ch
   await tab.click();await expect(page.getByRole("button",{name:"View event",exact:true})).toBeVisible();
   await page.getByRole("button",{name:"View event",exact:true}).click();await page.getByRole("link",{name:/Private competition evidence/}).click();
   await expect(page.getByRole("heading",{name:"Private competition evidence",exact:true})).toBeVisible();
+  // The challenge is a modal; the header behind it is inert until Escape closes it.
+  await page.keyboard.press("Escape");await expect(page.getByRole("dialog")).toHaveCount(0);
   await tab.click();await expect(page.getByRole("button",{name:"View event",exact:true})).toBeVisible();
 });
 test("host settings switch between built-in challenges and a CTFd link and publish a configured event",async({page})=>{

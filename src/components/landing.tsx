@@ -7,7 +7,7 @@ import { countdownParts, weekEnd } from "@/lib/week";
 import AsciiField from "./ascii-field";
 import FaultyTerminal from "./faulty-terminal";
 import { ChallengeCard } from "./cards";
-import { Countdown, DitherArt, Heatmap, HeatLegend, Hexdump, Ticker } from "./viz";
+import { Countdown, DitherArt, Heatmap, HeatLegend, Ticker } from "./viz";
 import { api, clock, DecodeText, Identicon, InfoTip, Meter, Notice, Wordmark } from "./ui";
 
 const PITCH: Record<string, string> = {
@@ -23,7 +23,7 @@ const clamp = (v: number) => Math.max(0, Math.min(1, v));
 const TEXTURES: ((x: number, y: number) => number)[] = [
   x => x / 320 * 0.9, (x, y) => clamp(1 - Math.hypot(x - 160, y - 40) / 150) * 0.9, (x, y) => 0.5 + 0.4 * Math.sin(x / 18 + Math.sin(y / 9) * 2),
   (x, y) => ((Math.floor(x / 40) + Math.floor(y / 20)) % 2 ? 0.7 : 0.12), (x, y) => clamp((x + y * 2) / 400) * 0.9, (x, y) => 0.45 + 0.45 * Math.sin(Math.hypot(x - 60, y - 40) / 7),
-  (x, y) => (Math.floor(x / 32) % 2 ? 0.8 : 0.1 + 0.3 * (y / 80)), () => 0.06,
+  (x, y) => (Math.floor(x / 32) % 2 ? 0.8 : 0.1 + 0.3 * (y / 80)),
 ];
 
 const RULES: [string[], string, string][] = [
@@ -49,7 +49,7 @@ const FAQ: [string, string][] = [
 ];
 
 const DEMO = "dfCTF{b4se64_is_n0t_encrypt10n}";
-function TryOne({ createAccount }: { createAccount: () => void }) {
+function TryOne({ createAccount, signedIn }: { createAccount: () => void; signedIn: boolean }) {
   const [flag, setFlag] = useState(""); const [result, setResult] = useState<"correct" | "wrong" | null>(null); const [hint, setHint] = useState(false); const [attempt, setAttempt] = useState(0);
   function check(e: FormEvent) { e.preventDefault(); setAttempt(a => a + 1); setResult(flag.trim().replace(/^dfctf\{/i, "dfCTF{") === DEMO ? "correct" : "wrong"); }
   return <div className="mini">
@@ -57,7 +57,7 @@ function TryOne({ createAccount }: { createAccount: () => void }) {
     <div className="mini-body">
       <p>Someone left this in a config file. It looks scrambled, but it isn’t encrypted.</p>
       <div className="mini-code"><code>ZGZDVEZ7YjRzZTY0X2lzX24wdF9lbmNyeXB0MTBufQ==</code></div>
-      {result === "correct" ? <div className="verdict verdict-correct" role="status"><span className="mono">[x]</span><DecodeText text="correct" className="mono strong" /><span className="fade-up mono strong">+50 pts</span><span className="muted">That one was practice. The real board is waiting.</span><button type="button" className="button button-primary" onClick={createAccount}>Create an account</button></div>
+      {result === "correct" ? <div className="verdict verdict-correct" role="status"><span className="mono">[x]</span><DecodeText text="correct" className="mono strong" /><span className="fade-up mono strong">+50 pts</span><span className="muted">That one was practice. The real board is waiting.</span><button type="button" className="button button-primary" onClick={createAccount}>{signedIn ? "Open the challenges" : "Create an account"}</button></div>
         : <form className="flag-row" onSubmit={check}>
           <label className="sr-only" htmlFor="try-flag">Flag</label>
           <input id="try-flag" key={attempt} className={`flag-input${result === "wrong" ? " shake is-wrong" : ""}`} value={flag} onChange={e => { setFlag(e.target.value); setResult(null); }} placeholder="dfCTF{...}" autoComplete="off" spellCheck={false} />
@@ -76,7 +76,8 @@ function LiveChip({ endsAt }: { endsAt: string }) {
   return <span className="live-chip"><i aria-hidden="true" />This week’s challenge is live{left ? <span className="mono muted">{left}</span> : null}</span>;
 }
 
-export default function Landing({ signIn, createAccount }: { signIn: () => void; createAccount: () => void }) {
+/** The public home page. Signed-in players reach it from the wordmark; `enter` then replaces the sign-in actions. */
+export default function Landing({ signIn, createAccount, enter }: { signIn: () => void; createAccount: () => void; enter?: (view: "practice" | "leaderboard", challenge?: string) => void }) {
   const [data, setData] = useState<Community | null>(null);
   const [faq, setFaq] = useState(0);
   const [error, setError] = useState("");
@@ -96,27 +97,28 @@ export default function Landing({ signIn, createAccount }: { signIn: () => void;
   const totalActivity = data?.activity.days.reduce((a, b) => a + b, 0);
   const [range, setRange] = useState<"week" | "all">("week");
   const board = (range === "week" ? data?.top : data?.topAll) ?? [];
+  const signedIn = !!enter;
+  const start = signedIn ? "Open challenges" : "Start solving";
 
   return <div className="landing">
     <a className="skip-link" href="#landing-main">Skip to content</a>
     <header className="site-nav">
-      <a className="brand-link" href="/" aria-label="dfCTF home"><Wordmark /></a>
+      <a className="brand-link" href={signedIn ? "/?view=home" : "/"} aria-label="dfCTF home"><Wordmark /></a>
       {data?.weekly ? <LiveChip endsAt={data.weekly.endsAt} /> : null}
-      <nav className="site-links" aria-label="Sections"><a href="#leaderboard">Leaderboard</a><a href="#this-week">This week</a><a href="#categories">Challenges</a><a href="/rules">Rules / Mechanics</a><a href="#faq">FAQ</a></nav>
-      <div className="site-actions"><button className="button button-ghost" onClick={signIn}>Sign in</button><button className="button button-primary" onClick={createAccount}>Start solving</button></div>
+      <nav className="site-links" aria-label="Sections"><a href="#leaderboard">Leaderboard</a><a href="#this-week">This week</a><a href="#categories">Categories</a><a href="/rules">Rules</a><a href="#faq">FAQ</a></nav>
+      <div className="site-actions">{signedIn ? null : <button className="button button-ghost" onClick={signIn}>Sign in</button>}<button className="button button-primary" onClick={createAccount}>{start}</button></div>
     </header>
 
     <main id="landing-main">
       {error ? <Notice type="error">{error} <button className="text-button" onClick={load} disabled={busy}>Try again</button></Notice> : null}
-      <section className="hero">
+      <section className="hero" aria-labelledby="hero-title">
         <AsciiField className="hero-ascii" />
-        <h1 className="hero-title">Solve security challenges.<br />Capture the flag.</h1>
+        <h1 className="hero-title" id="hero-title">Solve security challenges.<br />Capture the flag.</h1>
         <div className="hero-copy">
           <p className="lede">dfCTF is a capture-the-flag platform. Every challenge hides a flag somewhere: inside a file, a web request, or a running program. Find it, submit it, and earn points on the leaderboard.</p>
-          <div className="cta-row"><button className="button button-primary button-large" onClick={createAccount}>Start solving</button><a className="button button-secondary button-large" href="#try">Try one now</a></div>
+          <div className="cta-row"><button className="button button-primary button-large" onClick={createAccount}>{start}</button><a className="button button-secondary button-large" href="#try">Try one now</a></div>
           <p className="fine">Web, forensics, OSINT, steganography, binary, and more. Easy starters for first-timers.</p>
         </div>
-        <div className="hero-art"><Hexdump /></div>
       </section>
 
       {data?.recent.length ? <Ticker events={data.recent} /> : null}
@@ -127,7 +129,7 @@ export default function Landing({ signIn, createAccount }: { signIn: () => void;
 
       <section className="band band-center" id="try" aria-labelledby="try-title">
         <div className="band-head center"><h2 id="try-title">Try one right now.</h2><p>No account needed. This string hides a flag. Decode it, paste the flag, and see what solving feels like.</p></div>
-        <TryOne createAccount={createAccount} />
+        <TryOne createAccount={createAccount} signedIn={signedIn} />
         <p className="fine center">{data ? `Solved it? There are ${data.totals.challenges} more on the board, and they get harder.` : "Solved it? The real challenges get harder."}</p>
       </section>
 
@@ -151,7 +153,7 @@ export default function Landing({ signIn, createAccount }: { signIn: () => void;
           <div className="week-left">
             <p className="label-dot">{data?.weekly ? "This week closes in" : "The week closes in"}</p>
             <Countdown endsAt={endsAt} />
-            {data?.weekly ? <><ChallengeCard title={data.weekly.title} category={data.weekly.category} xp={data.weekly.xp} difficulty={data.weekly.difficulty} solveCount={data.weekly.solveCount} state="weekly" /><button className="button button-primary" onClick={signIn}>Open this week’s challenge</button></> : <p className="muted">The next weekly challenge appears here when it drops.</p>}
+            {data?.weekly ? <><ChallengeCard title={data.weekly.title} category={data.weekly.category} xp={data.weekly.xp} difficulty={data.weekly.difficulty} solveCount={data.weekly.solveCount} state="weekly" /><button className="button button-primary" onClick={enter ? () => enter("practice", data.weekly!.id) : signIn}>Open this week’s challenge</button></> : <p className="muted">The next weekly challenge appears here when it drops.</p>}
           </div>
           <div className="panel">
             <div className="panel-head"><h3>Recent solves</h3><InfoTip text="The most recent correct flags. First blood is the first solve of a challenge." /><span className="spacer" /><span className="mono accent">[recent]</span></div>
@@ -170,24 +172,7 @@ export default function Landing({ signIn, createAccount }: { signIn: () => void;
               {c && total ? <div className="spread"><span className="segments" aria-hidden="true">{Array.from({ length: c.easy }, (_, k) => <i key={"e" + k} className="easy" />)}{Array.from({ length: c.medium }, (_, k) => <i key={"m" + k} className="medium" />)}{Array.from({ length: c.hard }, (_, k) => <i key={"h" + k} className="hard" />)}</span><span className="faint">{[c.easy && `${c.easy} easy`, c.medium && `${c.medium} medium`, c.hard && `${c.hard} hard`].filter(Boolean).join(", ")}</span></div> : null}
             </div>
           </li>; })}
-          <li className="tile tile-next"><DitherArt width={320} height={80} density={TEXTURES[7]} className="tile-art" /><div className="tile-body"><div className="tile-top"><strong>Coming next</strong><span className="muted">soon</span></div><p>Cryptography and reverse engineering are on the roadmap.</p></div></li>
         </ul>
-      </section>
-
-      <section className="arena" aria-labelledby="arena-title">
-        <div className="arena-copy"><h2 id="arena-title">Inside the arena.</h2><p>A board of challenges, files you download, a flag box, and a scoreboard that never sleeps. That’s the whole game.</p><button className="button button-primary" onClick={createAccount}>Start solving</button><p className="fine">Sample data shown.</p></div>
-        <div className="arena-stage" aria-hidden="true">
-          <div className="arena-board"><div className="arena-board-head"><strong>Forensics</strong><span className="muted">3 of 8 solved</span></div><div className="arena-cards">
-            <ChallengeCard title="Night shift" category="Forensics" xp={300} difficulty="Medium" solveCount={41} state="weekly" />
-            <ChallengeCard title="The midnight request" category="Forensics" xp={100} difficulty="Easy" solveCount={128} state="solved" />
-            <ChallengeCard title="Lost in the log" category="Forensics" xp={200} difficulty="Medium" solveCount={33} state="open" />
-            <ChallengeCard title="Carved" category="Forensics" xp={400} difficulty="Hard" solveCount={9} state="open" />
-            <ChallengeCard title="Timeline" category="Forensics" xp={150} difficulty="Easy" solveCount={102} state="solved" />
-            <ChallengeCard title="Shadow copy" category="Forensics" xp={500} difficulty="Hard" solveCount={4} state="open" />
-          </div></div>
-          <div className="arena-modal"><div className="tags"><span className="tag">forensics</span><span className="tag tag-medium">medium</span><span className="tag">this week</span><span className="spacer" /><span className="mono accent strong">300 pts</span></div><strong className="arena-modal-title">Night shift</strong><p className="muted">A packet capture shows one device talking at 02:14, when nobody should be.</p><div className="file-row"><span className="mono strong">night-shift.pcap</span><span className="mono faint">1.8 MB</span><span className="spacer" /><span className="button button-secondary button-small">Download</span></div><div className="flag-row"><span className="flag-input mono faint">dfCTF{"{...}"}</span><span className="button button-primary">Submit flag</span></div></div>
-          <ol className="arena-lb standings">{[["kestrel_7", 6450, 41], ["n0ise", 5980, 38], ["packet_fox", 1250, 11]].map(([n, p, s], i) => <li key={String(n)} className={i < 2 ? "top" : "you"}><span className="rank mono">{i < 2 ? `0${i + 1}` : "14"}</span><Identicon name={String(n)} you={i === 2} /><span className="mono name">{n}</span><Meter value={Number(p)} max={6450} tone="accent" label="" /><span className="mono num muted">{s}</span><span className="mono num strong">{Number(p).toLocaleString()}</span></li>)}</ol>
-        </div>
       </section>
 
       <section className="band" id="how" aria-labelledby="how-title">
@@ -196,12 +181,12 @@ export default function Landing({ signIn, createAccount }: { signIn: () => void;
           <li><span className="mono faint">01</span><h3>Pick a challenge</h3><p>Filter by category and difficulty. Easy ones take about fifteen minutes.</p></li>
           <li><span className="mono faint">02</span><h3>Download the files</h3><p>Each file shows its size and SHA-256, so you know you have the right copy.</p></li>
           <li><span className="mono faint">03</span><h3>Work it locally</h3><p>Your editor, your terminal, your tools. Nothing runs in the browser.</p></li>
-          <li className="last"><span className="mono accent">04</span><h3>Submit the flag</h3><p>The server checks it instantly. A first solve earns the points and unlocks the walkthrough.</p><code className="step-code">&gt; dfCTF{"{n1ght_sh1ft}"}{"\n"}  correct, +300 pts</code></li>
+          <li className="last"><span className="mono accent">04</span><h3>Submit the flag</h3><p>The server checks it instantly. A first solve earns the points and unlocks the walkthrough.</p></li>
         </ol>
       </section>
 
       <section className="band band-surface split" id="made-by" aria-labelledby="made-title">
-        <div className="split-copy"><h2 id="made-title">Written by people<br />who play CTFs.</h2><p>Every challenge on dfCTF is written by DFC Developers and community authors, then solved by a second person before it goes live.</p><button className="button button-secondary" onClick={createAccount}>Write a challenge with us</button></div>
+        <div className="split-copy"><h2 id="made-title">Written by people<br />who play CTFs.</h2><p>Every challenge on dfCTF is written by DFC Developers and community authors, then solved by a second person before it goes live.</p></div>
         <ul className="points">
           <li><span className="mono accent">&gt;</span><div><h3>Original challenges</h3><p>Built from scratch for dfCTF by our authors, not pulled from public archives, so the flag isn’t one search away.</p></div></li>
           <li><span className="mono accent">&gt;</span><div><h3>Tested before it ships</h3><p>A second person solves every challenge before it goes live. No broken flags, no guessing games.</p></div></li>
@@ -224,21 +209,18 @@ export default function Landing({ signIn, createAccount }: { signIn: () => void;
 
       <section className="closing" aria-labelledby="closing-title">
         <FaultyTerminal className="closing-terminal" />
-        <div className="closing-copy"><h2 id="closing-title">Pick a challenge.<br />Start solving.</h2><p>Create an account in a minute. Easy challenges take about fifteen minutes, and a wrong answer never costs points.</p><div className="cta-row"><button className="button button-primary button-large" onClick={createAccount}>Start solving</button><button className="button button-secondary button-large" onClick={signIn}>See the leaderboard</button></div></div>
+        <div className="closing-copy"><h2 id="closing-title">Pick a challenge.<br />Start solving.</h2><p>Create an account in a minute. Easy challenges take about fifteen minutes, and a wrong answer never costs points.</p><div className="cta-row"><button className="button button-primary button-large" onClick={createAccount}>{start}</button><button className="button button-secondary button-large" onClick={signIn}>See the leaderboard</button></div></div>
       </section>
     </main>
 
     <footer className="footer">
-      <div className="footer-top">
-        <div className="footer-brand"><Wordmark size="lg" /><p>The capture-the-flag platform built by DFC Developers.</p><span className="flag-chip"><span>Flag format</span><code>dfCTF{"{...}"}</code></span></div>
-        <nav className="footer-cols" aria-label="Footer">
-          <div><h3>Play</h3><a href="#how">How it works</a><a href="#this-week">This week</a><a href="#leaderboard">Leaderboard</a><a href="#try">Try one now</a></div>
-          <div><h3>Community</h3><a href="#made-by">Write a challenge</a><a href="/rules">Rules / Mechanics</a><a href="#fair-play">Fair play</a><a href="#faq">FAQ</a></div>
-          <div><h3>Account</h3><button className="link-button" onClick={signIn}>Sign in</button><button className="link-button" onClick={createAccount}>Create account</button></div>
-        </nav>
-      </div>
-      <div className="footer-bottom"><span>© {new Date().getFullYear()} DFC Developers</span><span>All challenge content is fictional. Only test systems you have permission to attack.</span></div>
-      <div className="footer-mark" aria-hidden="true">dfCTF</div>
+      <div className="footer-brand"><Wordmark /><p>The capture-the-flag platform built by DFC Developers.</p><p className="flag-chip">Flags look like <code>dfCTF{"{...}"}</code></p></div>
+      <nav className="footer-cols" aria-label="Footer">
+        <div><h2>Play</h2><a href="#how">How it works</a><a href="#try">Try one now</a><a href="#this-week">This week</a><a href="#leaderboard">Leaderboard</a></div>
+        <div><h2>Learn</h2><a href="#categories">Categories</a><a href="/rules">Rules / Mechanics</a><a href="#fair-play">Fair play</a><a href="#faq">FAQ</a></div>
+        <div><h2>Account</h2>{signedIn ? <><button className="link-button" onClick={createAccount}>Open challenges</button><button className="link-button" onClick={signIn}>Leaderboard</button></> : <><button className="link-button" onClick={signIn}>Sign in</button><button className="link-button" onClick={createAccount}>Create account</button></>}</div>
+      </nav>
+      <div className="footer-bottom"><span>© {new Date().getFullYear()} DFC Developers</span><span>All challenge content is fictional. Only test systems you have permission to attack.</span><a className="link-button" href="#landing-main">Back to top</a></div>
     </footer>
   </div>;
 }
