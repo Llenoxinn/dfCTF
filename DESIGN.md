@@ -25,6 +25,8 @@ A typical capture-the-flag platform, built with care. ASCII and 1-bit dither are
 
 Radius is 2px everywhere. Elevation is borders; shadows only on floating menus, tooltips, and the arena composition.
 
+Styling: Tailwind v4 utilities (theme and utilities only, no Preflight) build the landing page; dfCTF tokens are Tailwind colors (`bg-surface`, `text-muted`, `border-line`, `text-accent-ink`). The hand-written CSS sits in the `legacy` cascade layer below utilities, so a utility always wins. Landing frame: one 1240px column between gray rails, a hairline per section, small squares where a section line meets the rails, and a dot grid outside the column.
+
 ## Type
 
 - Geist for everything readable. Headings 600, tracking -0.02em to -0.04em, `text-wrap: balance`.
@@ -40,11 +42,11 @@ Radius is 2px everywhere. Elevation is borders; shadows only on floating menus, 
 - **Pips / Difficulty**: three 4x10 bars in the difficulty color, always next to the written label.
 - **Identicon**: 5x5 mirrored pixels hashed from the codename (`lib/pixel.ts`). The signed-in player's is yellow.
 - **InfoTip**: 400ms delay on first open, instant for neighbors, scale 0.97 to 1 over 150ms, focusable, Escape closes.
-- **Heatmap**: one 8x8 Bayer-dithered square per day, Monday-first columns, current week outlined in yellow.
+- **Heatmap**: one rounded square per day, Monday-first columns. Empty days are `--surface-2`; busy days step up a 4-level yellow ramp (`color-mix` toward the empty color). Month labels on top and a date tooltip per day when the start date is known; the current week is outlined in yellow. The leaderboard's solve grid uses the same ramp.
 - **RaceChart**: pixel-stepped rank lines (leader yellow and thick, ranks 2-3 bone, the rest at 30%), square markers at 20:00 snapshots, solves-per-hour bars with yellow first-blood caps, end table with movement. Hovering a name isolates its line.
 - **Radar**: dithered polygon of solved/total per category.
 - **Countdown**: four unit cells in Geist Mono, a 7-day week meter, red in the final hour. Digits swap without animation.
-- **Backgrounds**: `ascii-field.tsx` (canvas 2D ASCII light field: landing hero, boot and gate screens) and `faulty-terminal.tsx` (canvas 2D block glyphs, closing band). Both pause off-screen and hold still under reduced motion.
+- **Backgrounds**: the landing hero uses `gradient-ascii.jsx` (React Bits GradientASCII, WebGL 2, horizon shape in the flag-yellow ramp, glow 0), falling back to `ascii-field.tsx` (canvas 2D) when WebGL 2 is missing or the GPU drops the context. Boot and gate screens use `ascii-field.tsx`; the closing band uses `faulty-terminal.tsx`. All pause off-screen and hold still under reduced motion.
 - **Navigation**: the wordmark always leads home (the landing page, `/?view=home` when signed in). Settings lives in the profile menu, not the tab row. The landing footer has no oversized wordmark.
 
 ## Motion
