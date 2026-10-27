@@ -55,11 +55,29 @@ export function meterCells(value: number, max: number, cells = 20) {
   return Math.max(1, Math.min(cells, Math.round((value / max) * cells)));
 }
 
+export const HEAT_DENSITY = [0, 0.18, 0.4, 0.65, 0.95];
+
 /** Five heat levels: none, then each threshold reached. */
 export function heatLevel(count: number, steps: readonly number[] = [1, 10, 40, 100]) {
   let level = 0;
   for (const step of steps) if (count >= step) level++;
   return level;
+}
+
+/** An 8x8 dithered square for one heatmap cell. */
+export function heatCellPath(level: number, x0: number, y0: number, size: number) {
+  const density = HEAT_DENSITY[level] ?? 0, px = size / 8;
+  let d = "";
+  if (!density) return d;
+  for (let j = 0; j < 8; j++) {
+    let run = -1;
+    for (let i = 0; i <= 8; i++) {
+      const on = i < 8 && density > threshold(i, j);
+      if (on && run < 0) run = i;
+      if (!on && run >= 0) { d += `M${x0 + run * px} ${y0 + j * px}h${(i - run) * px}v${px}h${-(i - run) * px}z`; run = -1; }
+    }
+  }
+  return d;
 }
 
 /** Scales daily counts to heat levels relative to the busiest day. */

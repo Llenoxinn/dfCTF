@@ -9,7 +9,7 @@ import FaultyTerminal from "./faulty-terminal";
 import GradientASCII from "./gradient-ascii";
 import { ChallengeCard } from "./cards";
 import { busiestDay, Countdown, DitherArt, Heatmap, HeatLegend, Ticker } from "./viz";
-import { api, clock, DecodeText, Icon, Identicon, InfoTip, Meter, Notice, useTheme, Wordmark } from "./ui";
+import { api, clock, DecodeText, Identicon, InfoTip, Meter, Notice, useTheme, Wordmark } from "./ui";
 
 const PITCH: Record<string, string> = {
   "General skills": "Linux, encodings, and the terminal habits every other category builds on.",
@@ -37,7 +37,7 @@ const RULES: [string[], string, string][] = [
 ];
 function PixelIcon({ rows }: { rows: string[] }) {
   let d = ""; rows.forEach((r, y) => [...r].forEach((c, x) => { if (c === "#") d += `M${x} ${y}h1v1h-1z`; }));
-  return <svg className="pixel-icon" width="27" height="27" viewBox="0 0 9 9" aria-hidden="true" shapeRendering="crispEdges"><path d={d} /></svg>;
+  return <svg className="pixel-icon" width="36" height="36" viewBox="0 0 9 9" aria-hidden="true" shapeRendering="crispEdges"><path d={d} /></svg>;
 }
 
 const FAQ: [string, string][] = [
@@ -49,31 +49,37 @@ const FAQ: [string, string][] = [
   ["Who makes the challenges?", "DFC Developers and community authors. A second person solves every challenge before it is published."],
 ];
 
-const STEPS: { label: string; title: string; body: string; icon: string; wide?: boolean }[] = [
-  { label: "01 · pick", title: "Pick a challenge", body: "Filter the board by category and difficulty. Easy ones take about fifteen minutes, and nothing is locked behind anything else.", icon: "search", wide: true },
-  { label: "02 · read", title: "Read and download", body: "Open the challenge, read the brief, and grab any files it comes with.", icon: "download" },
-  { label: "03 · solve", title: "Work it locally", body: "Your editor, your terminal, your tools. Nothing runs in the browser.", icon: "terminal" },
-  { label: "04 · submit", title: "Submit the flag", body: "The server checks it instantly. A first solve earns the points and unlocks the author’s walkthrough.", icon: "check", wide: true },
+const STEPS: [string, string][] = [
+  ["Pick a challenge", "Filter the board by category and difficulty. Easy ones take about fifteen minutes."],
+  ["Read and download", "Open the challenge, read the brief, and grab any files it comes with."],
+  ["Work it locally", "Your editor, your terminal, your tools. Nothing runs in the browser."],
+  ["Submit the flag", "The server checks it instantly. A first solve earns the points and unlocks the walkthrough."],
 ];
 
-// One column of content between two gray rails, as on drafting paper.
-const FRAME = "mx-auto w-full max-w-[1240px] xl:border-x xl:border-line";
+// One wide column of content between two gray rails, as on drafting paper. The rails and the dot grid
+// only appear once the screen is wider than the column, so there is always a gutter to put them in.
+const FRAME = "mx-auto w-full max-w-[1440px] min-[1520px]:border-x min-[1520px]:border-line";
 const H2 = "text-[clamp(2rem,3.4vw,2.75rem)] font-medium leading-[1.08] tracking-[-0.03em] text-balance";
-const LEAD = "max-w-xl text-lg leading-relaxed text-muted text-pretty";
+const LEAD = "max-w-2xl text-lg leading-relaxed text-muted text-pretty";
+const PAD = "px-5 sm:px-8";
 
-/** Small squares where a section's top line meets the frame rails. Desktop only, where the rails exist. */
+/** Small squares where a section's top line meets the frame rails. Only where the rails exist. */
 function Marks() {
-  const mark = "pointer-events-none absolute -top-[3px] z-10 hidden size-[7px] bg-faint xl:block";
+  const mark = "pointer-events-none absolute -top-[3px] z-10 hidden size-[7px] bg-faint min-[1520px]:block";
   return <><i aria-hidden="true" className={`${mark} -left-[4px]`} /><i aria-hidden="true" className={`${mark} -right-[4px]`} /></>;
 }
 
-/** A mono label in brackets, the same ASCII language as [x] and [live]. */
-function Tag({ children }: { children: ReactNode }) {
-  return <span className="inline-flex items-center gap-2 rounded-xs border border-line-strong bg-surface px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.08em] text-muted"><i aria-hidden="true" className="size-1.5 bg-accent" />{children}</span>;
+function SectionHead({ id, title, children, side }: { id: string; title: ReactNode; children?: ReactNode; side?: ReactNode }) {
+  return <div className={`${PAD} flex flex-wrap items-end justify-between gap-x-12 gap-y-6 pb-10 pt-14 lg:pt-16`}>
+    <div className="grid max-w-3xl gap-4"><h2 id={id} className={H2}>{title}</h2>{children ? <p className={LEAD}>{children}</p> : null}</div>
+    {side}
+  </div>;
 }
 
-function SectionHead({ tag, id, title, children }: { tag: string; id: string; title: ReactNode; children?: ReactNode }) {
-  return <div className="grid content-start justify-items-start gap-4 px-5 pb-10 pt-16 sm:px-10 lg:pt-20"><Tag>{tag}</Tag><h2 id={id} className={H2}>{title}</h2>{children ? <p className={LEAD}>{children}</p> : null}</div>;
+/** "4m ago", "3h ago", "2d ago" for the recent-solves timeline. */
+function ago(at: string) {
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(at).getTime()) / 60_000));
+  return minutes < 1 ? "just now" : minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.floor(minutes / 60)}h ago` : `${Math.floor(minutes / 1440)}d ago`;
 }
 
 /** The hero's moving ASCII light. React Bits' WebGL field, with the canvas field as a fallback where WebGL 2 is missing. */
@@ -128,7 +134,7 @@ function TryOne({ createAccount, signedIn }: { createAccount: () => void; signed
 function LiveChip({ title, endsAt }: { title: string; endsAt: string }) {
   const [left, setLeft] = useState<string | null>(null);
   useEffect(() => { const tick = () => { const p = countdownParts(new Date(endsAt).getTime() - Date.now()); setLeft(`${p.days}d ${p.hours}h left`); }; tick(); const t = window.setInterval(tick, 60_000); return () => window.clearInterval(t); }, [endsAt]);
-  return <a href="#this-week" className="inline-flex items-center gap-2 border border-l-0 border-line-strong bg-bg/80 px-2.5 py-1.5 text-accent-ink transition-colors hover:text-fg"><i aria-hidden="true" className="size-1.5 bg-accent" />this week: {title}{left ? <span className="text-faint">{left}</span> : null}</a>;
+  return <a href="#this-week" className="mb-6 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xs border border-line-strong bg-bg/80 px-3 py-1.5 text-[13px] text-muted transition-colors hover:border-muted"><i aria-hidden="true" className="size-1.5 bg-accent" />This week: <strong className="font-semibold text-fg">{title}</strong>{left ? <span className="font-mono text-xs text-faint">{left}</span> : null}</a>;
 }
 
 /** The public home page in one framed column. Signed-in players reach it from the wordmark; `enter` then replaces the sign-in actions. */
@@ -162,17 +168,21 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
   const busiest = data ? busiestDay(days, data.activity.start) : null;
   const leader = data?.top[0]?.codename;
   const unknown = error ? "—" : "…";
-  const stats: [string, ReactNode, string][] = [
-    ["challenges", data ? data.totals.challenges : unknown, "published and ready to solve"],
-    ["categories", data ? `${covered}/${CATEGORIES.length}` : unknown, "categories with challenges"],
-    ["this week", weekSolves ?? unknown, "flags captured since Monday"],
-    ["leader", data ? leader ? <span className="flex min-w-0 items-center gap-2 text-xl"><Identicon name={leader} size={22} /><span className="truncate">{leader}</span></span> : "nobody yet" : unknown, "top of this week’s board"],
+  const stats: [string, ReactNode][] = [
+    ["Challenges published", data ? data.totals.challenges : unknown],
+    ["Categories with challenges", data ? `${covered} of ${CATEGORIES.length}` : unknown],
+    ["Flags captured this week", weekSolves ?? unknown],
+    ["Leading this week", data ? leader ? <span className="flex min-w-0 items-center gap-2.5"><Identicon name={leader} size={24} /><span className="truncate">{leader}</span></span> : "Nobody yet" : unknown],
   ];
+  const faqItem = ([q, a]: [string, string], i: number) => <div key={q} className="faq-item" data-open={faq === i || undefined}>
+    <h3><button type="button" aria-expanded={faq === i} aria-controls={`faq-${i}`} onClick={() => setFaq(faq === i ? -1 : i)}>{q}<span className="mono" aria-hidden="true">{faq === i ? "[-]" : "[+]"}</span></button></h3>
+    <div className="faq-answer" id={`faq-${i}`} role="region" aria-label={q}><div><p>{a}</p></div></div>
+  </div>;
 
-  return <div className="landing min-h-screen bg-bg text-fg xl:bg-[radial-gradient(circle_at_1px_1px,var(--line)_1px,transparent_0)] xl:bg-size-[20px_20px]">
+  return <div className="landing min-h-screen bg-bg text-fg min-[1520px]:bg-[radial-gradient(circle_at_1px_1px,var(--line)_1px,transparent_0)] min-[1520px]:bg-size-[20px_20px]">
     <a className="skip-link" href="#landing-main">Skip to content</a>
     <header className="sticky top-0 z-30 border-b border-line bg-bg">
-      <div className={`${FRAME} flex h-16 items-center gap-6 px-4 sm:px-6`}>
+      <div className={`${FRAME} ${PAD} flex h-16 items-center gap-6`}>
         <a className="brand-link" href={signedIn ? "/?view=home" : "/"} aria-label="dfCTF home"><Wordmark /></a>
         <nav aria-label="Sections" className="mx-auto hidden items-center gap-1 lg:flex">{[["#leaderboard", "Leaderboard"], ["#this-week", "This week"], ["#categories", "Categories"], ["/rules", "Rules"], ["#faq", "FAQ"]].map(([href, label]) => <a key={href} href={href} className="rounded-xs px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-fg">{label}</a>)}</nav>
         <div className="ml-auto flex items-center gap-2 lg:ml-0">{signedIn ? null : <button className="button button-ghost max-sm:hidden" onClick={signIn}>Sign in</button>}<button className="button button-primary" onClick={createAccount}>{start}</button></div>
@@ -180,18 +190,15 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
     </header>
 
     <main id="landing-main" className={`${FRAME} bg-bg`}>
-      {error ? <div className="border-b border-line px-4 py-4 sm:px-6"><Notice type="error">{error} <button className="text-button" onClick={load} disabled={busy}>Try again</button></Notice></div> : null}
+      {error ? <div className={`${PAD} border-b border-line py-4`}><Notice type="error">{error} <button className="text-button" onClick={load} disabled={busy}>Try again</button></Notice></div> : null}
 
-      <section aria-labelledby="hero-title" className="relative px-3 pt-3 sm:px-6 sm:pt-6">
-        <div className="relative isolate flex min-h-[480px] flex-col justify-end overflow-hidden rounded-xs border border-line-strong bg-surface sm:min-h-[560px] lg:min-h-[600px]">
+      <section aria-labelledby="hero-title" className="relative px-3 pt-3 sm:px-4 sm:pt-4">
+        <div className="relative isolate flex min-h-[480px] flex-col justify-end overflow-hidden rounded-xs border border-line-strong bg-surface sm:min-h-[560px] lg:min-h-[620px]">
           <HeroField />
           <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[linear-gradient(to_top,var(--bg)_12%,transparent_72%)]" />
           <div className="p-5 sm:p-10">
-            <div className="mb-6 flex flex-wrap font-mono text-[11px] uppercase tracking-[0.08em]">
-              <span className="border border-line-strong bg-bg/80 px-2.5 py-1.5 text-muted">capture the flag</span>
-              {data?.weekly ? <LiveChip title={data.weekly.title} endsAt={data.weekly.endsAt} /> : <span className="border border-l-0 border-line-strong bg-bg/80 px-2.5 py-1.5 text-faint normal-case">dfCTF{"{...}"}</span>}
-            </div>
-            <h1 id="hero-title" className="text-[clamp(2.6rem,6.2vw,5.5rem)] font-medium leading-[1.02] tracking-[-0.045em]">Solve security challenges.<br />Capture the flag.</h1>
+            {data?.weekly ? <LiveChip title={data.weekly.title} endsAt={data.weekly.endsAt} /> : null}
+            <h1 id="hero-title" className="text-[clamp(2.6rem,6.2vw,5.75rem)] font-medium leading-[1.02] tracking-[-0.045em]">Solve security challenges.<br />Capture the flag.</h1>
           </div>
         </div>
         <div className="grid gap-8 px-2 py-10 sm:px-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
@@ -202,49 +209,48 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
       {data?.recent.length ? <div className="relative border-t border-line"><Marks /><Ticker events={data.recent} /></div> : null}
 
-      <section aria-label="dfCTF right now" className="relative grid border-t border-line lg:grid-cols-[250px_minmax(0,1fr)]">
+      <section aria-label="dfCTF right now" className="relative border-t border-line">
         <Marks />
-        <div className="flex items-center border-b border-line bg-[radial-gradient(circle_at_1px_1px,var(--line-strong)_1px,transparent_0)] bg-size-[12px_12px] px-5 py-8 sm:px-10 lg:border-b-0 lg:border-r lg:px-8"><p className="bg-bg pr-2 text-2xl font-medium leading-tight tracking-[-0.02em]">dfCTF<br />right now</p></div>
-        <dl className="grid grid-cols-2 gap-px bg-line lg:grid-cols-4">{stats.map(([label, value, sub]) => <div key={label} className="min-w-0 bg-bg px-5 py-7 sm:px-6">
-          <dt className="font-mono text-[11px] uppercase tracking-[0.08em] text-faint">[{label}]</dt>
-          <dd className="ms-0 mt-3 font-mono text-[1.75rem] font-semibold leading-none tracking-[-0.02em] tabular-nums">{value}</dd>
-          <dd className="ms-0 mt-2 text-sm text-muted">{sub}</dd>
+        <dl className="grid grid-cols-2 gap-px bg-line lg:grid-cols-4">{stats.map(([label, value]) => <div key={label} className="flex min-w-0 flex-col-reverse justify-end gap-3 bg-bg px-5 py-7 sm:px-8">
+          <dt className="text-[13px] text-muted">{label}</dt>
+          <dd className="ms-0 min-w-0 font-mono text-[1.75rem] font-semibold leading-none tracking-[-0.02em] tabular-nums">{value}</dd>
         </div>)}</dl>
       </section>
 
-      <section aria-labelledby="try-title" className="relative grid border-t border-line lg:grid-cols-2">
+      <section aria-labelledby="try-title" className="relative grid border-t border-line lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
         <Marks />
-        <SectionHead tag="warm-up" id="try-title" title="Try one right now.">No account needed. This string hides a flag. Decode it, paste the flag, and see what solving feels like.</SectionHead>
-        <div className="border-t border-line p-4 sm:p-10 lg:border-l lg:border-t-0 lg:py-20"><TryOne createAccount={createAccount} signedIn={signedIn} /></div>
+        <div className={`${PAD} flex flex-col justify-between gap-8 py-14 lg:py-16`}>
+          <div className="grid gap-4"><h2 id="try-title" className={H2}>Try one right now.</h2><p className={LEAD}>No account needed. This string hides a flag. Decode it, paste the flag, and see what solving feels like.</p></div>
+          <p className="text-sm text-faint">{data ? `Solved it? ${data.totals.challenges} real challenges are waiting on the board, and they get harder.` : "Solved it? The real challenges get harder."}</p>
+        </div>
+        <div className="border-t border-line p-4 sm:p-8 lg:border-l lg:border-t-0 lg:py-16"><TryOne createAccount={createAccount} signedIn={signedIn} /></div>
       </section>
 
-      <section id="how" aria-labelledby="how-title" className="relative grid border-t border-line lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+      <section id="how" aria-labelledby="how-title" className="relative border-t border-line">
         <Marks />
-        <div><SectionHead tag="how it works" id="how-title" title={<>Your first flag<br />in four steps.</>}>Every challenge works the same way, from the easiest warm-up to the hardest binary.</SectionHead></div>
-        <ol className="grid gap-3 px-4 pb-12 sm:grid-cols-2 sm:px-10 lg:py-20 lg:pl-0">{STEPS.map(s => <li key={s.label} className={`rounded-xs border border-line bg-surface p-6 ${s.wide ? "sm:col-span-2" : ""}`}>
-          <div className="flex items-start justify-between gap-6">
-            <div><p className="font-mono text-[11px] uppercase tracking-[0.08em] text-accent-ink">{s.label}</p><h3 className="mt-2 text-xl font-medium tracking-[-0.02em]">{s.title}</h3></div>
-            <span aria-hidden="true" className={`grid size-14 shrink-0 place-items-center rounded-xs border ${s.icon === "check" ? "border-accent bg-accent/10 text-accent-ink" : "border-line-strong bg-surface-2 text-fg"}`}><Icon name={s.icon} size={22} /></span>
-          </div>
-          <p className="mt-4 max-w-md text-sm leading-relaxed text-muted">{s.body}</p>
+        <SectionHead id="how-title" title="Your first flag in four steps.">Every challenge works the same way, from the easiest warm-up to the hardest binary.</SectionHead>
+        <ol className="grid gap-px border-t border-line bg-line sm:grid-cols-2 lg:grid-cols-4">{STEPS.map(([title, body], i) => <li key={title} className={`grid content-start gap-3 bg-bg px-5 py-8 sm:px-8 ${i === 3 ? "shadow-[inset_0_2px_0_var(--accent)]" : ""}`}>
+          <span aria-hidden="true" className={`font-mono text-[2.5rem] font-semibold leading-none tracking-[-0.04em] ${i === 3 ? "text-accent-ink" : "text-line-strong"}`}>0{i + 1}</span>
+          <h3 className="mt-3 text-lg font-semibold tracking-[-0.01em]">{title}</h3>
+          <p className="text-[15px] leading-relaxed text-muted">{body}</p>
         </li>)}</ol>
       </section>
 
       <section id="leaderboard" aria-labelledby="lb-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead tag="leaderboard" id="lb-title" title="Every flag moves you up the board.">Earn points for new solves. Compare this week’s standings, follow the all-time board, and see when players are capturing flags.</SectionHead>
-        <div className="grid gap-px border-t border-line bg-line lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <SectionHead id="lb-title" title="Every flag moves you up the board." side={<button className="button button-secondary" onClick={signIn}>See the full leaderboard</button>}>Earn points for new solves. Compare this week’s standings, follow the all-time board, and see when players are capturing flags.</SectionHead>
+        <div className="grid gap-px border-t border-line bg-line lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="min-w-0 bg-bg">
-            <div className="flex min-h-14 flex-wrap items-center gap-2.5 border-b border-line px-4 py-2.5 sm:px-6"><div className="segmented small" role="group" aria-label="Range">{([["week", "This week"], ["all", "All time"]] as const).map(([v, l]) => <button key={v} type="button" aria-pressed={range === v} onClick={() => setRange(v)}>{l}</button>)}</div><InfoTip text="Points earned in this range. Ties go to whoever reached the score first." /><span className="spacer" /><button className="text-button" onClick={signIn}>Full leaderboard</button></div>
+            <div className="flex min-h-14 flex-wrap items-center gap-2.5 border-b border-line px-4 py-2.5 sm:px-6"><h3 className="text-base font-semibold">Standings</h3><InfoTip text="Points earned in this range. Ties go to whoever reached the score first." /><span className="spacer" /><div className="segmented small" role="group" aria-label="Range">{([["week", "This week"], ["all", "All time"]] as const).map(([v, l]) => <button key={v} type="button" aria-pressed={range === v} onClick={() => setRange(v)}>{l}</button>)}</div></div>
             {board.length ? <ol className="standings"><li className="standings-head" aria-hidden="true"><span>#</span><span /><span>Player</span><span /><span className="num">Solves</span><span className="num">Points</span></li>{board.map(s => <li key={s.codename} className={s.rank <= 3 ? "top" : ""}><span className="rank mono">{String(s.rank).padStart(2, "0")}</span><Identicon name={s.codename} /><span className="mono name">{s.codename}</span><Meter value={s.points} max={board[0].points} tone={s.rank <= 3 ? "accent" : "ink"} label={`${s.points} points`} /><span className="mono num muted">{s.solves}</span><span className="mono num strong">{s.points.toLocaleString()}</span></li>)}</ol>
               : <p className="muted p-6">{!data ? error ? "Standings are temporarily unavailable." : "Loading standings…" : range === "week" ? "No points yet this week. The first solve puts a name at the top." : "The board fills up as flags land."}</p>}
           </div>
-          <section aria-labelledby="act-title" className="min-w-0 bg-bg">
-            <div className="flex min-h-14 items-center gap-2.5 border-b border-line px-4 sm:px-6"><h3 id="act-title" className="text-base font-semibold">Solves across dfCTF</h3><InfoTip text="Each square is one day across all players, Monday at the top. Brighter squares mean more flags captured that day. The outlined column is this week." /></div>
-            <div className="p-4 sm:p-6">
-              <div className="heat-wrap">{data ? <Heatmap days={days} start={data.activity.start} cell={14} gap={4} weekdays label="Solves per day, last 20 weeks" /> : <div className="skeleton heat-skeleton" />}</div>
-              <div className="heat-foot mt-3"><span className="faint">20 weeks ago to this week</span><HeatLegend /></div>
-              <div className="mt-5 flex flex-wrap items-end gap-x-7 gap-y-3 border-t border-line pt-5">
+          <section aria-labelledby="act-title" className="flex min-w-0 flex-col bg-bg">
+            <div className="flex min-h-14 items-center gap-2.5 border-b border-line px-4 sm:px-6"><h3 id="act-title" className="text-base font-semibold">Solves across dfCTF</h3><InfoTip text="Each square is one day across all players, Monday at the top. More lit pixels means more flags captured that day. The outlined column is this week." /></div>
+            <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
+              <div className="heat-wrap">{data ? <Heatmap days={days} start={data.activity.start} cell={24} gap={3} weekdays label="Solves per day, last 20 weeks" /> : <div className="skeleton heat-skeleton" />}</div>
+              <div className="heat-foot"><span className="faint">20 weeks ago to this week</span><HeatLegend /></div>
+              <div className="mt-auto flex flex-wrap items-end gap-x-8 gap-y-3 border-t border-line pt-5">
                 <p className="stat"><strong className="mono">{totalActivity?.toLocaleString() ?? "—"}</strong><span>solves in the last 20 weeks</span></p>
                 <p className="grid gap-1 text-[13px] text-muted"><span className="font-mono text-lg font-semibold text-fg">{weekSolves ?? "—"}</span>this week</p>
                 <p className="grid gap-1 text-[13px] text-muted"><span className="font-mono text-lg font-semibold text-fg">{busiest ? busiest.count : "—"}</span>{busiest ? `on ${busiest.label}, the busiest day` : "busiest day"}</p>
@@ -256,24 +262,32 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
       <section id="this-week" aria-labelledby="week-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead tag="this week" id="week-title" title="This week’s featured challenge.">When a weekly challenge is published, you’ll find it here. Solve it before Sunday 23:59 Philippine time to earn points on that week’s board.</SectionHead>
-        <div className="grid gap-px border-t border-line bg-line lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-          <div className="grid content-start justify-items-start gap-5 bg-bg p-4 sm:p-6 [&_.card]:w-full">
+        <SectionHead id="week-title" title="This week’s featured challenge.">When a weekly challenge is published, you’ll find it here. Solve it before Sunday 23:59 Philippine time to earn points on that week’s board.</SectionHead>
+        <div className="grid gap-px border-t border-line bg-line lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="flex min-w-0 flex-col gap-6 bg-bg p-4 sm:p-6">
             <p className="label-dot">{data?.weekly ? "This week closes in" : "The week closes in"}</p>
             <Countdown endsAt={endsAt} />
-            {data?.weekly ? <><ChallengeCard title={data.weekly.title} category={data.weekly.category} xp={data.weekly.xp} difficulty={data.weekly.difficulty} solveCount={data.weekly.solveCount} state="weekly" /><button className="button button-primary" onClick={enter ? () => enter("practice", data.weekly!.id) : signIn}>Open this week’s challenge</button></> : <p className="muted">The next weekly challenge appears here when it drops.</p>}
+            {data?.weekly ? <div className="mt-auto grid gap-4 [&_.card]:w-full"><ChallengeCard title={data.weekly.title} category={data.weekly.category} xp={data.weekly.xp} difficulty={data.weekly.difficulty} solveCount={data.weekly.solveCount} state="weekly" /><button className="button button-primary justify-self-start" onClick={enter ? () => enter("practice", data.weekly!.id) : signIn}>Open this week’s challenge</button></div>
+              : <div className="mt-auto grid justify-items-start gap-3 rounded-xs border border-dashed border-line-strong p-5"><p className="font-semibold">No weekly challenge yet</p><p className="text-sm text-muted">The next one appears here when it drops. Until then, the whole board is open.</p><button className="button button-secondary" onClick={createAccount}>{start}</button></div>}
           </div>
-          <div className="min-w-0 bg-bg">
-            <div className="flex min-h-14 items-center gap-2.5 border-b border-line px-4 sm:px-6"><h3 className="text-base font-semibold">Recent solves</h3><InfoTip text="The most recent correct flags. First blood is the first solve of a challenge." /></div>
-            {data?.recent.length ? <ul className="feed">{data.recent.slice(0, 7).map((e, i) => <li key={i}><span className="mono faint">{clock(e.at)}</span><span className="mono strong">{e.codename}</span><span className={e.firstBlood ? "mono accent" : "mono muted"}>{e.firstBlood ? "first blood" : "solved"}</span><span className="feed-title">{e.title}</span><span className="mono accent strong">{e.points ? `+${e.points}` : ""}</span></li>)}</ul>
+          <section aria-labelledby="recent-title" className="flex min-w-0 flex-col bg-bg">
+            <div className="flex min-h-14 items-center gap-2.5 border-b border-line px-4 sm:px-6"><h3 id="recent-title" className="text-base font-semibold">Recent solves</h3><InfoTip text="The most recent correct flags across dfCTF. First blood is the first solve of a challenge." /></div>
+            {data?.recent.length ? <ol className="flex-1">{data.recent.slice(0, 7).map((e, i) => <li key={i} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3.5 border-b border-line px-4 py-3.5 last:border-b-0 sm:px-6">
+              <Identicon name={e.codename} size={30} />
+              <div className="min-w-0">
+                <p className="text-sm text-pretty"><span className="font-mono font-semibold">{e.codename}</span> <span className="text-muted">{e.firstBlood ? "took first blood on" : "solved"}</span> {e.title}</p>
+                <p className="mt-0.5 flex items-center gap-2 text-xs text-faint"><time dateTime={e.at} title={clock(e.at)}>{ago(e.at)}</time>{e.firstBlood ? <span className="tag tag-accent">first blood</span> : null}</p>
+              </div>
+              <span className="font-mono text-sm font-semibold text-accent-ink tabular-nums">{e.points ? `+${e.points}` : ""}</span>
+            </li>)}</ol>
               : <p className="muted p-6">{!data ? error ? "Recent solves are temporarily unavailable." : "Loading recent solves…" : "No solves yet. Be the first."}</p>}
-          </div>
+          </section>
         </div>
       </section>
 
       <section id="categories" aria-labelledby="cat-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead tag="categories" id="cat-title" title="Pick a lane. Or try them all.">Seven categories, each with easy starters and hard finishers. Nothing is locked behind anything else.</SectionHead>
+        <SectionHead id="cat-title" title="Pick a lane. Or try them all.">Seven categories, each with easy starters and hard finishers. Nothing is locked behind anything else.</SectionHead>
         <ul className="grid gap-px border-t border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
           {CATEGORIES.map((category, i) => { const c = data?.totals.categories.find(x => x.category === category); const total = c ? c.easy + c.medium + c.hard : 0; return <li key={category} className="flex min-w-0 flex-col bg-bg">
             <DitherArt width={320} height={72} density={TEXTURES[i]} className="tile-art h-[72px] w-full border-b border-line" />
@@ -289,35 +303,35 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
       <section id="fair-play" aria-labelledby="fair-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead tag="fair play" id="fair-title" title="Built to be fair.">Original challenges, a second pair of eyes on every one, and rules the server enforces for you.</SectionHead>
-        <ul className="grid gap-px border-t border-line bg-line sm:grid-cols-2 lg:grid-cols-3">{RULES.map(([icon, t, b]) => <li key={t} className="grid content-start gap-4 bg-bg p-6 sm:p-8">
-          <span aria-hidden="true" className="grid size-12 place-items-center rounded-xs border border-line-strong bg-surface-2"><PixelIcon rows={icon} /></span>
+        <SectionHead id="fair-title" title="Built to be fair.">Original challenges, a second pair of eyes on every one, and rules the server enforces for you.</SectionHead>
+        <ul className="grid gap-px border-t border-line bg-line sm:grid-cols-2 lg:grid-cols-3">{RULES.map(([icon, t, b]) => <li key={t} className="grid content-start gap-4 bg-bg px-5 py-8 sm:px-8">
+          <PixelIcon rows={icon} />
           <h3 className="text-lg font-semibold tracking-[-0.01em]">{t}</h3><p className="text-[15px] leading-relaxed text-muted">{b}</p>
         </li>)}</ul>
       </section>
 
-      <section id="faq" aria-labelledby="faq-title" className="relative grid border-t border-line lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+      <section id="faq" aria-labelledby="faq-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead tag="faq" id="faq-title" title="Before your first flag.">Questions people ask before they start. <a href="/rules" className="text-fg underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-current">Rules / Mechanics</a> covers the rest.</SectionHead>
-        <div className="border-t border-line px-5 pb-8 sm:px-10 lg:border-l lg:border-t-0 lg:py-12">{FAQ.map(([q, a], i) => <div key={q} className="faq-item" data-open={faq === i || undefined}>
-          <h3><button type="button" aria-expanded={faq === i} aria-controls={`faq-${i}`} onClick={() => setFaq(faq === i ? -1 : i)}>{q}<span className="mono" aria-hidden="true">{faq === i ? "[-]" : "[+]"}</span></button></h3>
-          <div className="faq-answer" id={`faq-${i}`} role="region" aria-label={q}><div><p>{a}</p></div></div>
-        </div>)}</div>
+        <SectionHead id="faq-title" title="Before your first flag.">Questions people ask before they start. <a href="/rules" className="text-fg underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-current">Rules / Mechanics</a> covers the rest.</SectionHead>
+        <div className={`${PAD} grid gap-x-12 border-t border-line pb-10 pt-2 lg:grid-cols-2`}>
+          <div>{FAQ.slice(0, 3).map((item, i) => faqItem(item, i))}</div>
+          <div className="max-lg:border-t max-lg:border-line">{FAQ.slice(3).map((item, i) => faqItem(item, i + 3))}</div>
+        </div>
       </section>
 
-      <section aria-labelledby="closing-title" className="relative isolate flex min-h-[420px] items-center overflow-hidden border-t border-line px-5 py-20 sm:px-10">
+      <section aria-labelledby="closing-title" className={`${PAD} relative isolate flex min-h-[420px] items-center overflow-hidden border-t border-line py-20`}>
         <Marks />
         <FaultyTerminal className="absolute inset-0 -z-10" />
         <div className="grid max-w-lg gap-6"><h2 id="closing-title" className="text-[clamp(2.5rem,4.6vw,3.5rem)] font-medium leading-[1.04] tracking-[-0.04em]">Pick a challenge.<br />Start solving.</h2><p className="text-lg text-muted">Create an account in a minute. Easy challenges take about fifteen minutes, and a wrong answer never costs points.</p><div className="cta-row"><button className="button button-primary button-large" onClick={createAccount}>{start}</button><button className="button button-secondary button-large" onClick={signIn}>See the leaderboard</button></div></div>
       </section>
     </main>
 
-    <footer className={`${FRAME} relative grid gap-12 border-t border-line bg-surface px-5 pb-8 pt-14 sm:px-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)]`}>
+    <footer className={`${FRAME} ${PAD} relative grid gap-12 border-t border-line bg-surface pb-8 pt-14 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)]`}>
       <Marks />
       <div className="grid content-start justify-items-start gap-3.5"><Wordmark /><p className="max-w-[22rem] text-[15px] text-muted">The capture-the-flag platform built by DFC Developers.</p><p className="text-[13px] text-faint">Flags look like <code className="text-accent-ink">dfCTF{"{...}"}</code></p></div>
       <nav aria-label="Footer" className="grid grid-cols-2 gap-8 sm:grid-cols-3">
-        {[["Play", [["#try", "Try one now"], ["#how", "How it works"], ["#this-week", "This week"], ["#leaderboard", "Leaderboard"]]], ["Learn", [["#categories", "Categories"], ["/rules", "Rules / Mechanics"], ["#fair-play", "Fair play"], ["#faq", "FAQ"]]]].map(([title, links]) => <div key={title as string} className="grid content-start justify-items-start gap-1"><h2 className="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-faint">{title as string}</h2>{(links as string[][]).map(([href, label]) => <a key={href} href={href} className="inline-flex min-h-8 items-center text-sm text-muted transition-colors hover:text-fg">{label}</a>)}</div>)}
-        <div className="grid content-start justify-items-start gap-1"><h2 className="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-faint">Account</h2>{signedIn ? <><button className="link-button min-h-8" onClick={createAccount}>Open challenges</button><button className="link-button min-h-8" onClick={signIn}>Leaderboard</button></> : <><button className="link-button min-h-8" onClick={signIn}>Sign in</button><button className="link-button min-h-8" onClick={createAccount}>Create account</button></>}</div>
+        {([["Play", [["#try", "Try one now"], ["#how", "How it works"], ["#this-week", "This week"], ["#leaderboard", "Leaderboard"]]], ["Learn", [["#categories", "Categories"], ["/rules", "Rules / Mechanics"], ["#fair-play", "Fair play"], ["#faq", "FAQ"]]]] as const).map(([title, links]) => <div key={title} className="grid content-start justify-items-start gap-1"><h2 className="mb-2 text-[13px] font-semibold text-fg">{title}</h2>{links.map(([href, label]) => <a key={href} href={href} className="inline-flex min-h-8 items-center text-sm text-muted transition-colors hover:text-fg">{label}</a>)}</div>)}
+        <div className="grid content-start justify-items-start gap-1"><h2 className="mb-2 text-[13px] font-semibold text-fg">Account</h2>{signedIn ? <><button className="link-button min-h-8" onClick={createAccount}>Open challenges</button><button className="link-button min-h-8" onClick={signIn}>Leaderboard</button></> : <><button className="link-button min-h-8" onClick={signIn}>Sign in</button><button className="link-button min-h-8" onClick={createAccount}>Create account</button></>}</div>
       </nav>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-6 text-[13px] text-faint lg:col-span-2"><span>© {new Date().getFullYear()} DFC Developers</span><span>All challenge content is fictional. Only test systems you have permission to attack.</span><a className="link-button sm:ml-auto" href="#landing-main">Back to top</a></div>
     </footer>
