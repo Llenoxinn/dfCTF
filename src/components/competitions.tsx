@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback,useEffect,useRef,useState,type FormEvent,type ReactNode } from "react";
 import type { Bootstrap,ChallengeSummary,Competition,CompetitionDetail } from "@/lib/types";
 import { ChallengeCard } from "./cards";
@@ -40,7 +41,7 @@ export default function Competitions({bootstrap,goSettings,renderChallenge,route
         <h2 id="event-title">{detail.title}</h2><p className="competition-description">{detail.description}</p>
         <dl className="kv"><div><dt>Starts (Philippine time)</dt><dd><time dateTime={detail.startsAt}>{dateTime(detail.startsAt)}</time></dd></div><div><dt>Ends (Philippine time)</dt><dd><time dateTime={detail.endsAt}>{dateTime(detail.endsAt)}</time></dd></div></dl>
         {detail.rules?<div className="competition-notes"><h3>Event notes / additional rules</h3><p>{detail.rules}</p></div>:null}
-        <p className="fine"><a href="/rules">Rules / Mechanics</a> apply to built-in events. Event scores are separate from practice XP.</p>
+        <p className="fine"><Link href="/rules">Rules / Mechanics</Link> apply to built-in events. Event scores are separate from practice XP.</p>
         {manage?<button className="button button-secondary fit" onClick={()=>setEditor(detail.id)}>{detail.status==="draft"?"Edit and publish":"Event settings"}</button>:null}
         {detail.platform==="ctfd"?<><p className="muted">Registration, challenges, hints, and scores are managed by this event’s CTFd host. Your dfCTF session is not sent to that site.</p><a className="button button-primary fit" href={detail.externalUrl!} target="_blank" rel="noopener noreferrer">Open CTFd event</a></>:detail.status==="published"?<>
           <p className="muted">{detail.participants} registered {detail.participants===1?"player":"players"}. Individual play, fixed points.</p>

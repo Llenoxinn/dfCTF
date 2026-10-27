@@ -45,9 +45,10 @@ Styling: Tailwind v4 utilities (theme and utilities only, no Preflight) build th
 - **Heatmap**: one 8x8 Bayer-dithered square per day, Monday-first columns, current week outlined in yellow. Keep cell sizes a multiple of 8 (16, 24) so the dither pixels stay crisp. With a start date, month labels run along the top and each day shows its date on hover. The leaderboard's solve grid uses the same dithered squares.
 - **RaceChart**: pixel-stepped rank lines (leader yellow and thick, ranks 2-3 bone, the rest at 30%), square markers at 20:00 snapshots, solves-per-hour bars with yellow first-blood caps, end table with movement. Hovering a name isolates its line.
 - **Radar**: dithered polygon of solved/total per category.
-- **Countdown**: four unit cells in Geist Mono, a 7-day week meter, red in the final hour. Digits swap without animation.
+- **Countdown**: four joined cells (days, hours, minutes, seconds) of Geist Mono digits that roll to their new value on a 0-9 strip (380ms ease-out, no roll under reduced motion), then a Monday-to-Sunday week meter. Red in the final hour.
+- **Status** (Authoring): a 7px square in the status color plus the word (Draft, In review, Live, Archived); never bracketed badges. One status tab row with counts filters the table.
 - **Backgrounds**: the landing hero uses `gradient-ascii.jsx` (React Bits GradientASCII, WebGL 2, horizon shape in the flag-yellow ramp, glow 0), falling back to `ascii-field.tsx` (canvas 2D) when WebGL 2 is missing or the GPU drops the context. Boot and gate screens use `ascii-field.tsx`; the closing band uses `faulty-terminal.tsx`. All pause off-screen and hold still under reduced motion.
-- **Navigation**: the wordmark always leads home (the landing page, `/?view=home` when signed in). Settings lives in the profile menu, not the tab row. The landing footer has no oversized wordmark.
+- **Navigation**: the wordmark always leads home (the landing page, `/?view=home` when signed in). Settings lives in the profile menu, not the tab row. The landing footer has no oversized wordmark. Rules is a tab inside the app (instant, no reload); the public /rules page renders the same content, and links to it use Next's `Link`. Your score (#rank, points) sits under your codename in the profile button.
 
 ## Motion
 
@@ -64,7 +65,7 @@ Easing token `--ease-out: cubic-bezier(.23, 1, .32, 1)`. Only transform, opacity
 | FAQ | grid-template-rows 0fr to 1fr, 250ms | state change |
 | Ticker | linear 48s loop, pauses on hover | ambient, landing only |
 
-Rejected: per-section fade-ups, card hover lifts in the library, countdown digit flips, tab transitions, animated chart drawing. Under `prefers-reduced-motion`, movement stops and fades remain. Hover styles live under `(hover: hover) and (pointer: fine)`.
+Rejected: per-section fade-ups, card hover lifts in the library, tab transitions, animated chart drawing. (The weekly countdown rolls its digits on request; see Countdown.) Under `prefers-reduced-motion`, movement stops and fades remain. Hover styles live under `(hover: hover) and (pointer: fine)`.
 
 ## Data behind the visuals
 

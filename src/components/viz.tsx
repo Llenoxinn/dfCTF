@@ -138,6 +138,13 @@ export function RaceChart({ race, hourly, viewer }: { race: Leaderboard["race"];
 }
 
 /** Live countdown to the weekly close: unit cells, then a 7-day meter. Seconds swap without animation. */
+const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+/** One digit on a vertical strip of 0-9 that slides to the new value, so the countdown rolls instead of swapping text. */
+function Roll({ value }: { value: number }) {
+  return <span className="roll"><span className="roll-strip" style={{ transform: `translateY(${-value * 10}%)` }}>{DIGITS.map(d => <span key={d}>{d}</span>)}</span></span>;
+}
+
+/** Time left in the week: four joined cells of rolling digits, then a Monday-to-Sunday meter. Red in the final hour. */
 export function Countdown({ endsAt }: { endsAt: string }) {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => { setNow(Date.now()); const t = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(t); }, []);
@@ -147,7 +154,9 @@ export function Countdown({ endsAt }: { endsAt: string }) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return <div className={`countdown${left > 0 && left < 3_600_000 ? " urgent" : ""}`}>
     <div className="countdown-units" role="timer" aria-label={`${days} days, ${hours} hours, ${minutes} minutes left`}>
-      {[[days, "days"], [hours, "hours"], [minutes, "min"], [seconds, "sec"]].map(([v, l], i) => <span key={l} className="countdown-unit" data-unit={l}>{i ? <i className="countdown-sep" aria-hidden="true">:</i> : null}<span className="countdown-cell"><b>{now === null ? "--" : pad(Number(v))}</b><small>{l}</small></span></span>)}
+      {([[days, "days"], [hours, "hours"], [minutes, "minutes"], [seconds, "seconds"]] as const).map(([v, l]) => <span key={l} className="countdown-unit" data-unit={l}>
+        <b aria-hidden="true">{now === null ? "--" : [...pad(v)].map((d, i) => <Roll key={i} value={Number(d)} />)}</b><small aria-hidden="true">{l}</small>
+      </span>)}
     </div>
     <div className="week-meter" aria-hidden="true">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => <span key={d} className={i < Math.floor(elapsed) ? "past" : i === Math.floor(elapsed) ? "today" : ""}><i style={i === Math.floor(elapsed) ? { ["--p" as string]: `${(elapsed % 1) * 100}%` } : undefined} />{d}</span>)}</div>
   </div>;

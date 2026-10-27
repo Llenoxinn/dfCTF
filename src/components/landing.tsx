@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Community } from "@/lib/types";
 import { CATEGORIES } from "@/lib/types";
@@ -131,10 +132,13 @@ function TryOne({ createAccount, signedIn }: { createAccount: () => void; signed
   </div>;
 }
 
-function LiveChip({ title, endsAt }: { title: string; endsAt: string }) {
+/** This week's challenge, in the hero's lower right corner across from the headline. */
+function WeeklyNote({ title, endsAt }: { title: string; endsAt: string }) {
   const [left, setLeft] = useState<string | null>(null);
-  useEffect(() => { const tick = () => { const p = countdownParts(new Date(endsAt).getTime() - Date.now()); setLeft(`${p.days}d ${p.hours}h left`); }; tick(); const t = window.setInterval(tick, 60_000); return () => window.clearInterval(t); }, [endsAt]);
-  return <a href="#this-week" className="mb-6 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xs border border-line-strong bg-bg/80 px-3 py-1.5 text-[13px] text-muted transition-colors hover:border-muted"><i aria-hidden="true" className="size-1.5 bg-accent" />This week: <strong className="font-semibold text-fg">{title}</strong>{left ? <span className="font-mono text-xs text-faint">{left}</span> : null}</a>;
+  useEffect(() => { const tick = () => { const p = countdownParts(new Date(endsAt).getTime() - Date.now()); setLeft(`${p.days} days ${p.hours} hours left`); }; tick(); const t = window.setInterval(tick, 60_000); return () => window.clearInterval(t); }, [endsAt]);
+  return <a href="#this-week" className="grid min-w-56 gap-1 self-end rounded-xs border border-line-strong bg-bg/85 px-4 py-3 transition-colors hover:border-muted">
+    <span className="text-[13px] text-muted">This week’s challenge</span><strong className="text-base font-semibold text-fg">{title}</strong>{left ? <span className="text-[13px] text-faint">{left}</span> : null}
+  </a>;
 }
 
 /** The public home page in one framed column. Signed-in players reach it from the wordmark; `enter` then replaces the sign-in actions. */
@@ -184,7 +188,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
     <header className="sticky top-0 z-30 border-b border-line bg-bg">
       <div className={`${FRAME} ${PAD} flex h-16 items-center gap-6`}>
         <a className="brand-link" href={signedIn ? "/?view=home" : "/"} aria-label="dfCTF home"><Wordmark /></a>
-        <nav aria-label="Sections" className="mx-auto hidden items-center gap-1 lg:flex">{[["#leaderboard", "Leaderboard"], ["#this-week", "This week"], ["#categories", "Categories"], ["/rules", "Rules"], ["#faq", "FAQ"]].map(([href, label]) => <a key={href} href={href} className="rounded-xs px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-fg">{label}</a>)}</nav>
+        <nav aria-label="Sections" className="mx-auto hidden items-center gap-1 lg:flex">{[["#leaderboard", "Leaderboard"], ["#this-week", "This week"], ["#categories", "Categories"], ["/rules", "Rules"], ["#faq", "FAQ"]].map(([href, label]) => <Link key={href} href={href} className="rounded-xs px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-fg">{label}</Link>)}</nav>
         <div className="ml-auto flex items-center gap-2 lg:ml-0">{signedIn ? null : <button className="button button-ghost max-sm:hidden" onClick={signIn}>Sign in</button>}<button className="button button-primary" onClick={createAccount}>{start}</button></div>
       </div>
     </header>
@@ -192,18 +196,19 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
     <main id="landing-main" className={`${FRAME} bg-bg`}>
       {error ? <div className={`${PAD} border-b border-line py-4`}><Notice type="error">{error} <button className="text-button" onClick={load} disabled={busy}>Try again</button></Notice></div> : null}
 
-      <section aria-labelledby="hero-title" className="relative px-3 pt-3 sm:px-4 sm:pt-4">
-        <div className="relative isolate flex min-h-[480px] flex-col justify-end overflow-hidden rounded-xs border border-line-strong bg-surface sm:min-h-[560px] lg:min-h-[620px]">
+      <section aria-labelledby="hero-title" className="relative px-3 py-3 sm:px-4 sm:py-4">
+        <div className="relative isolate flex min-h-[560px] flex-col justify-end overflow-hidden rounded-xs border border-line-strong bg-surface lg:min-h-[660px]">
           <HeroField />
-          <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[linear-gradient(to_top,var(--bg)_12%,transparent_72%)]" />
-          <div className="p-5 sm:p-10">
-            {data?.weekly ? <LiveChip title={data.weekly.title} endsAt={data.weekly.endsAt} /> : null}
-            <h1 id="hero-title" className="text-[clamp(2.6rem,6.2vw,5.75rem)] font-medium leading-[1.02] tracking-[-0.045em]">Solve security challenges.<br />Capture the flag.</h1>
+          {/* A neutral scrim under the words, so they stay readable over the moving field. */}
+          <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[linear-gradient(to_top,var(--bg)_28%,transparent_78%)]" />
+          <div className="grid gap-8 p-5 sm:p-10 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div>
+              <h1 id="hero-title" className="text-[clamp(2.6rem,6.4vw,6rem)] font-semibold leading-[1] tracking-[-0.05em]">Solve security challenges.<br />Capture the flag.</h1>
+              <p className="mt-8 max-w-2xl text-lg leading-relaxed text-fg/80 text-pretty sm:text-xl">dfCTF is a capture-the-flag platform. Every challenge hides a flag inside a file, a web request, or a running program. Find it, submit it, and climb the leaderboard.</p>
+              <div className="cta-row mt-8"><button className="button button-primary button-large" onClick={createAccount}>{start}</button><a className="button button-secondary button-large bg-bg/60" href="#try">Try one now</a></div>
+            </div>
+            {data?.weekly ? <WeeklyNote title={data.weekly.title} endsAt={data.weekly.endsAt} /> : null}
           </div>
-        </div>
-        <div className="grid gap-8 px-2 py-10 sm:px-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <p className={LEAD}>dfCTF is a capture-the-flag platform. Every challenge hides a flag somewhere: inside a file, a web request, or a running program. Find it, submit it, and earn points on the leaderboard.</p>
-          <div className="cta-row"><button className="button button-primary button-large" onClick={createAccount}>{start}</button><a className="button button-secondary button-large" href="#try">Try one now</a></div>
         </div>
       </section>
 
@@ -229,9 +234,8 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
       <section id="how" aria-labelledby="how-title" className="relative border-t border-line">
         <Marks />
         <SectionHead id="how-title" title="Your first flag in four steps.">Every challenge works the same way, from the easiest warm-up to the hardest binary.</SectionHead>
-        <ol className="grid gap-px border-t border-line bg-line sm:grid-cols-2 lg:grid-cols-4">{STEPS.map(([title, body], i) => <li key={title} className={`grid content-start gap-3 bg-bg px-5 py-8 sm:px-8 ${i === 3 ? "shadow-[inset_0_2px_0_var(--accent)]" : ""}`}>
-          <span aria-hidden="true" className={`font-mono text-[2.5rem] font-semibold leading-none tracking-[-0.04em] ${i === 3 ? "text-accent-ink" : "text-line-strong"}`}>0{i + 1}</span>
-          <h3 className="mt-3 text-lg font-semibold tracking-[-0.01em]">{title}</h3>
+        <ol className="grid gap-px border-t border-line bg-line sm:grid-cols-2 lg:grid-cols-4">{STEPS.map(([title, body], i) => <li key={title} className="grid content-start gap-3 bg-bg px-5 py-9 sm:px-8">
+          <h3 className={`text-xl font-semibold tracking-[-0.015em] ${i === 3 ? "text-accent-ink" : ""}`}>{title}</h3>
           <p className="text-[15px] leading-relaxed text-muted">{body}</p>
         </li>)}</ol>
       </section>
@@ -250,10 +254,11 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
             <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
               <div className="heat-wrap">{data ? <Heatmap days={days} start={data.activity.start} cell={24} gap={3} weekdays label="Solves per day, last 20 weeks" /> : <div className="skeleton heat-skeleton" />}</div>
               <div className="heat-foot"><span className="faint">20 weeks ago to this week</span><HeatLegend /></div>
-              <div className="mt-auto flex flex-wrap items-end gap-x-8 gap-y-3 border-t border-line pt-5">
-                <p className="stat"><strong className="mono">{totalActivity?.toLocaleString() ?? "—"}</strong><span>solves in the last 20 weeks</span></p>
-                <p className="grid gap-1 text-[13px] text-muted"><span className="font-mono text-lg font-semibold text-fg">{weekSolves ?? "—"}</span>this week</p>
-                <p className="grid gap-1 text-[13px] text-muted"><span className="font-mono text-lg font-semibold text-fg">{busiest ? busiest.count : "—"}</span>{busiest ? `on ${busiest.label}, the busiest day` : "busiest day"}</p>
+              {/* Three equal stats: same value size, same label size, tops aligned. */}
+              <div className="mt-auto grid grid-cols-3 gap-4 border-t border-line pt-5">
+                <p className="stat content-start gap-1.5"><strong className="text-2xl font-semibold leading-none tracking-[-0.02em] tabular-nums">{totalActivity?.toLocaleString() ?? "—"}</strong><span className="text-[13px]">solves in 20 weeks</span></p>
+                <p className="grid content-start gap-1.5"><span className="text-2xl font-semibold leading-none tracking-[-0.02em] tabular-nums">{weekSolves ?? "—"}</span><span className="text-[13px] text-muted">solves this week</span></p>
+                <p className="grid content-start gap-1.5"><span className="text-2xl font-semibold leading-none tracking-[-0.02em]">{busiest ? busiest.label : "—"}</span><span className="text-[13px] text-muted">{busiest ? `busiest day, ${busiest.count} ${busiest.count === 1 ? "solve" : "solves"}` : "busiest day"}</span></p>
               </div>
             </div>
           </section>
@@ -312,7 +317,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
       <section id="faq" aria-labelledby="faq-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead id="faq-title" title="Before your first flag.">Questions people ask before they start. <a href="/rules" className="text-fg underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-current">Rules / Mechanics</a> covers the rest.</SectionHead>
+        <SectionHead id="faq-title" title="Before your first flag.">Questions people ask before they start. <Link href="/rules" className="text-fg underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-current">Rules / Mechanics</Link> covers the rest.</SectionHead>
         <div className={`${PAD} grid gap-x-12 border-t border-line pb-10 pt-2 lg:grid-cols-2`}>
           <div>{FAQ.slice(0, 3).map((item, i) => faqItem(item, i))}</div>
           <div className="max-lg:border-t max-lg:border-line">{FAQ.slice(3).map((item, i) => faqItem(item, i + 3))}</div>
@@ -330,7 +335,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
       <Marks />
       <div className="grid content-start justify-items-start gap-3.5"><Wordmark /><p className="max-w-[22rem] text-[15px] text-muted">The capture-the-flag platform built by DFC Developers.</p><p className="text-[13px] text-faint">Flags look like <code className="text-accent-ink">dfCTF{"{...}"}</code></p></div>
       <nav aria-label="Footer" className="grid grid-cols-2 gap-8 sm:grid-cols-3">
-        {([["Play", [["#try", "Try one now"], ["#how", "How it works"], ["#this-week", "This week"], ["#leaderboard", "Leaderboard"]]], ["Learn", [["#categories", "Categories"], ["/rules", "Rules / Mechanics"], ["#fair-play", "Fair play"], ["#faq", "FAQ"]]]] as const).map(([title, links]) => <div key={title} className="grid content-start justify-items-start gap-1"><h2 className="mb-2 text-[13px] font-semibold text-fg">{title}</h2>{links.map(([href, label]) => <a key={href} href={href} className="inline-flex min-h-8 items-center text-sm text-muted transition-colors hover:text-fg">{label}</a>)}</div>)}
+        {([["Play", [["#try", "Try one now"], ["#how", "How it works"], ["#this-week", "This week"], ["#leaderboard", "Leaderboard"]]], ["Learn", [["#categories", "Categories"], ["/rules", "Rules / Mechanics"], ["#fair-play", "Fair play"], ["#faq", "FAQ"]]]] as const).map(([title, links]) => <div key={title} className="grid content-start justify-items-start gap-1"><h2 className="mb-2 text-[13px] font-semibold text-fg">{title}</h2>{links.map(([href, label]) => <Link key={href} href={href} className="inline-flex min-h-8 items-center text-sm text-muted transition-colors hover:text-fg">{label}</Link>)}</div>)}
         <div className="grid content-start justify-items-start gap-1"><h2 className="mb-2 text-[13px] font-semibold text-fg">Account</h2>{signedIn ? <><button className="link-button min-h-8" onClick={createAccount}>Open challenges</button><button className="link-button min-h-8" onClick={signIn}>Leaderboard</button></> : <><button className="link-button min-h-8" onClick={signIn}>Sign in</button><button className="link-button min-h-8" onClick={createAccount}>Create account</button></>}</div>
       </nav>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-6 text-[13px] text-faint lg:col-span-2"><span>© {new Date().getFullYear()} DFC Developers</span><span>All challenge content is fictional. Only test systems you have permission to attack.</span><a className="link-button sm:ml-auto" href="#landing-main">Back to top</a></div>
