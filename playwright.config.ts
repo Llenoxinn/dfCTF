@@ -7,6 +7,9 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:3100",
     channel: process.platform === "win32" ? "msedge" : undefined,
+    // The landing hero's WebGL field can crash headless Chrome's GPU process on CI, which then breaks the next
+    // test's screenshot. Tests check behavior, not the decoration, so they run the canvas-2D fallback instead.
+    launchOptions: { args: ["--disable-webgl", "--disable-webgl2"] },
   },
   webServer: {
     command: "npm start -- --port 3100",
