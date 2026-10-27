@@ -7,6 +7,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { RaceChart } from "@/components/viz";
 import { dailyCounts, hourlyCounts, raceRanks, rankStandings, type SolveRow } from "@/server/community";
+import { summarize } from "@/server/validation";
 
 describe("theme cookie parsing", () => {
   it("accepts only the two known themes", () => {
@@ -124,5 +125,22 @@ describe("community standings", () => {
     expect(dayKey(before)).toBe("2026-10-19");
     expect(dayKey(after)).toBe("2026-10-20");
     expect(dailyCounts([before, after], monday, after).days).toEqual([1, 1]);
+  });
+});
+
+describe("challenge summary", () => {
+  it("takes the first sentence of the description", () => {
+    const description = "A temple climbs the hillside of Beverly Hills, Cebu, and its staircase has a very deliberate number of steps, one per chapter of a sacred text. Don’t just count the steps. Tell me the title of the text whose chapters they stand for.";
+    expect(summarize(description)).toBe("A temple climbs the hillside of Beverly Hills, Cebu, and its staircase has a very deliberate number of steps, one per chapter of a sacred text.");
+  });
+  it("skips headings and code, drops backticks, and keeps version numbers intact", () => {
+    expect(summarize("## Brief\n\n```\nls -la\n```\n\nRun `strings` on build v1.2 of the tool. Then look closer.")).toBe("Run strings on build v1.2 of the tool.");
+    expect(summarize("No sentence ending here")).toBe("No sentence ending here");
+  });
+  it("cuts a long first sentence at a word boundary within 240 characters", () => {
+    const long = `${"word ".repeat(80)}end.`;
+    const summary = summarize(long);
+    expect(summary.length).toBeLessThanOrEqual(240);
+    expect(summary.endsWith("word…")).toBe(true);
   });
 });

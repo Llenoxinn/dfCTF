@@ -49,7 +49,6 @@ test("a failed draft load blocks editing and allows reopening or creating a new 
   await expect(page.getByLabel(/^Description/)).toHaveValue("");
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
   await page.getByLabel(/^Title/).fill("New training challenge");
-  await page.getByLabel(/^Summary/).fill("A new fictional challenge for testing.");
   await page.getByLabel(/^Description/).fill(detail.description);
   await page.getByLabel(/^Walkthrough/).fill(detail.solution);
   await page.getByLabel(/^Correct flag/).fill("dfCTF{new_training_flag}");
