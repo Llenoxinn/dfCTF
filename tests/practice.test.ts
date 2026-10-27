@@ -41,6 +41,17 @@ describe("private practice integrity",()=>{
     await store.db.delete(artifactContents).where(eq(artifactContents.artifactId,legacyDetail.files[0].id));
     expect(await (await downloadArtifact(store.db,learner,legacy.id,legacyDetail.files[0].id)).text()).toBe(flag);
   });
+  it("fills the summary from the description's first sentence on create and edit",async()=>{
+    const c=await createChallenge(store.db,author,{...draft("Derived summary"),summary:undefined});
+    expect((await challengeDetail(store.db,author,c.id,true)).summary).toBe("Inspect the training file and recover its flag.");
+    await editChallenge(store.db,author,c.id,{description:"Read the log twice. The flag hides in the second pass."});
+    expect((await challengeDetail(store.db,author,c.id,true)).summary).toBe("Read the log twice.");
+  });
+  it("reviews and publishes a challenge that has no files",async()=>{
+    const c=await createChallenge(store.db,author,draft("Description only"));
+    await editChallenge(store.db,author,c.id,{status:"review"});await publishChallenge(store.db,reviewer,c.id,flag);
+    const detail=await challengeDetail(store.db,learner,c.id);expect(detail.status).toBe("published");expect(detail.files).toEqual([]);
+  });
   it("lists every solver in order, selects one first blood on timestamp ties, and exposes only public identity",async()=>{
     const c=await ready("Solver attribution");
     expect((await challengeDetail(store.db,learner,c.id)).solvers).toEqual([]);

@@ -4,7 +4,7 @@ import type { Database } from "./db";
 import { challenges, challengeVersions, artifacts, solves, submissions, xpLedger, requestResults, rateLimits, auditEvents, user, competitionChallenges, competitions } from "./schema";
 import { flagDigest, matchesFlag } from "./flags";
 import { HttpError } from "./http";
-import { challengeInput } from "./validation";
+import { challengeInput, summarize } from "./validation";
 import { CATEGORIES, type ChallengeSummary, type ChallengeDetail, type Category, type Difficulty, type Viewer, type Progress } from "@/lib/types";
 import { currentWeekly, weekEnd } from "@/lib/week";
 import type { z } from "zod";
@@ -116,7 +116,7 @@ export async function createChallenge(db:Database,viewer:Viewer,input:ChallengeD
   await db.transaction(async tx=>{
     const {flag,visibility,...content}=input;
     await tx.insert(challenges).values({id,slug,familyId:id,authorId:viewer.id,visibility:visibility??"practice"});
-    await tx.insert(challengeVersions).values({id:randomUUID(),challengeId:id,version:1,...content,flagHash:flagDigest(flag)});
+    await tx.insert(challengeVersions).values({id:randomUUID(),challengeId:id,version:1,...content,summary:content.summary||summarize(content.description),flagHash:flagDigest(flag)});
     await audit(tx,viewer.id,"challenge.create",id);
   });
   return {id,slug,status:"draft"};
@@ -139,12 +139,14 @@ export async function editChallenge(db:Database,viewer:Viewer,id:string,input:Pa
     if(c.status!=="draft"||v.locked)throw new HttpError(409,"IMMUTABLE_VERSION","This version is locked. Published content cannot be edited.");
     if(input.status) {
       if(input.status!=="review")throw new HttpError(422,"INVALID_STATE","Drafts can only be submitted for independent review.");
-      const files=await tx.select({id:artifacts.id}).from(artifacts).where(eq(artifacts.versionId,v.id));
-      if(!files.length)throw new HttpError(422,"ARTIFACT_REQUIRED","Add a challenge file before requesting review.");
+      // Files are optional: OSINT and puzzle challenges can live entirely in the description.
       await tx.update(challenges).set({status:"review",updatedAt:new Date()}).where(eq(challenges.id,id));
       await audit(tx,viewer.id,"challenge.request_review",id);return {id,status:"review"};
     }
     const {flag,visibility,...updates}=input;
+    // A new description without an explicit summary refreshes the derived one; an empty summary is never stored.
+    if(updates.description&&!updates.summary)updates.summary=summarize(updates.description);
+    else if(updates.summary==="")delete updates.summary;
     await tx.update(challengeVersions).set({...updates,...(flag?{flagHash:flagDigest(flag)}:{})}).where(eq(challengeVersions.id,v.id));
     await tx.update(challenges).set({updatedAt:new Date(),...(visibility?{visibility}:{})}).where(eq(challenges.id,id));await audit(tx,viewer.id,"challenge.edit",id);return {id,status:"draft"};
   });
@@ -156,7 +158,6 @@ export async function publishChallenge(db:Database,viewer:Viewer,id:string,revie
     if(c.authorId===viewer.id)throw new HttpError(403,"SELF_REVIEW","A different reviewer must test-solve and approve your challenge.");
     if(c.status!=="review")throw new HttpError(409,"INVALID_STATE","Only a challenge awaiting review can be published.");
     if(!matchesFlag(reviewFlag,v.flagHash))throw new HttpError(422,"REVIEW_FLAG_INCORRECT","Test-solve the challenge and submit its correct flag before publishing.");
-    if(!(await tx.select().from(artifacts).where(eq(artifacts.versionId,v.id))).length)throw new HttpError(422,"ARTIFACT_REQUIRED","Add a downloadable challenge file before publication.");
     await tx.update(challenges).set({status:"published",reviewerId:viewer.id,publishedAt:new Date(),updatedAt:new Date()}).where(eq(challenges.id,id));
     await tx.update(challengeVersions).set({locked:true}).where(eq(challengeVersions.id,v.id));
     await audit(tx,viewer.id,"challenge.publish",id,{attestation:"Independent test solve and intended solution reviewed"});return {id,status:"published"};

@@ -58,6 +58,9 @@ test("a late submission cannot solve or reveal a walkthrough on the next challen
   await page.getByLabel("Flag", { exact: true }).fill("dfCTF{first_case}");
   await page.getByRole("button", { name: "Submit flag", exact: true }).click();
   await expect.poll(() => submitted).toBe(true);
+  // The challenge is a modal, so the header behind it is inert until the dialog closes.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "This week", exact: true }).click();
   await expect(page.getByRole("heading", { name: next.title, exact: true })).toBeVisible();
   await page.getByLabel("Flag", { exact: true }).fill("dfCTF{next_case}");
@@ -295,18 +298,23 @@ test("an empty solver list refreshes to the new first blood immediately after a 
 test("staff can create the rules challenge draft from Authoring", async ({ page }) => {
   const detail = { ...challenge("rules-draft", "Read the fine print"), status: "draft", authorId: "test-author", tags: ["rules", "onboarding"], solution: "Collect the field notes from the rules page in reading order.", files: [{ id: "briefing", name: "briefing.txt", size: 180, sha256: "a".repeat(64) }] };
   let created = false;
+  let releaseCreation!: () => void;
+  const creationGate = new Promise<void>(resolve => { releaseCreation = resolve; });
   await mockWorkspace(page, async (route, url) => {
     if (url.pathname === "/api/v1/staff/challenges") await route.fulfill({ json: [] });
     else if (url.pathname === "/api/v1/staff/challenges/rules") {
       expect(route.request().method()).toBe("POST");
       expect(route.request().headers()["x-dfctf-request"]).toBe("1");
-      created = true; await route.fulfill({ json: { id: detail.id } });
+      created = true; await creationGate; await route.fulfill({ json: { id: detail.id } });
     } else if (url.pathname === "/api/v1/staff/challenges/rules-draft") await route.fulfill({ json: detail });
     else return false;
     return true;
   });
   await page.goto("/?view=authoring");
   await page.getByRole("button", { name: "Rules challenge", exact: true }).click();
+  await expect.poll(() => created).toBe(true);
+  await expect(page.getByRole("button", { name: "New challenge", exact: true })).toBeDisabled();
+  releaseCreation();
   await expect(page.getByRole("heading", { name: "Read the fine print", exact: true })).toBeVisible();
   await expect(page.getByText("briefing.txt", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Send for review", exact: true })).toBeEnabled();

@@ -72,7 +72,7 @@ Do not run `npm run seed` on production. It intentionally refuses to create demo
    docker compose --env-file .env.production exec app npm run admin -- grant owner@example.edu
    ```
 
-3. Sign in as that administrator, enroll an authenticator, and complete the staff verification prompt. Ordinary players need only register and verify their email. Grant staff roles only to trusted maintainers; admins can suspend or restore account access in Settings.
+3. Sign in as that administrator, enroll an authenticator, and complete the staff verification prompt; [staff setup](STAFF.md) explains each screen. Ordinary players need only register and verify their email. Grant staff roles only to trusted maintainers; admins can suspend or restore account access in Settings. Give a second maintainer reviewer access with `npm run admin -- reviewer <email>`, using the same `docker compose ... exec app` prefix.
 4. Create a draft, upload a fictional artifact, and use a separate reviewer account to review it. The reviewer must submit the correct test-solve flag to publish it. Confirm a participant can access the published challenge and cannot access drafts.
 
 Administrative shell access is privileged access to the application's database. Limit who can run these commands and keep a record of production bootstrap operations.

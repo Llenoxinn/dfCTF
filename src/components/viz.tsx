@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Leaderboard, SolveEvent } from "@/lib/types";
 import { ditherPath, heatCellPath, heatLevel, relativeLevels } from "@/lib/pixel";
 import { countdownParts } from "@/lib/week";
-import { clock, Identicon, useReducedMotion } from "./ui";
+import { clock, Identicon } from "./ui";
 
 export function DitherArt({ width, height, cell = 4, density, className = "", label }: { width: number; height: number; cell?: number; density: (x: number, y: number) => number; className?: string; label?: string }) {
   const d = useMemo(() => ditherPath(width, height, cell, density), [width, height, cell, density]);
   return <svg className={`dither ${className}`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid slice" role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true} shapeRendering="crispEdges"><path d={d} /></svg>;
 }
 
-/** Days laid out in Monday-first columns, one column per week; the last column is this week. */
-export function Heatmap({ days, cell = 14, gap = 3, label, relative = true, weekdays = false }: { days: number[]; cell?: number; gap?: number; label: string; relative?: boolean; weekdays?: boolean }) {
+const dayLabel = (start: string, i: number) => new Date(new Date(start).getTime() + i * 86_400_000).toLocaleDateString("en-PH", { timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric" });
+
+/** Days laid out in Monday-first columns, one column per week; the last column is this week. Each day is an 8x8 dithered square.
+ *  With `start`, month labels run along the top and each day shows its date on hover. */
+export function Heatmap({ days, start, cell = 14, gap = 3, label, relative = true, weekdays = false }: { days: number[]; start?: string; cell?: number; gap?: number; label: string; relative?: boolean; weekdays?: boolean }) {
   const levels = relative ? relativeLevels(days) : days.map(n => heatLevel(n));
   const weeks = Math.ceil(days.length / 7), step = cell + gap;
   const w = weeks * step - gap, h = 7 * step - gap;
@@ -23,16 +26,31 @@ export function Heatmap({ days, cell = 14, gap = 3, label, relative = true, week
     if (i < levels.length) fill += heatCellPath(levels[i], x, y, cell);
   }
   const total = days.reduce((a, b) => a + b, 0);
-  const left = weekdays ? 36 : 3;
-  return <svg className="heatmap" viewBox={`${-left} -3 ${w + left + 3} ${h + 6}`} width={w + left + 3} height={h + 6} role="img" aria-label={`${label}: ${total} solves`} shapeRendering="crispEdges">
+  const left = weekdays ? 36 : 3, top = start ? 18 : 3;
+  // A month label sits over the first week that starts in that month, unless the previous label is too close.
+  const months: { x: number; text: string }[] = [];
+  if (start) for (let wk = 0; wk < weeks; wk++) {
+    const month = new Date(new Date(start).getTime() + wk * 7 * 86_400_000).toLocaleDateString("en-PH", { timeZone: "Asia/Manila", month: "short" });
+    if (months.at(-1)?.text !== month && (!months.length || wk * step - months.at(-1)!.x >= 3 * step)) months.push({ x: wk * step, text: month });
+  }
+  return <svg className="heatmap" viewBox={`${-left} ${-top} ${w + left + 3} ${h + top + 3}`} width={w + left + 3} height={h + top + 3} role="img" aria-label={`${label}: ${total} solves`} shapeRendering="crispEdges">
+    {months.map(m => <text key={m.x} x={m.x} y={-6} className="heat-day">{m.text}</text>)}
     {weekdays ? ["Mon", "Wed", "Fri", "Sun"].map((d, i) => <text key={d} x={-left} y={i * 2 * step + cell / 2 + 4} className="heat-day">{d}</text>) : null}
     <path d={outline} className="heat-outline" /><path d={fill} className="heat-fill" />
+    {start ? days.map((n, i) => <rect key={i} x={Math.floor(i / 7) * step} y={(i % 7) * step} width={cell} height={cell} className="heat-hit"><title>{`${dayLabel(start, i)}: ${n} ${n === 1 ? "solve" : "solves"}`}</title></rect>) : null}
     <rect x={(weeks - 1) * step - 2.5} y={-2.5} width={cell + 5} height={h + 5} rx="2" className="heat-current" />
   </svg>;
 }
 
 export function HeatLegend() {
   return <span className="heat-legend"><span>fewer</span>{[0, 1, 2, 3, 4].map(l => <svg key={l} width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" shapeRendering="crispEdges"><path d="M.5 .5h11v11H.5z" className="heat-outline" /><path d={heatCellPath(l, 0, 0, 12)} className="heat-fill" /></svg>)}<span>more</span></span>;
+}
+
+/** The busiest day in a run of daily counts, for a one-line summary under a heatmap. */
+export function busiestDay(days: number[], start: string) {
+  let best = -1;
+  days.forEach((n, i) => { if (n > 0 && (best < 0 || n >= days[best])) best = i; });
+  return best < 0 ? null : { label: dayLabel(start, best), count: days[best] };
 }
 
 /** Your solves per category as a dithered polygon. */
@@ -129,7 +147,7 @@ export function Countdown({ endsAt }: { endsAt: string }) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return <div className={`countdown${left > 0 && left < 3_600_000 ? " urgent" : ""}`}>
     <div className="countdown-units" role="timer" aria-label={`${days} days, ${hours} hours, ${minutes} minutes left`}>
-      {[[days, "days"], [hours, "hours"], [minutes, "min"], [seconds, "sec"]].map(([v, l], i) => <span key={l} className="countdown-unit" data-unit={l}>{i ? <i className="countdown-sep" aria-hidden="true">:</i> : null}<b>{now === null ? "--" : pad(Number(v))}</b><small>{l}</small></span>)}
+      {[[days, "days"], [hours, "hours"], [minutes, "min"], [seconds, "sec"]].map(([v, l], i) => <span key={l} className="countdown-unit" data-unit={l}>{i ? <i className="countdown-sep" aria-hidden="true">:</i> : null}<span className="countdown-cell"><b>{now === null ? "--" : pad(Number(v))}</b><small>{l}</small></span></span>)}
     </div>
     <div className="week-meter" aria-hidden="true">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => <span key={d} className={i < Math.floor(elapsed) ? "past" : i === Math.floor(elapsed) ? "today" : ""}><i style={i === Math.floor(elapsed) ? { ["--p" as string]: `${(elapsed % 1) * 100}%` } : undefined} />{d}</span>)}</div>
   </div>;
@@ -140,60 +158,4 @@ export function Ticker({ events }: { events: SolveEvent[] }) {
   if (!events.length) return null;
   const items = events.map((e, i) => <span className="tick" key={i}><span className="faint mono">{clock(e.at)}</span><span className="mono strong">{e.codename}</span><span className={e.firstBlood ? "mono accent" : "mono muted"}>{e.firstBlood ? "first blood" : "solved"}</span><span className="muted">{e.title}</span>{e.points ? <span className="mono accent strong">+{e.points}</span> : null}<span className="faint mono">//</span></span>);
   return <div className="ticker" aria-label="Recent solves"><span className="ticker-live mono">[live]</span><div className="ticker-track"><div className="ticker-run">{items}</div><div className="ticker-run" aria-hidden="true">{items}</div></div></div>;
-}
-
-const FLAG = "dfCTF{n0t_s0_h1dd3n}";
-function hexBytes() {
-  const pcap = [0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0, 0x01, 0, 0, 0];
-  return Array.from({ length: 16 * 15 }, (_, i) => {
-    if (i < pcap.length) return pcap[i];
-    if (i >= 0x94 && i < 0x94 + FLAG.length) return FLAG.charCodeAt(i - 0x94);
-    let h = Math.imul(i + 7, 2654435761) >>> 0; h ^= h >>> 15; return h & 255;
-  });
-}
-
-/** A challenge file with its flag in plain sight: scramble, scan, highlight, submit. Plays once. */
-export function Hexdump() {
-  const reduced = useReducedMotion();
-  const bytes = useMemo(hexBytes, []);
-  const [phase, setPhase] = useState<"scramble" | "scan" | "found" | "done">("done");
-  const [row, setRow] = useState(15);
-  const [tick, setTick] = useState(0);
-  const [scan, setScan] = useState(-1);
-  const box = useRef<HTMLElement>(null);
-  // After the opening sequence, a scan line sweeps the rows every few seconds while the panel is on screen.
-  useEffect(() => {
-    if (reduced || phase !== "done") return;
-    let visible = true, timers: number[] = [];
-    const io = new IntersectionObserver(e => { visible = e.some(x => x.isIntersecting); });
-    if (box.current) io.observe(box.current);
-    const sweep = window.setInterval(() => {
-      if (!visible || document.hidden) return;
-      setScan(0); timers = Array.from({ length: 16 }, (_, r) => window.setTimeout(() => setScan(r + 1 < 16 ? r + 1 : -1), (r + 1) * 70));
-    }, 6000);
-    return () => { io.disconnect(); window.clearInterval(sweep); timers.forEach(t => window.clearTimeout(t)); };
-  }, [reduced, phase]);
-  useEffect(() => {
-    if (reduced) { setPhase("done"); setRow(15); return; }
-    setPhase("scramble"); setRow(0);
-    const timers: number[] = [];
-    const spin = window.setInterval(() => setTick(t => t + 1), 60);
-    timers.push(window.setTimeout(() => { window.clearInterval(spin); setPhase("scan"); }, 600));
-    for (let r = 1; r <= 15; r++) timers.push(window.setTimeout(() => setRow(r), 600 + r * 40));
-    timers.push(window.setTimeout(() => setPhase("found"), 600 + 16 * 40 + 120));
-    timers.push(window.setTimeout(() => setPhase("done"), 600 + 16 * 40 + 1200));
-    return () => { window.clearInterval(spin); timers.forEach(t => window.clearTimeout(t)); };
-  }, [reduced]);
-  const inFlag = (i: number) => i >= 0x94 && i < 0x94 + FLAG.length && (phase === "found" || phase === "done");
-  return <figure ref={box} className="hexdump" aria-label={`A challenge file. The flag ${FLAG} is hidden in its bytes.`}>
-    <figcaption className="hexdump-head"><span className="mono strong">night-shift.pcap</span><span className="mono faint">1.8 MB</span><span className="spacer" /><span className="muted">Forensics, 300 pts</span></figcaption>
-    <div className="hexdump-body" aria-hidden="true">
-      {Array.from({ length: 15 }, (_, r) => <div key={r} className={`hex-row${(phase === "scan" && r === row) || r === scan ? " scanning" : ""}`}>
-        <span className="hex-off">{(r * 16).toString(16).padStart(8, "0")}</span>
-        <span className="hex-bytes">{bytes.slice(r * 16, r * 16 + 16).map((b, k) => { const i = r * 16 + k; const v = phase === "scramble" ? (b ^ ((tick * 31 + i * 17) & 255)) : b; return <span key={k} className={inFlag(i) ? "hit" : ""}>{v.toString(16).padStart(2, "0")}{k === 7 ? " " : ""}</span>; })}</span>
-        <span className="hex-ascii">{bytes.slice(r * 16, r * 16 + 16).map((b, k) => { const i = r * 16 + k; return <span key={k} className={inFlag(i) ? "hit" : ""}>{b >= 0x21 && b < 0x7f ? String.fromCharCode(b) : "."}</span>; })}</span>
-      </div>)}
-    </div>
-    <div className="hexdump-foot" aria-hidden="true"><span className="mono">&gt; submit {phase === "done" || phase === "found" ? FLAG : "dfCTF{...}"}</span>{phase === "done" ? <span className="mono accent strong fade-up">correct  +300 pts</span> : null}</div>
-  </figure>;
 }

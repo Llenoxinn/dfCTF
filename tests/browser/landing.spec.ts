@@ -38,7 +38,8 @@ test("failed landing data shows an error and retry restores real standings and a
   fail = false;
   await main.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(main.getByRole("alert")).toHaveCount(0);
-  await expect(page.getByText("fresh_solver", { exact: true })).toBeVisible();
+  // The leader also appears in the live stats strip; this checks the standings list itself.
+  await expect(page.locator(".standings").getByText("fresh_solver", { exact: true })).toBeVisible();
   await expect(activity.locator(".stat strong")).toHaveText("3");
   expect(requests).toBe(2);
 });

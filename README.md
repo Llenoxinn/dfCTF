@@ -44,9 +44,9 @@ The library covers General skills, OSINT, Steganography, Forensics, Web exploita
 
 Weekly standings run Monday 00:00 through Sunday 23:59:59.999 in **Asia/Manila**, regardless of the server or browser timezone. A published challenge tagged `weekly` is featured only during its publication week; when several qualify, the most recently published challenge is featured. Old challenges remain in the library without receiving a new weekly deadline.
 
-Use the generated owner account for local administration. Privileged author, reviewer, and administrator actions require two-factor authentication and verification in the current session. Set up an authenticator in Settings before using Authoring or administrative tools. A fresh sign-in or expired staff grant requires verification again; the staff grant lasts at most 12 hours.
+Use the generated owner account for local administration. Privileged author, reviewer, and administrator actions require two-factor authentication and verification in the current session. Set up an authenticator in Settings before using Authoring or administrative tools; [staff setup](docs/STAFF.md) walks through it step by step. A fresh sign-in or expired staff grant requires verification again; the staff grant lasts at most 12 hours.
 
-Authors create and edit their own drafts, add an intended solution and flag, and upload artifacts. A draft enters review before publication. A different eligible reviewer checks the content and submits the correct flag to approve publication. Participants can see and download only published content. Administrators manage access in Settings; the server checks permissions for each operation. The bootstrap CLI grants administrator access, while a general staff-role management interface remains future work.
+Authors create and edit their own drafts, add an intended solution and flag, and upload files when the challenge needs them. Challenges without files, such as many OSINT puzzles, can go through review too. A draft enters review before publication. A different eligible reviewer checks the content and submits the correct flag to approve publication. Participants can see and download only published content. Administrators manage access in Settings; the server checks permissions for each operation. The CLI grants administrator or reviewer access, while a general staff-role management interface remains future work.
 
 If review finds a problem, the author or an administrator can choose **Return to draft**, correct and save the challenge, then send it for independent review again. Published versions stay locked. Staff who already enrolled an authenticator can use a saved backup code in Settings to verify a new or expired session; each code works once.
 
@@ -82,6 +82,12 @@ Restoring access does not skip email verification. To bootstrap an administrator
 npm run admin -- grant person@example.edu
 ```
 
+To let someone test-solve and publish challenges without full administrator access, make their verified account a reviewer. The command refuses administrator accounts, which can already review:
+
+```powershell
+npm run admin -- reviewer person@example.edu
+```
+
 Run database CLIs with the local app stopped when using PGlite. On a deployment, run these commands inside the app container; see [deployment](docs/DEPLOYMENT.md).
 
 ## Configure social sign-in
@@ -109,6 +115,7 @@ Provider configuration is included, but a real social sign-in round trip require
 | `npm run admin -- allow <email>` | Restore account access; email verification is still required |
 | `npm run admin -- revoke <email>` | Suspend account access, including existing sessions |
 | `npm run admin -- grant <email>` | Promote an existing verified account to administrator |
+| `npm run admin -- reviewer <email>` | Make an existing verified account a reviewer |
 | `npm run typecheck` | TypeScript validation |
 | `npm test` | Automated tests |
 | `npm run test:browser` | Browser regression tests against the production build (Edge on Windows; Playwright Chromium elsewhere) |
