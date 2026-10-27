@@ -86,7 +86,7 @@ Run database CLIs with the local app stopped when using PGlite. On a deployment,
 
 ## Configure social sign-in
 
-Email/password sign-in works locally without provider credentials. Google, GitHub, and Facebook buttons appear only when that provider's client ID and client secret are configured. Register an OAuth application with the selected provider and configure the matching pair in `.env.local` or the deployment's secret store:
+Email/password sign-in works locally without provider credentials. Social sign-in is available when that provider's client ID and client secret are configured. Unconfigured Google and Facebook buttons remain disabled; GitHub appears when configured. Register an OAuth application with the selected provider and configure the matching pair in `.env.local` or the deployment's secret store:
 
 | Provider | Variables | Callback for this local setup |
 | --- | --- | --- |

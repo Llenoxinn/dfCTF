@@ -32,11 +32,12 @@ Use three distinct values for `AUTH_SECRET`, `FLAG_SECRET`, and `POSTGRES_PASSWO
 
 Compose sets `DATABASE_URL` to its internal PostgreSQL service and mounts `ARTIFACT_DIR` at `/app/.data/artifacts`. For managed PostgreSQL or another orchestrator, set `DATABASE_URL` directly and attach a persistent, private volume to `ARTIFACT_DIR`. Follow the database provider's TLS configuration. The runtime must be able to write that directory as the unprivileged `node` user (UID 1000).
 
-Optional Google and GitHub credentials use the names in `.env.example`. Their callbacks are:
+Optional Google, GitHub, and Facebook credentials use the names in `.env.example`. Their callbacks are:
 
 ```text
 https://YOUR-HOST/api/auth/callback/google
 https://YOUR-HOST/api/auth/callback/github
+https://YOUR-HOST/api/auth/callback/facebook
 ```
 
 ## Build, migrate, and start
@@ -124,7 +125,7 @@ Rolling back the image does not reverse schema changes. Use backward-compatible 
 | --- | --- |
 | Local PGlite lock or unexpected database errors | Stop other app/CLI processes using `.data/postgres`; use PostgreSQL for multiple processes |
 | OAuth returns to the wrong host | `APP_URL`, browser origin, exact provider callback, proxy host and forwarded HTTPS headers |
-| Google/GitHub button is absent | Both client ID and secret for that provider must be set; restart after changing them |
+| Social sign-in button is disabled or absent | Both client ID and secret for that provider must be set; restart after changing them |
 | Verification email does not arrive locally | `LOCAL_MAIL=1` and the files in `.data/mail` |
 | Verification email does not arrive on staging/production | SMTP connection, sender authorization, provider logs, and outbound network policy |
 | Production refuses configuration | HTTPS `APP_URL`, PostgreSQL URL, distinct real secrets, SMTP, sender, and disabled local mail |

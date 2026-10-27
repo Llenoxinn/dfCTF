@@ -1,5 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createStore } from "@/server/db";
 import { createAuth, headersAfterAuth, isEmailAllowed, type Auth } from "@/server/auth";
@@ -76,6 +76,93 @@ afterAll(async () => {
   await store?.close();
 });
 beforeEach(async () => { await store.db.delete(rateLimit); });
+
+describe("Facebook sign-in", () => {
+  let facebookAuth: Auth, profileId: string, profileEmail: string | undefined;
+  beforeEach(() => {
+    vi.stubEnv("FACEBOOK_CLIENT_ID", "facebook-test-client");
+    vi.stubEnv("FACEBOOK_CLIENT_SECRET", "facebook-test-secret");
+    profileId = randomUUID(); profileEmail = `facebook-${profileId}@example.test`;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      if (url.origin !== "https://graph.facebook.com") throw new Error(`Unexpected OAuth request: ${url.origin}${url.pathname}`);
+      if (url.pathname === "/v24.0/oauth/access_token") return Response.json({ access_token: "facebook-test-token", token_type: "bearer", expires_in: 3600 });
+      if (url.pathname === "/debug_token") return Response.json({ data: { is_valid: true, app_id: "facebook-test-client", user_id: profileId } });
+      if (url.pathname === "/me") return Response.json({ id: profileId, name: "Private Facebook Name", email: profileEmail, picture: { data: { url: "https://example.test/avatar.png" } } });
+      throw new Error(`Unexpected OAuth request: ${url.pathname}`);
+    }));
+    facebookAuth = createAuth(store.db);
+  });
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+  async function callback(headers = new Headers(), link = false) {
+    const request = applicationRequest(`/api/auth/${link ? "link-social" : "sign-in/social"}`, { provider: "facebook", callbackURL: base, disableRedirect: true }, headers);
+    const started = await facebookAuth.handler(request);
+    expect(started.status).toBe(200);
+    const authorize = new URL((await started.json()).url);
+    expect(authorize.origin).toBe("https://www.facebook.com");
+    expect(authorize.searchParams.get("client_id")).toBe("facebook-test-client");
+    expect(authorize.searchParams.get("redirect_uri")).toBe(`${base}/api/auth/callback/facebook`);
+    expect(authorize.searchParams.get("scope")?.split(" ")).toEqual(expect.arrayContaining(["email", "public_profile"]));
+    expect(authorize.searchParams.get("state")).toBeTruthy();
+    const query = new URLSearchParams({ state: authorize.searchParams.get("state")!, code: "facebook-test-code" });
+    return facebookAuth.handler(new Request(`${base}/api/auth/callback/facebook?${query}`, { headers: headersAfterAuth(request, started) }));
+  }
+
+  it.each([[undefined, undefined], ["client-only", undefined], [undefined, "secret-only"]])("keeps Facebook unavailable with incomplete credentials (%s, %s)", async (clientId, clientSecret) => {
+    vi.stubEnv("FACEBOOK_CLIENT_ID", clientId); vi.stubEnv("FACEBOOK_CLIENT_SECRET", clientSecret);
+    const unavailable = createAuth(store.db);
+    const response = await unavailable.handler(applicationRequest("/api/auth/sign-in/social", { provider: "facebook", callbackURL: base }));
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ code: "PROVIDER_NOT_FOUND" });
+    expect((await (await bootstrap(new Request(base), undefined)).json()).providers.facebook).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("requires local email verification before creating a Facebook session", async () => {
+    expect((await (await bootstrap(new Request(base), undefined)).json()).providers.facebook).toBe(true);
+    const pending = await callback();
+    expect(pending.status).toBe(302);
+    expect(new URL(pending.headers.get("location")!, base).searchParams.get("error")).toBe("email_not_verified");
+    const [identity] = await store.db.select().from(user).where(eq(user.email, profileEmail!));
+    expect(identity.emailVerified).toBe(false);
+    expect(await store.db.select().from(session).where(eq(session.userId, identity.id))).toHaveLength(0);
+    const mail = outbound.messages.filter(message => message.to === profileEmail).at(-1)!;
+    await facebookAuth.api.verifyEmail({ query: { token: new URL(mail.url).searchParams.get("token")! } });
+    const signedIn = await callback();
+    expect(signedIn.status).toBe(302);
+    expect(new URL(signedIn.headers.get("location")!, base).searchParams.has("error")).toBe(false);
+    const headers = headersAfterAuth(new Request(base), signedIn);
+    expect((await facebookAuth.api.getSession({ headers }))?.user).toMatchObject({ id: identity.id, emailVerified: true });
+    const viewer = await getViewer(headers);
+    expect(viewer?.user.codename).toBeNull();
+    expect(viewer?.user).not.toHaveProperty("name");
+    expect(viewer?.user).not.toHaveProperty("image");
+  });
+
+  it("rejects a Facebook profile without email", async () => {
+    profileEmail = undefined;
+    const response = await callback();
+    expect(new URL(response.headers.get("location")!, base).searchParams.get("error")).toBe("email_not_found");
+    expect(await store.db.select().from(account).where(eq(account.accountId, profileId))).toHaveLength(0);
+  });
+
+  it("requires explicit linking for an existing email/password account", async () => {
+    const identity = await provision(profileEmail!);
+    const implicit = await callback();
+    expect(new URL(implicit.headers.get("location")!, base).searchParams.get("error")).toBe("account_not_linked");
+    expect((await store.db.select().from(account).where(eq(account.userId, identity.id))).filter(item => item.providerId === "facebook")).toHaveLength(0);
+    const linked = await callback(identity.headers, true);
+    expect(new URL(linked.headers.get("location")!, base).searchParams.has("error")).toBe(false);
+    expect((await store.db.select().from(account).where(eq(account.userId, identity.id))).filter(item => item.providerId === "facebook")).toHaveLength(1);
+  });
+
+  it("rejects a callback without state before contacting Facebook", async () => {
+    const response = await facebookAuth.handler(new Request(`${base}/api/auth/callback/facebook?code=untrusted-code`));
+    expect(new URL(response.headers.get("location")!, base).searchParams.get("error")).toBe("state_not_found");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
 
 describe("open registration and account access", () => {
   it("protects competition hosting with the admin role and current-session MFA",async()=>{
