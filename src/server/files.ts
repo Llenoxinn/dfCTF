@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
-import { artifacts, challenges } from "./schema";
+import { artifacts, artifactContents, challenges } from "./schema";
 import type { Database } from "./db";
 import { audit, challengeRecord } from "./challenges";
 import { HttpError } from "./http";
@@ -37,7 +37,9 @@ export async function saveArtifact(db:Database,viewer:Viewer,id:string,name:stri
       if(!["author","admin"].includes(viewer.role)||(viewer.role==="author"&&row.challenge.authorId!==viewer.id))throw new HttpError(404,"NOT_FOUND","This draft is unavailable.");
       if(row.challenge.status!=="draft"||row.version.locked)throw new HttpError(409,"IMMUTABLE_VERSION","Files can only be added to an unlocked draft.");
       const file={id:randomUUID(),versionId:row.version.id,name:safeName,storageKey,size:bytes.length,sha256:createHash("sha256").update(bytes).digest("hex")};
-      await tx.insert(artifacts).values(file);await audit(tx,viewer.id,"artifact.upload",id,{fileId:file.id,size:file.size,sha256:file.sha256});
+      await tx.insert(artifacts).values(file);
+      await tx.insert(artifactContents).values({artifactId:file.id,content:bytes});
+      await audit(tx,viewer.id,"artifact.upload",id,{fileId:file.id,size:file.size,sha256:file.sha256});
       return {id:file.id,name:file.name,size:file.size,sha256:file.sha256};
     });
   } catch(error) {await unlink(location).catch(()=>{});throw error;}
@@ -49,6 +51,10 @@ export async function downloadArtifact(db:Database,viewer:Viewer,id:string,fileI
   else if(row.challenge.status!=="published"||(!competitionId&&row.challenge.visibility!=="practice"))throw new HttpError(404,"NOT_FOUND","File unavailable.");
   const [file]=await db.select().from(artifacts).where(and(eq(artifacts.id,fileId),eq(artifacts.versionId,row.version.id)));
   if(!file)throw new HttpError(404,"NOT_FOUND","File unavailable.");
-  let bytes:Buffer;try{bytes=await readFile(artifactPath(file.storageKey));}catch{throw new HttpError(404,"NOT_FOUND","This file is temporarily unavailable.");}
+  const [stored]=await db.select({content:artifactContents.content}).from(artifactContents).where(eq(artifactContents.artifactId,file.id));
+  let bytes:Buffer;
+  if(stored)bytes=stored.content;
+  else {try{bytes=await readFile(artifactPath(file.storageKey));}catch{throw new HttpError(404,"NOT_FOUND","This file is temporarily unavailable.");}}
+  if(bytes.length!==file.size||createHash("sha256").update(bytes).digest("hex")!==file.sha256)throw new HttpError(404,"NOT_FOUND","This file is temporarily unavailable.");
   return new Response(new Uint8Array(bytes),{headers:{"Content-Type":"application/octet-stream","Content-Disposition":`attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`,"Content-Length":String(bytes.length),"X-Content-Type-Options":"nosniff","Cache-Control":"private, no-store","Content-Security-Policy":"sandbox; default-src 'none'"}});
 }

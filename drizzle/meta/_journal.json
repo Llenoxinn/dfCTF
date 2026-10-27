@@ -22,6 +22,13 @@
       "when": 1793007355654,
       "tag": "0002_closed_human_fly",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793114774719,
+      "tag": "0003_shared_artifact_contents",
+      "breakpoints": true
     }
   ]
 }
