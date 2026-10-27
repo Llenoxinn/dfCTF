@@ -403,7 +403,7 @@ function ProgressView({ progress, board, total, open, browse }: { progress: Prog
       </section>
       <div className="lb-side">
         <section className="panel" aria-labelledby="cat-title"><div className="panel-head"><h2 id="cat-title">By category</h2><InfoTip text="How your solves spread across the seven categories, out of the challenges published in each." /></div>{progress ? <Radar values={progress.categories.map(c => ({ label: c.category.split(" ")[0], solved: c.solved, total: c.total }))} /> : null}</section>
-        <section className="panel" aria-labelledby="days-title"><div className="panel-head"><h2 id="days-title">Last 16 weeks</h2><InfoTip text="Your solves per day. The outlined column is this week." /></div><div className="panel-pad">{board ? <Heatmap days={board.mine.days} start={board.mine.start} cell={14} gap={4} weekdays label="Your solves per day" /> : null}</div></section>
+        <section className="panel" aria-labelledby="days-title"><div className="panel-head"><h2 id="days-title">Last 16 weeks</h2><InfoTip text="Your solves per day. The outlined column is this week." /></div><div className="panel-pad">{board ? <Heatmap days={board.mine.days} start={board.mine.start} cell={16} gap={4} weekdays label="Your solves per day" /> : null}</div></section>
       </div>
     </div>
   </>;

@@ -25,7 +25,7 @@ A typical capture-the-flag platform, built with care. ASCII and 1-bit dither are
 
 Radius is 2px everywhere. Elevation is borders; shadows only on floating menus, tooltips, and the arena composition.
 
-Styling: Tailwind v4 utilities (theme and utilities only, no Preflight) build the landing page; dfCTF tokens are Tailwind colors (`bg-surface`, `text-muted`, `border-line`, `text-accent-ink`). The hand-written CSS sits in the `legacy` cascade layer below utilities, so a utility always wins. Landing frame: one 1240px column between gray rails, a hairline per section, small squares where a section line meets the rails, and a dot grid outside the column.
+Styling: Tailwind v4 utilities (theme and utilities only, no Preflight) build the landing page; dfCTF tokens are Tailwind colors (`bg-surface`, `text-muted`, `border-line`, `text-accent-ink`). The hand-written CSS sits in the `legacy` cascade layer below utilities, so a utility always wins. Landing frame: one 1440px column with a hairline per section; gray rails, small squares where a section line meets them, and a dot grid appear only on screens wide enough to leave a gutter. No bracketed or uppercase section labels, and no icon-in-a-box tiles. Side-by-side cells pin their last block to the bottom so neither side leaves dead space.
 
 ## Type
 
@@ -42,7 +42,7 @@ Styling: Tailwind v4 utilities (theme and utilities only, no Preflight) build th
 - **Pips / Difficulty**: three 4x10 bars in the difficulty color, always next to the written label.
 - **Identicon**: 5x5 mirrored pixels hashed from the codename (`lib/pixel.ts`). The signed-in player's is yellow.
 - **InfoTip**: 400ms delay on first open, instant for neighbors, scale 0.97 to 1 over 150ms, focusable, Escape closes.
-- **Heatmap**: one rounded square per day, Monday-first columns. Empty days are `--surface-2`; busy days step up a 4-level yellow ramp (`color-mix` toward the empty color). Month labels on top and a date tooltip per day when the start date is known; the current week is outlined in yellow. The leaderboard's solve grid uses the same ramp.
+- **Heatmap**: one 8x8 Bayer-dithered square per day, Monday-first columns, current week outlined in yellow. Keep cell sizes a multiple of 8 (16, 24) so the dither pixels stay crisp. With a start date, month labels run along the top and each day shows its date on hover. The leaderboard's solve grid uses the same dithered squares.
 - **RaceChart**: pixel-stepped rank lines (leader yellow and thick, ranks 2-3 bone, the rest at 30%), square markers at 20:00 snapshots, solves-per-hour bars with yellow first-blood caps, end table with movement. Hovering a name isolates its line.
 - **Radar**: dithered polygon of solved/total per category.
 - **Countdown**: four unit cells in Geist Mono, a 7-day week meter, red in the final hour. Digits swap without animation.

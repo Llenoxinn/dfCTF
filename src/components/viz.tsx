@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Leaderboard, SolveEvent } from "@/lib/types";
-import { ditherPath, heatLevel, relativeLevels } from "@/lib/pixel";
+import { ditherPath, heatCellPath, heatLevel, relativeLevels } from "@/lib/pixel";
 import { countdownParts } from "@/lib/week";
 import { clock, Identicon } from "./ui";
 
@@ -13,30 +13,37 @@ export function DitherArt({ width, height, cell = 4, density, className = "", la
 
 const dayLabel = (start: string, i: number) => new Date(new Date(start).getTime() + i * 86_400_000).toLocaleDateString("en-PH", { timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric" });
 
-/** Days in Monday-first columns, one per week; the last column is this week. Empty days are quiet squares, busy days step up a 4-level yellow ramp.
- *  With `start`, month labels run along the top and each square carries its date on hover. */
+/** Days laid out in Monday-first columns, one column per week; the last column is this week. Each day is an 8x8 dithered square.
+ *  With `start`, month labels run along the top and each day shows its date on hover. */
 export function Heatmap({ days, start, cell = 14, gap = 3, label, relative = true, weekdays = false }: { days: number[]; start?: string; cell?: number; gap?: number; label: string; relative?: boolean; weekdays?: boolean }) {
   const levels = relative ? relativeLevels(days) : days.map(n => heatLevel(n));
   const weeks = Math.ceil(days.length / 7), step = cell + gap;
   const w = weeks * step - gap, h = 7 * step - gap;
+  let outline = "", fill = "";
+  for (let i = 0; i < weeks * 7; i++) {
+    const x = Math.floor(i / 7) * step, y = (i % 7) * step;
+    outline += `M${x + 0.5} ${y + 0.5}h${cell - 1}v${cell - 1}h${-(cell - 1)}z`;
+    if (i < levels.length) fill += heatCellPath(levels[i], x, y, cell);
+  }
   const total = days.reduce((a, b) => a + b, 0);
-  const left = weekdays ? 30 : 3, top = start ? 18 : 3;
+  const left = weekdays ? 36 : 3, top = start ? 18 : 3;
   // A month label sits over the first week that starts in that month, unless the previous label is too close.
   const months: { x: number; text: string }[] = [];
   if (start) for (let wk = 0; wk < weeks; wk++) {
     const month = new Date(new Date(start).getTime() + wk * 7 * 86_400_000).toLocaleDateString("en-PH", { timeZone: "Asia/Manila", month: "short" });
     if (months.at(-1)?.text !== month && (!months.length || wk * step - months.at(-1)!.x >= 3 * step)) months.push({ x: wk * step, text: month });
   }
-  return <svg className="heatmap" viewBox={`${-left} ${-top} ${w + left + 3} ${h + top + 3}`} width={w + left + 3} height={h + top + 3} role="img" aria-label={`${label}: ${total} solves`}>
+  return <svg className="heatmap" viewBox={`${-left} ${-top} ${w + left + 3} ${h + top + 3}`} width={w + left + 3} height={h + top + 3} role="img" aria-label={`${label}: ${total} solves`} shapeRendering="crispEdges">
     {months.map(m => <text key={m.x} x={m.x} y={-6} className="heat-day">{m.text}</text>)}
-    {weekdays ? ["Mon", "Wed", "Fri"].map((d, i) => <text key={d} x={-left} y={i * 2 * step + cell / 2 + 4} className="heat-day">{d}</text>) : null}
-    {levels.map((level, i) => <rect key={i} x={Math.floor(i / 7) * step} y={(i % 7) * step} width={cell} height={cell} rx={Math.min(2, cell / 6)} className={`heat-cell l${level}`}>{start ? <title>{`${dayLabel(start, i)}: ${days[i]} ${days[i] === 1 ? "solve" : "solves"}`}</title> : null}</rect>)}
-    <rect x={(weeks - 1) * step - 2.5} y={-2.5} width={cell + 5} height={h + 5} rx="3" className="heat-current" />
+    {weekdays ? ["Mon", "Wed", "Fri", "Sun"].map((d, i) => <text key={d} x={-left} y={i * 2 * step + cell / 2 + 4} className="heat-day">{d}</text>) : null}
+    <path d={outline} className="heat-outline" /><path d={fill} className="heat-fill" />
+    {start ? days.map((n, i) => <rect key={i} x={Math.floor(i / 7) * step} y={(i % 7) * step} width={cell} height={cell} className="heat-hit"><title>{`${dayLabel(start, i)}: ${n} ${n === 1 ? "solve" : "solves"}`}</title></rect>) : null}
+    <rect x={(weeks - 1) * step - 2.5} y={-2.5} width={cell + 5} height={h + 5} rx="2" className="heat-current" />
   </svg>;
 }
 
 export function HeatLegend() {
-  return <span className="heat-legend"><span>fewer</span>{[0, 1, 2, 3, 4].map(l => <svg key={l} width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect width="12" height="12" rx="2" className={`heat-cell l${l}`} /></svg>)}<span>more</span></span>;
+  return <span className="heat-legend"><span>fewer</span>{[0, 1, 2, 3, 4].map(l => <svg key={l} width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" shapeRendering="crispEdges"><path d="M.5 .5h11v11H.5z" className="heat-outline" /><path d={heatCellPath(l, 0, 0, 12)} className="heat-fill" /></svg>)}<span>more</span></span>;
 }
 
 /** The busiest day in a run of daily counts, for a one-line summary under a heatmap. */
@@ -70,9 +77,9 @@ export function SolveGrid({ challenges }: { challenges: Leaderboard["challenges"
   if (!groups.length) return <p className="muted">Challenges appear here once they are published.</p>;
   return <div className="solve-grid">{groups.map(([category, items]) => <div className="solve-row" key={category}>
     <span className="solve-cat">{category}</span>
-    <span className="solve-cells">{items.map(c => <svg key={c.id} width="24" height="24" viewBox="0 0 24 24" className={c.solved ? "solved" : ""} role="img" aria-label={`${c.title}, ${c.difficulty}, ${c.xp} points, ${c.solveCount} solves${c.solved ? ", solved by you" : ""}`} ><title>{`${c.title}: ${c.solveCount} solves`}</title><rect x="1" y="1" width="22" height="22" rx="3" className={`heat-cell l${heatLevel(c.solveCount)}`} /></svg>)}</span>
+    <span className="solve-cells">{items.map(c => <svg key={c.id} width="24" height="24" viewBox="0 0 24 24" className={c.solved ? "solved" : ""} role="img" aria-label={`${c.title}, ${c.difficulty}, ${c.xp} points, ${c.solveCount} solves${c.solved ? ", solved by you" : ""}`} shapeRendering="crispEdges"><title>{`${c.title}: ${c.solveCount} solves`}</title><path d="M.5 .5h23v23H.5z" className="heat-outline" /><path d={heatCellPath(heatLevel(c.solveCount), 0, 0, 24)} className="heat-fill" /></svg>)}</span>
   </div>)}
-  <div className="heat-key">{[["0", 0], ["1–9", 1], ["10–39", 2], ["40–99", 3], ["100+", 4]].map(([l, v]) => <span key={l}><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect width="12" height="12" rx="2" className={`heat-cell l${v}`} /></svg>{l}</span>)}<span className="solve-you"><i />solved by you</span></div>
+  <div className="heat-key">{[["0", 0], ["1–9", 1], ["10–39", 2], ["40–99", 3], ["100+", 4]].map(([l, v]) => <span key={l}><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" shapeRendering="crispEdges"><path d="M.5 .5h11v11H.5z" className="heat-outline" /><path d={heatCellPath(Number(v), 0, 0, 12)} className="heat-fill" /></svg>{l}</span>)}<span className="solve-you"><i />solved by you</span></div>
 </div>;
 }
 
@@ -140,7 +147,7 @@ export function Countdown({ endsAt }: { endsAt: string }) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return <div className={`countdown${left > 0 && left < 3_600_000 ? " urgent" : ""}`}>
     <div className="countdown-units" role="timer" aria-label={`${days} days, ${hours} hours, ${minutes} minutes left`}>
-      {[[days, "days"], [hours, "hours"], [minutes, "min"], [seconds, "sec"]].map(([v, l], i) => <span key={l} className="countdown-unit" data-unit={l}>{i ? <i className="countdown-sep" aria-hidden="true">:</i> : null}<b>{now === null ? "--" : pad(Number(v))}</b><small>{l}</small></span>)}
+      {[[days, "days"], [hours, "hours"], [minutes, "min"], [seconds, "sec"]].map(([v, l], i) => <span key={l} className="countdown-unit" data-unit={l}>{i ? <i className="countdown-sep" aria-hidden="true">:</i> : null}<span className="countdown-cell"><b>{now === null ? "--" : pad(Number(v))}</b><small>{l}</small></span></span>)}
     </div>
     <div className="week-meter" aria-hidden="true">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => <span key={d} className={i < Math.floor(elapsed) ? "past" : i === Math.floor(elapsed) ? "today" : ""}><i style={i === Math.floor(elapsed) ? { ["--p" as string]: `${(elapsed % 1) * 100}%` } : undefined} />{d}</span>)}</div>
   </div>;

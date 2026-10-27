@@ -252,12 +252,9 @@ a.card:active { transform: scale(.98); }
 .feed-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .875rem; }
 .feed li span:last-child { text-align: right; }
 .heatmap { max-width: 100%; height: auto; }
-/* Heat: empty days stay quiet; busy days step up a yellow ramp mixed toward the empty-cell color. */
-.heat-cell { fill: var(--surface-2); }
-.heat-cell.l1 { fill: color-mix(in oklab, var(--accent) 30%, var(--surface-2)); }
-.heat-cell.l2 { fill: color-mix(in oklab, var(--accent) 55%, var(--surface-2)); }
-.heat-cell.l3 { fill: color-mix(in oklab, var(--accent) 80%, var(--surface-2)); }
-.heat-cell.l4 { fill: var(--accent); }
+.heat-outline { fill: none; stroke: var(--line-strong); stroke-width: 1; }
+.heat-fill { fill: var(--accent); }
+.heat-hit { fill: transparent; }
 .heat-current { fill: none; stroke: var(--accent); stroke-width: 1; }
 .heat-legend, .heat-key { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .75rem; color: var(--faint); }
 .heat-key { gap: 14px; margin-top: 4px; }
@@ -323,15 +320,16 @@ a.card:active { transform: scale(.98); }
 .flag-row input { flex: 1; }
 
 .countdown { display: grid; gap: 14px; }
-.countdown-units { display: flex; align-items: flex-start; gap: 8px; }
-.countdown-unit { position: relative; display: flex; align-items: flex-start; gap: 8px; }
-.countdown-unit b { display: grid; place-items: center; min-width: 84px; padding: 12px 12px 26px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r); font-family: var(--font-code); font-size: 2.75rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1; color: var(--accent-text); font-variant-numeric: tabular-nums; }
+.countdown-units { display: flex; align-items: flex-start; gap: 8px; width: 100%; }
+.countdown-unit { position: relative; flex: 1 1 0; display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.countdown-unit b { display: grid; place-items: center; flex: 1; min-width: 0; padding: 14px 12px 28px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r); font-family: var(--font-code); font-size: 2.75rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1; color: var(--accent-text); font-variant-numeric: tabular-nums; }
 .countdown-unit[data-unit="sec"] b { color: var(--text); }
-.countdown-unit small { position: absolute; bottom: 8px; right: 0; width: 84px; text-align: center; font-size: .6875rem; font-weight: 500; color: var(--faint); }
+.countdown-cell { position: relative; flex: 1; display: grid; min-width: 0; }
+.countdown-unit small { position: absolute; bottom: 9px; left: 0; right: 0; text-align: center; font-size: .6875rem; font-weight: 500; color: var(--faint); }
 .countdown-sep { font-style: normal; font-family: var(--font-code); font-weight: 700; font-size: 2.25rem; color: var(--faint); padding-top: 10px; }
 .countdown.urgent .countdown-unit b { color: var(--danger); }
 .week-meter { display: flex; gap: 4px; }
-.week-meter span { display: grid; gap: 6px; width: 52px; font-size: .6875rem; color: var(--faint); }
+.week-meter span { display: grid; flex: 1; gap: 6px; font-size: .6875rem; color: var(--faint); }
 .week-meter i { height: 10px; border-radius: 1px; background: var(--surface-2); }
 .week-meter .past i { background: var(--accent); }
 .week-meter .past { color: var(--muted); }
@@ -568,7 +566,7 @@ a.card:active { transform: scale(.98); }
 .solve-row { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 12px; align-items: center; font-size: .75rem; }
 .solve-cat { color: var(--muted); }
 .solve-cells { display: flex; flex-wrap: wrap; gap: 4px; }
-.solve-cells svg.solved rect { stroke: var(--accent); stroke-width: 2; }
+.solve-cells svg.solved .heat-outline { stroke: var(--accent); stroke-width: 2; }
 .solve-you { display: inline-flex; align-items: center; gap: 6px; }
 .solve-you i { width: 12px; height: 12px; border: 2px solid var(--accent); }
 .history li a { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 16px; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--line); font-size: .875rem; transition: background-color 150ms ease; }
@@ -706,10 +704,8 @@ a.card:active { transform: scale(.98); }
   .hide-sm { display: none; }
 }
 @media (max-width: 560px) {
-  .countdown-unit b { min-width: 64px; font-size: 2.125rem; padding-bottom: 22px; }
-  .countdown-unit small { width: 64px; }
+  .countdown-unit b { font-size: 2.125rem; padding-bottom: 22px; }
   .countdown-sep { font-size: 1.75rem; }
-  .week-meter span { width: auto; flex: 1; }
   .flag-row, .inline-form { flex-direction: column; align-items: stretch; }
   .standings li { grid-template-columns: 28px 28px minmax(0, 1fr) 64px; gap: 10px; }
   .standings li > .meter, .standings li > :nth-child(5) { display: none; }
