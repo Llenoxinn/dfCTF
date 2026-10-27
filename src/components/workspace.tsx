@@ -12,7 +12,7 @@ import Competitions, { type CompetitionRoute } from "./competitions";
 import Landing from "./landing";
 import { ChallengeCard, type CardState } from "./cards";
 import { Heatmap, Radar, RaceChart, SolveGrid } from "./viz";
-import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Modal, Notice, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
+import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Modal, Notice, Pips, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
 
 type View = "home" | "practice" | "leaderboard" | "progress" | "competitions" | "authoring" | "settings";
 // Settings lives in the profile menu; home is the landing page behind the wordmark.
@@ -212,43 +212,39 @@ function Library({ challenges, progress, board, query, setQuery, open }: { chall
   const solved = progress?.solvedCount ?? 0, total = challenges.length;
   const weekly = challenges.find(isWeekly);
   const usedCats = CATEGORIES.filter(c => challenges.some(x => x.category === c));
+  const slug = (c: string) => `cat-${c.toLowerCase().replace(/\s+/g, "-")}`;
 
   return <>
-    <div className="page-head">
+    <div className="page-head library-head">
       <div><h1>Challenges</h1><p>{total ? `${total} challenges in ${usedCats.length} categories. Open any of them, in any order.` : "Challenges appear here once they’re published."}</p></div>
-      <section className="stats-strip" aria-label="Your numbers">
-        <div><span className="stat-label">Solved</span><span className="stat-value">{solved}<small className="mono"> / {total}</small></span><Meter value={solved} max={total} tone="accent" label={`${solved} of ${total} solved`} /></div>
-        <div><span className="stat-label">Points</span><span className="stat-value">{(progress?.totalXp ?? 0).toLocaleString()}</span><span className="stat-sub">{progress?.attemptedCount ?? 0} started</span></div>
-        <div><span className="stat-label">This week</span><span className="stat-value accent">{board?.viewer ? `#${board.viewer.rank}` : "unranked"}</span><span className="stat-sub">{board ? `of ${board.players} ${board.players === 1 ? "player" : "players"}` : ""}</span></div>
-        <div><span className="stat-label title-tip">Last 16 weeks<InfoTip text="Your solves per day over the last 16 weeks. More lit pixels means more flags that day." /></span>{board ? <Heatmap days={board.mine.days} cell={8} gap={3} label="Your solves per day" /> : null}</div>
-      </section>
+      <dl className="lib-stats">
+        <div><dt>Solved</dt><dd><span className="mono">{solved}<small>/{total}</small></span><Meter value={solved} max={total} tone="accent" cells={12} label={`${solved} of ${total} solved`} /></dd></div>
+        <div><dt>Points</dt><dd className="mono">{(progress?.totalXp ?? 0).toLocaleString()}</dd></div>
+        <div><dt>This week</dt><dd className="mono accent">{board?.viewer ? `#${board.viewer.rank}` : "unranked"}</dd></div>
+      </dl>
     </div>
     {weekly ? <WeeklyBanner challenge={weekly} open={open} /> : null}
-    <div className="library">
-      <aside className="filters" aria-label="Filters">
-        <label className="search-box"><Icon name="search" size={16} /><span className="sr-only">Search challenges</span><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search challenges" /></label>
-        <fieldset><legend>Status</legend><div className="segmented">{([["", "All"], ["open", "Open"], ["solved", "Solved"]] as const).map(([v, l]) => <button key={l} type="button" aria-pressed={status === v} onClick={() => setStatus(v)}>{l}</button>)}</div></fieldset>
-        <fieldset><legend>Category</legend>{CATEGORIES.map(c => <button key={c} type="button" className="check-row" aria-pressed={cats.has(c)} disabled={!count(x => x.category === c)} onClick={() => toggle(cats, c, setCats)}><span className="ascii-check">{cats.has(c) ? "[x]" : "[ ]"}</span>{c}<span className="mono faint">{count(x => x.category === c)}</span></button>)}</fieldset>
-        <fieldset><legend>Difficulty</legend>{DIFFICULTIES.map(d => <button key={d} type="button" className="check-row" aria-pressed={levels.has(d)} onClick={() => toggle(levels, d, setLevels)}><span className="ascii-check">{levels.has(d) ? "[x]" : "[ ]"}</span><i className={`swatch ${d.toLowerCase()}`} aria-hidden="true" />{d}<span className="mono faint">{count(x => x.difficulty === d)}</span></button>)}</fieldset>
-        {filtering ? <button type="button" className="text-button" onClick={clear}>Clear filters</button> : null}
-      </aside>
-      <div className="board">
-        <div className="toolbar">
-          <span className="mono muted" aria-live="polite">{filtered.length} {filtered.length === 1 ? "result" : "results"}</span>
-          {[...cats].map(c => <button key={c} type="button" className="chip" onClick={() => toggle(cats, c, setCats)} aria-label={`Remove filter ${c}`}>{c.toLowerCase()}<Icon name="close" size={12} /></button>)}
-          {[...levels].map(l => <button key={l} type="button" className="chip" onClick={() => toggle(levels, l, setLevels)} aria-label={`Remove filter ${l}`}>{l.toLowerCase()}<Icon name="close" size={12} /></button>)}
-          <span className="spacer" />
-          <div className="segmented small" role="group" aria-label="View">{(["board", "list"] as const).map(m => <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)}>{m === "board" ? "Board" : "List"}</button>)}</div>
-          <label className="select-inline"><span className="muted">Sort</span><select value={sort} onChange={e => setSort(e.target.value as typeof sort)}><option value="points">Points</option><option value="solves">Most solved</option><option value="newest">Newest</option></select></label>
-        </div>
-        {!filtered.length ? <Empty title={total ? "No challenges match" : "The board is empty for now"} action={total ? <button className="button button-secondary" onClick={clear}>Clear filters</button> : undefined}>{total ? "Try a different search or remove a filter." : "Published challenges appear here when an author releases them."}</Empty>
-          : mode === "list" ? <ChallengeTable items={filtered} open={open} />
-          : CATEGORIES.filter(c => filtered.some(x => x.category === c)).map(category => { const items = filtered.filter(x => x.category === category); const all = challenges.filter(x => x.category === category); const done = all.filter(x => x.solved).length; return <section className="category" key={category} aria-labelledby={`cat-${category}`}>
-            <div className="category-head"><h2 id={`cat-${category}`}>{category}</h2><span className="spacer" /><Meter value={done} max={all.length} label={`${done} of ${all.length} solved`} /><span className="mono muted">{done}/{all.length} solved</span></div>
-            <div className="cards">{items.map(c => <ChallengeCard key={c.id} title={c.title} xp={c.xp} difficulty={c.difficulty} solveCount={c.solveCount} state={cardState(c)} href={hrefFor("practice", c.id)} onOpen={e => inPlace(e, () => open(c.id))} />)}</div>
-          </section>; })}
+    <div className="lib-filters">
+      <div className="lib-filter-row">
+        <label className="search-box lib-search"><Icon name="search" size={16} /><span className="sr-only">Search challenges</span><input type="search" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setQuery(""); }} placeholder="Search titles, tags, categories" /></label>
+        <div className="segmented" role="group" aria-label="Status">{([["", "All"], ["open", "Open"], ["solved", "Solved"]] as const).map(([v, l]) => <button key={l} type="button" aria-pressed={status === v} onClick={() => setStatus(v)}>{l}</button>)}</div>
+        <div className="segmented" role="group" aria-label="Difficulty">{DIFFICULTIES.map(d => <button key={d} type="button" aria-pressed={levels.has(d)} onClick={() => toggle(levels, d, setLevels)}><Pips value={d} />{d}</button>)}</div>
+        <span className="spacer" />
+        <label className="select-inline"><span className="muted">Sort</span><select value={sort} onChange={e => setSort(e.target.value as typeof sort)}><option value="points">Points</option><option value="solves">Most solved</option><option value="newest">Newest</option></select></label>
+        <div className="segmented" role="group" aria-label="Layout">{(["board", "list"] as const).map(m => <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)}>{m === "board" ? "Board" : "List"}</button>)}</div>
       </div>
+      <div className="cat-chips" role="group" aria-label="Category">
+        <button type="button" className="cat-chip" aria-pressed={!cats.size} onClick={() => setCats(new Set())}>All<span className="mono">{total}</span></button>
+        {CATEGORIES.map(c => { const n = count(x => x.category === c); return <button key={c} type="button" className="cat-chip" aria-pressed={cats.has(c)} disabled={!n} onClick={() => toggle(cats, c, setCats)}>{c}<span className="mono">{n}</span></button>; })}
+      </div>
+      <p className="lib-count"><span className="mono" aria-live="polite">{filtered.length} {filtered.length === 1 ? "challenge" : "challenges"}{filtering ? " match" : ""}</span>{filtering ? <button type="button" className="text-button" onClick={clear}>Clear filters</button> : null}</p>
     </div>
+    {!filtered.length ? <Empty title={total ? "No challenges match" : "The board is empty for now"} action={total ? <button className="button button-secondary" onClick={clear}>Clear filters</button> : undefined}>{total ? "Try a different search or remove a filter." : "Published challenges appear here when an author releases them."}</Empty>
+      : mode === "list" ? <ChallengeTable items={filtered} open={open} />
+      : <div className="cat-rows">{CATEGORIES.filter(c => filtered.some(x => x.category === c)).map(category => { const items = filtered.filter(x => x.category === category); const all = challenges.filter(x => x.category === category); const done = all.filter(x => x.solved).length; return <section className="cat-row" key={category} aria-labelledby={slug(category)}>
+        <header className="cat-row-head"><h2 id={slug(category)}>{category}</h2><span className="mono muted">{done}/{all.length} solved</span><Meter value={done} max={all.length} cells={10} label={`${done} of ${all.length} solved`} /></header>
+        <div className="cards">{items.map(c => <ChallengeCard key={c.id} title={c.title} xp={c.xp} difficulty={c.difficulty} solveCount={c.solveCount} state={cardState(c)} href={hrefFor("practice", c.id)} onOpen={e => inPlace(e, () => open(c.id))} />)}</div>
+      </section>; })}</div>}
   </>;
 }
 
@@ -407,7 +403,7 @@ function ProgressView({ progress, board, total, open, browse }: { progress: Prog
       </section>
       <div className="lb-side">
         <section className="panel" aria-labelledby="cat-title"><div className="panel-head"><h2 id="cat-title">By category</h2><InfoTip text="How your solves spread across the seven categories, out of the challenges published in each." /></div>{progress ? <Radar values={progress.categories.map(c => ({ label: c.category.split(" ")[0], solved: c.solved, total: c.total }))} /> : null}</section>
-        <section className="panel" aria-labelledby="days-title"><div className="panel-head"><h2 id="days-title">Last 16 weeks</h2><InfoTip text="Your solves per day. The outlined column is this week." /></div><div className="panel-pad">{board ? <Heatmap days={board.mine.days} cell={16} gap={4} label="Your solves per day" /> : null}</div></section>
+        <section className="panel" aria-labelledby="days-title"><div className="panel-head"><h2 id="days-title">Last 16 weeks</h2><InfoTip text="Your solves per day. The outlined column is this week." /></div><div className="panel-pad">{board ? <Heatmap days={board.mine.days} start={board.mine.start} cell={14} gap={4} weekdays label="Your solves per day" /> : null}</div></section>
       </div>
     </div>
   </>;
