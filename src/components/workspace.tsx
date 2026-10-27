@@ -303,7 +303,6 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
     : <div className="modal-body challenge">
       <header className="challenge-head">
         <h2 id="challenge-title">{challenge.title}</h2>
-        <p className="challenge-summary">{challenge.summary}</p>
         <div className="challenge-meta muted">{latest.length ? <span className="solver-stack" aria-hidden="true">{latest.map((s,i) => <Identicon key={i} name={s.codename} size={22} />)}</span> : null}
           <span>{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}{latest.length ? <>, latest by <span className="mono">{latest[0].codename}</span></> : ""}. About {challenge.estimatedMinutes} min. By <span className="mono">{challenge.author}</span>, version {challenge.version}.</span></div>
       </header>

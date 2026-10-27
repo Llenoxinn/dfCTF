@@ -484,7 +484,6 @@ a.card:active { transform: scale(.98); }
 .challenge-modal .files li { padding: 12px 14px; }
 .challenge-head { display: grid; gap: 10px; }
 .challenge-head h2 { font-size: clamp(1.625rem, 3.4vw, 2.125rem); letter-spacing: -0.035em; }
-.challenge-summary { font-size: 1.0625rem; color: var(--muted); max-width: 64ch; }
 .challenge-meta { font-size: .8125rem; }
 .first-blood { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 14px 16px; margin: 4px 0 8px; background: var(--surface-2); border-radius: var(--r); }
 .first-blood > div { display: grid; gap: 4px; }
