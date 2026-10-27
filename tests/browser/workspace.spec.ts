@@ -103,6 +103,31 @@ test("leaderboard errors keep range controls and support cached recovery and ret
   expect(allRequests).toBe(3);
 });
 
+test("Settings links configured Facebook accounts and preserves the last sign-in method", async ({ page }) => {
+  let linked = false, onlyFacebook = false, submitted: unknown;
+  const state = await mockWorkspace(page, async (route, url) => {
+    if (url.pathname === "/api/auth/list-accounts") {
+      const accounts = onlyFacebook ? [] : [{ id: "password-account", providerId: "credential", createdAt: "2026-10-01T00:00:00Z" }];
+      if (linked) accounts.push({ id: "facebook-account", providerId: "facebook", createdAt: "2026-10-01T00:00:00Z" });
+      await route.fulfill({ json: accounts });
+    } else if (url.pathname === "/api/auth/link-social") {
+      submitted = route.request().postDataJSON(); linked = true;
+      await route.fulfill({ json: { url: `${url.origin}/?view=settings&linked=facebook` } });
+    } else return false;
+    return true;
+  });
+  state.bootstrap.providers.facebook = true;
+  await page.goto("/?view=settings");
+  const facebook = page.getByRole("listitem").filter({ has: page.getByText("Facebook", { exact: true }) });
+  await facebook.getByRole("button", { name: "Connect", exact: true }).click();
+  await expect(page).toHaveURL(/linked=facebook/);
+  expect(submitted).toEqual({ provider: "facebook", callbackURL: "http://127.0.0.1:3100/?view=settings" });
+  await expect(facebook.getByRole("button", { name: "Disconnect", exact: true })).toBeEnabled();
+  onlyFacebook = true;
+  await page.reload();
+  await expect(facebook.getByRole("button", { name: "Disconnect", exact: true })).toBeDisabled();
+});
+
 test("enrolled staff can unlock Settings with a backup code", async ({ page }) => {
   let submitted: unknown;
   const state = await mockWorkspace(page, async (route, url) => {

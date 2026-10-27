@@ -27,7 +27,7 @@ export default function AccountSecurity({ bootstrap, refresh }: { bootstrap: Boo
     catch (err) { setError(err instanceof Error ? err.message : "Could not sign out that session. Sign in again and retry."); }
     finally { setBusy(false); }
   }
-  async function connect(provider: "google" | "github") {
+  async function connect(provider: "google" | "github" | "facebook") {
     setBusy(true); setError(""); setMessage("");
     try { const result = await api<{ url?: string }>("/api/auth/link-social", { method: "POST", body: JSON.stringify({ provider, callbackURL: `${window.location.origin}/?view=settings` }) }); if (!result.url) throw new Error("Could not start account linking. Sign in again and retry."); window.location.assign(result.url); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not connect your account."); setBusy(false); }
@@ -38,7 +38,7 @@ export default function AccountSecurity({ bootstrap, refresh }: { bootstrap: Boo
     catch (err) { setError(err instanceof Error ? err.message : "Could not disconnect your account."); }
     finally { setBusy(false); }
   }
-  const providers = (["google", "github"] as const).filter(provider => bootstrap.providers[provider]);
+  const providers = (["google", "github", "facebook"] as const).filter(provider => bootstrap.providers[provider]);
   const ordered = [...sessions].sort((a, b) => (b.id === current ? 1 : 0) - (a.id === current ? 1 : 0));
 
   return <SettingsSection title="Sessions and sign-in" description="Every browser where you’re signed in, and the providers you can sign in with. Sign out anything you don’t recognize.">
@@ -53,7 +53,7 @@ export default function AccountSecurity({ bootstrap, refresh }: { bootstrap: Boo
         <h3 className="sub-head">Sign-in providers</h3>
         <p className="fine">Link only accounts you own. You can’t remove your last way to sign in.</p>
         <ul className="rows">{providers.map(provider => { const account = accounts.find(a => a.providerId === provider); return <li key={provider}>
-          <div className="grow"><strong>{provider === "google" ? "Google" : "GitHub"}</strong><span className="muted">{account ? `Connected ${formatDate(account.createdAt)}` : "Not connected"}</span></div>
+          <div className="grow"><strong>{{ google: "Google", github: "GitHub", facebook: "Facebook" }[provider]}</strong><span className="muted">{account ? `Connected ${formatDate(account.createdAt)}` : "Not connected"}</span></div>
           <button className="button button-secondary" onClick={() => account ? disconnect(account) : connect(provider)} disabled={busy || !!account && accounts.length < 2}>{account ? "Disconnect" : "Connect"}</button>
         </li>; })}</ul>
       </> : null}

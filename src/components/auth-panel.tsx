@@ -108,7 +108,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
         {mode === "signin" || mode === "signup" ? <>
           <div className="divider"><span>or continue with</span></div>
           <div className="social" role="group" aria-label="Social sign-in options" aria-describedby={!bootstrap.providers.google || !bootstrap.providers.facebook ? "social-availability" : undefined}>
-            {(["google", "facebook"] as const).map(provider => <button key={provider} type="button" className="button button-secondary social-button" onClick={() => social(provider)} disabled={busy || !bootstrap.providers[provider]}>
+            {(["facebook", "google"] as const).map(provider => <button key={provider} type="button" className="button button-secondary social-button" onClick={() => social(provider)} disabled={busy || !bootstrap.providers[provider]}>
               <SocialIcon provider={provider} />
               <span>Continue with {provider === "google" ? "Google" : "Facebook"}</span>
               {!bootstrap.providers[provider] ? <small className="social-status">Coming soon</small> : null}
