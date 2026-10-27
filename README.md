@@ -92,17 +92,16 @@ Run database CLIs with the local app stopped when using PGlite. On a deployment,
 
 ## Configure social sign-in
 
-Email/password sign-in works locally without provider credentials. Social sign-in is available when that provider's client ID and client secret are configured. Unconfigured Google and Facebook buttons remain disabled; GitHub appears when configured. Register an OAuth application with the selected provider and configure the matching pair in `.env.local` or the deployment's secret store:
+Email/password sign-in works locally without provider credentials. Google and GitHub buttons appear in the sign-in form and become available when that provider's client ID and client secret are configured. Register an OAuth application with the selected provider and configure the matching pair in `.env.local` or the deployment's secret store:
 
 | Provider | Variables | Callback for this local setup |
 | --- | --- | --- |
 | Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | `http://127.0.0.1:3000/api/auth/callback/google` |
 | GitHub | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | `http://127.0.0.1:3000/api/auth/callback/github` |
-| Facebook | `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET` | `http://127.0.0.1:3000/api/auth/callback/facebook` |
 
 For a deployment, replace `http://127.0.0.1:3000` with the exact HTTPS `APP_URL`. Configure each provider with that exact callback and restart the app after changing credentials. Use separate OAuth applications and secrets for local, staging, and production environments. Email verification and account suspensions apply to every sign-in route. Account linking must be initiated while signed in; matching email addresses do not silently merge accounts.
 
-Provider configuration is included, but a real social sign-in round trip requires your own provider applications and credentials. Do not treat a successful local credentials sign-in as validation of those external flows. Facebook may not return an email address for every account, which can prevent that account from signing in.
+Provider configuration is included, but a real social sign-in round trip requires your own provider applications and credentials. Do not treat a successful local credentials sign-in as validation of those external flows.
 
 ## Development commands
 

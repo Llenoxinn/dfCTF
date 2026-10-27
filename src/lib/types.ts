@@ -24,7 +24,7 @@ export type Viewer = {
 };
 export type Bootstrap = {
   user: Viewer | null; hasAccess: boolean; staffVerified: boolean;
-  providers: { google: boolean; github: boolean; facebook?: boolean }; localMail: boolean;
+  providers: { google: boolean; github: boolean }; localMail: boolean;
 };
 export type Standing = { rank: number; codename: string; points: number; solves: number };
 export type SolveEvent = { at: string; codename: string; title: string; points: number; firstBlood: boolean };

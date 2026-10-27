@@ -47,7 +47,6 @@ export function configuredProviders() {
   return {
     google: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
     github: Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
-    facebook: Boolean(process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET),
   };
 }
 
@@ -96,17 +95,13 @@ export function createAuth(db: Database) {
         clientId: process.env.GITHUB_CLIENT_ID!, clientSecret: process.env.GITHUB_CLIENT_SECRET!,
         requireEmailVerification: true,
       } } : {}),
-      ...(providers.facebook ? { facebook: {
-        clientId: process.env.FACEBOOK_CLIENT_ID!, clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
-        requireEmailVerification: true,
-      } } : {}),
     },
     account: {
       encryptOAuthTokens: true,
       accountLinking: {
         enabled: true,
         disableImplicitLinking: true,
-        trustedProviders: ["google", "github", "facebook"],
+        trustedProviders: ["google", "github"],
         allowDifferentEmails: false,
         allowUnlinkingAll: false,
       },
