@@ -2,7 +2,7 @@ import { beforeAll,afterAll,describe,it,expect } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { createStore } from "@/server/db";
-import { user,challenges,challengeVersions,solves,xpLedger,submissions,requestResults,auditEvents } from "@/server/schema";
+import { user,challenges,challengeVersions,solves,xpLedger,submissions,requestResults,auditEvents,artifacts,artifactContents } from "@/server/schema";
 import { createChallenge,editChallenge,publishChallenge,challengeDetail,submitFlag,getProgress,listChallenges,consumeLimit } from "@/server/challenges";
 import { saveArtifact,downloadArtifact } from "@/server/files";
 import { flagDigest,matchesFlag } from "@/server/flags";
@@ -26,6 +26,21 @@ async function ready(title:string){const record=await createChallenge(store.db,a
 beforeAll(async()=>{directory=await mkdtemp(path.join(os.tmpdir(),"dfctf-practice-"));process.env.ARTIFACT_DIR=directory;store=await createStore(undefined,true);await store.migrate();for(const v of [author,reviewer,learner])await store.db.insert(user).values({...v,name:"Private account"});});
 afterAll(async()=>{await store?.close();await rm(directory,{recursive:true,force:true});delete process.env.ARTIFACT_DIR;});
 describe("private practice integrity",()=>{
+  it("downloads database-backed files without a local copy and supports legacy local files",async()=>{
+    const shared=await ready("Shared artifact storage");
+    const detail=await challengeDetail(store.db,learner,shared.id);
+    const fileId=detail.files[0].id;
+    const [file]=await store.db.select().from(artifacts).where(eq(artifacts.id,fileId));
+    const [content]=await store.db.select().from(artifactContents).where(eq(artifactContents.artifactId,fileId));
+    expect(content.content.equals(Buffer.from(flag))).toBe(true);
+    await rm(path.join(directory,file.storageKey));
+    expect(await (await downloadArtifact(store.db,learner,shared.id,fileId)).text()).toBe(flag);
+
+    const legacy=await ready("Legacy artifact storage");
+    const legacyDetail=await challengeDetail(store.db,learner,legacy.id);
+    await store.db.delete(artifactContents).where(eq(artifactContents.artifactId,legacyDetail.files[0].id));
+    expect(await (await downloadArtifact(store.db,learner,legacy.id,legacyDetail.files[0].id)).text()).toBe(flag);
+  });
   it("lists every solver in order, selects one first blood on timestamp ties, and exposes only public identity",async()=>{
     const c=await ready("Solver attribution");
     expect((await challengeDetail(store.db,learner,c.id)).solvers).toEqual([]);

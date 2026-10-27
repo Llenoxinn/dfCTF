@@ -1,9 +1,13 @@
-import { pgTable, text, integer, timestamp, boolean, jsonb, uniqueIndex, index, check, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, boolean, jsonb, uniqueIndex, index, check, primaryKey, customType } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { user } from "./auth-schema";
 export * from "./auth-schema";
 
 const at = (name: string) => timestamp(name, { withTimezone: true }).notNull().defaultNow();
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+  fromDriver: value => Buffer.from(value),
+});
 export const allowlist = pgTable("allowlist", {
   id: text("id").primaryKey(), email: text("email").notNull().unique(),
   expiresAt: timestamp("expires_at", {withTimezone:true}), revokedAt: timestamp("revoked_at", {withTimezone:true}), createdAt: at("created_at")
@@ -28,6 +32,10 @@ export const artifacts = pgTable("artifacts", {
   id: text("id").primaryKey(), versionId: text("version_id").notNull().references(()=>challengeVersions.id),
   name: text("name").notNull(), storageKey: text("storage_key").notNull(), size: integer("size").notNull(), sha256: text("sha256").notNull(), createdAt: at("created_at")
 }).enableRLS();
+export const artifactContents = pgTable("artifact_contents", {
+  artifactId: text("artifact_id").primaryKey().references(()=>artifacts.id, {onDelete:"cascade"}),
+  content: bytea("content").notNull(),
+}, ()=>[check("artifact_contents_size",sql.raw("octet_length(content) BETWEEN 1 AND 10485760"))]).enableRLS();
 export const submissions = pgTable("submissions", {
   id: text("id").primaryKey(), userId: text("user_id").notNull().references(()=>user.id),
   challengeId: text("challenge_id").notNull().references(()=>challenges.id), versionId: text("version_id").notNull().references(()=>challengeVersions.id),

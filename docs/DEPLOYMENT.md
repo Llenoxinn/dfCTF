@@ -1,6 +1,6 @@
 # Deployment and recovery
 
-The first deployment target is one long-running Node.js application with PostgreSQL and a persistent artifact directory. Embedded PGlite is for a single local development process. Ephemeral function hosting does not preserve the MVP's artifact directory.
+The first deployment target is one long-running Node.js application with PostgreSQL and a private artifact backup directory. Embedded PGlite is for a single local development process. New artifact contents live in PostgreSQL; the directory holds local backup copies and provides fallback for legacy file-only records.
 
 Use fictional data on staging. Keep staging and production databases, artifact volumes, email credentials, OAuth applications, and secrets separate.
 
@@ -30,7 +30,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 
 Use three distinct values for `AUTH_SECRET`, `FLAG_SECRET`, and `POSTGRES_PASSWORD`. Keep them in the host secret store or a restricted environment file. Never use local fallback secrets in a deployment. Losing or changing `FLAG_SECRET` makes existing flag digests unusable; changing `AUTH_SECRET` affects existing authentication material and should be treated as a planned rotation.
 
-Compose sets `DATABASE_URL` to its internal PostgreSQL service and mounts `ARTIFACT_DIR` at `/app/.data/artifacts`. For managed PostgreSQL or another orchestrator, set `DATABASE_URL` directly and attach a persistent, private volume to `ARTIFACT_DIR`. Follow the database provider's TLS configuration. The runtime must be able to write that directory as the unprivileged `node` user (UID 1000).
+Compose sets `DATABASE_URL` to its internal PostgreSQL service and mounts `ARTIFACT_DIR` at `/app/.data/artifacts`. For managed PostgreSQL or another orchestrator, set `DATABASE_URL` directly and attach a persistent, private volume to `ARTIFACT_DIR` for upload backup copies and legacy fallback. Follow the database provider's TLS configuration. The runtime must be able to write that directory as the unprivileged `node` user (UID 1000). Artifact contents and metadata are committed together in PostgreSQL, so other app instances can serve new downloads without that uploader's local files.
 
 Optional Google and GitHub credentials use the names in `.env.example`. Their callbacks are:
 
@@ -55,7 +55,7 @@ docker compose --env-file .env.production up -d app
 docker compose --env-file .env.production logs --tail 100 app
 ```
 
-Migrations must succeed before the app is started. Run a single migration process; do not run schema changes concurrently with another deployment. Review generated SQL before shipping it. Back up PostgreSQL and artifacts before a schema or content migration.
+Migrations must succeed before the app is started. For an existing file-only dataset, run `npm run db:backfill-artifacts` in the app container after migrations, with the original artifact directory mounted. It copies missing contents into PostgreSQL, verifies checksums, and retains local copies; missing or changed source files roll back the backfill. Run a single migration process; do not run schema changes concurrently with another deployment. Review generated SQL before shipping it. Back up PostgreSQL and artifacts before a schema or content migration.
 
 The Docker image runs as `node`, retains the source and CLI dependencies needed for migrations and administrative bootstrap, and binds port 3000 inside its container. Compose publishes that port only to the host's loopback interface. Place a TLS reverse proxy on the host in front of `127.0.0.1:3000`, preserve the public host, and set the forwarded protocol to HTTPS. Set a request body limit that accommodates the documented artifact limit, plus multipart overhead, while rejecting oversized uploads. Prevent unauthenticated access to any development services.
 
@@ -106,7 +106,7 @@ These limits are recorded in the [side project plan](MVP.md#production-hardening
 
 ## Back up and restore
 
-Back up PostgreSQL, the artifact volume, and the required deployment secrets. Database-only backups do not preserve downloadable files, and artifacts without the database do not preserve access metadata or progress. Keep encrypted copies off the application host and restrict access to both the backup data and secrets.
+Back up PostgreSQL, the artifact backup volume, and the required deployment secrets. PostgreSQL backups now include file contents in `artifact_contents`. Legacy file-only records still depend on the artifact volume until backfilled; keep that volume as an independent copy afterward. File copies without the database do not preserve access metadata or progress. Keep encrypted copies off the application host and restrict access to both the backup data and secrets.
 
 Choose a backup mechanism for the target host that produces a consistent PostgreSQL dump or uses PostgreSQL-aware backups. Avoid PowerShell text redirection for binary custom-format dumps. Take a consistent artifact snapshot during a write pause or with a snapshot-capable volume, and record the app revision and migration version beside each backup.
 
@@ -129,5 +129,5 @@ Rolling back the image does not reverse schema changes. Use backward-compatible 
 | Verification email does not arrive on staging/production | SMTP connection, sender authorization, provider logs, and outbound network policy |
 | Production refuses configuration | HTTPS `APP_URL`, PostgreSQL URL, distinct real secrets, SMTP, sender, and disabled local mail |
 | Container starts but the host cannot connect | Use the included Docker command that overrides Next's hostname to `0.0.0.0`; inspect app logs |
-| File is missing after redeployment | Persistent `ARTIFACT_DIR` mount and filesystem permissions for UID 1000 |
+| File is missing after redeployment | Matching `artifact_contents` row and checksum; for legacy file-only records, the original `ARTIFACT_DIR` mount and filesystem permissions for UID 1000 |
 | Artifact digest or accepted flag changes unexpectedly | Correct artifact backup and the original `FLAG_SECRET`; never replace the database with the local seed |

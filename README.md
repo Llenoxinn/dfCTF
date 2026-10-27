@@ -2,7 +2,7 @@
 
 A capture-the-flag (CTF) platform built as a side project. Anyone can register, verify their email, choose a codename, solve challenges, and earn points on the weekly and all-time leaderboards.
 
-The application is a custom Next.js modular monolith with React, Better Auth, Drizzle, and PostgreSQL. Development can use embedded PGlite without installing a database server. Production uses a PostgreSQL service and persistent artifact storage. [Architecture and invariants](docs/ARCHITECTURE.md) describe authentication, event isolation, scoring, and database ownership.
+The application is a custom Next.js modular monolith with React, Better Auth, Drizzle, and PostgreSQL. Development can use embedded PGlite without installing a database server. PostgreSQL stores account records, challenge data, and private artifact contents; uploaded files also have local backup copies. [Architecture and invariants](docs/ARCHITECTURE.md) describe authentication, event isolation, scoring, and database ownership.
 
 See the [side project plan](docs/MVP.md) for current scope, the next small release, and known limitations. [PRODUCT.md](PRODUCT.md) describes the product and its constraints.
 
@@ -23,7 +23,7 @@ Open [dfCTF on localhost](http://127.0.0.1:3000). Use the exact `127.0.0.1` orig
 
 `seed` creates eight reviewed practice challenges, including **Read the fine print**, and development accounts with freshly generated passwords. Their credentials are written only to the ignored `.data/bootstrap.txt` file. The seed is for local development; it refuses to run in production. Do not share that file, use its accounts with real students, or copy the local database into production.
 
-With `DATABASE_URL` empty, data lives in `.data/postgres`, artifacts in `.data/artifacts`, and development emails in `.data/mail`. Stop the development server before running a database CLI against embedded PGlite: only one application process may open that database directory at a time. Use PostgreSQL when running multiple app processes. Keep `.data` between restarts to retain progress and local secrets.
+With `DATABASE_URL` empty, data lives in `.data/postgres`, artifact backup copies in `.data/artifacts`, and development emails in `.data/mail`. With a PostgreSQL URL configured, account records, challenge data, and artifact contents use that database. Stop the development server before running a database CLI against embedded PGlite: only one application process may open that database directory at a time. Use PostgreSQL when running multiple app processes. Keep `.data` between restarts to retain local backups and fallback secrets.
 
 The app and database scripts load `.env.local`. Leave `LOCAL_MAIL=1` for local development. Registration and password reset messages are saved as JSON in `.data/mail`; open the latest message to follow its verification or reset link. The development mailbox endpoint, `GET /api/v1/auth/local-mail`, is loopback-only and unavailable in production. No email is delivered externally in this mode.
 
@@ -50,7 +50,7 @@ Authors create and edit their own drafts, add an intended solution and flag, and
 
 If review finds a problem, the author or an administrator can choose **Return to draft**, correct and save the challenge, then send it for independent review again. Published versions stay locked. Staff who already enrolled an authenticator can use a saved backup code in Settings to verify a new or expired session; each code works once.
 
-Artifact uploads accept `.txt`, `.csv`, `.json`, `.log`, `.pcap`, `.zip`, `.png`, `.jpg`, `.jpeg`, and `.pdf` files, up to 10 MiB per file. Files are stored outside the public web directory and served through an authenticated download endpoint. They are never extracted or executed by the application. Extension and signature checks are implemented; malware scanning is not integrated.
+Artifact uploads accept `.txt`, `.csv`, `.json`, `.log`, `.pcap`, `.zip`, `.png`, `.jpg`, `.jpeg`, and `.pdf` files, up to 10 MiB per file. Private file contents are stored in the database and served through an authenticated download endpoint; the local artifact directory holds backup copies and supports older file-only records. They are never extracted or executed by the application. Extension and signature checks are implemented; malware scanning is not integrated.
 
 ## Host a competition
 
@@ -103,6 +103,7 @@ Provider configuration is included, but a real social sign-in round trip require
 | --- | --- |
 | `npm run dev` | Development server on `127.0.0.1:3000` |
 | `npm run db:migrate` | Apply the versioned database migrations |
+| `npm run db:backfill-artifacts` | Copy legacy artifact files into the configured database after migrations; verify checksums and keep local copies |
 | `npm run db:generate` | Generate migrations after changing the Drizzle schema |
 | `npm run seed` | Create local fictional content and generated demo credentials |
 | `npm run admin -- allow <email>` | Restore account access; email verification is still required |
