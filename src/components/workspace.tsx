@@ -287,7 +287,7 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
       if (response.status !== "incorrect") await refreshSolvers();
     } catch (err) { setError(err instanceof Error ? err.message : "Could not submit your flag."); } finally { setBusy(false); }
   }
-  const backLabel = competitionId ? "Back to the competition" : "Back to challenges";
+  const backLabel = competitionId ? "Back to competition" : "Back to challenges";
   const level = challenge?.difficulty.toLowerCase();
   const solvers = challenge?.solvers ?? [], latest = solvers.slice(-5).reverse();
   const firstBlood = solvers.find(s => s.firstBlood);
@@ -319,7 +319,7 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
           <div className="verdict verdict-correct"><span className="mono" aria-hidden="true">[x]</span>{result?.status === "correct" ? <DecodeText text="correct" className="mono strong" /> : <span className="mono strong">solved</span>}{result?.status === "correct" ? <span className="fade-up mono strong">+{result.xp} pts</span> : null}</div>
           <h3 id="submit-title">Flag captured</h3>
           <p className="muted">{result?.status === "correct" ? <>{competitionId ? "Your competition score" : "Your total"} is now <span className="mono">{result.totalXp.toLocaleString()}</span> points.</> : result?.status === "already_solved" ? "You had already solved this one, so no extra points. Your progress is saved." : <>This one is on your record for <span className="mono">{challenge.xp}</span> points.</>}</p>
-          <button className="button button-secondary" onClick={back}>{competitionId ? "Back to the competition" : "Find another challenge"}</button>
+          <button className="button button-secondary" onClick={back}>{competitionId ? "Back to competition" : "Find another challenge"}</button>
         </div> : <>
           <h3 id="submit-title">Submit the flag</h3>
           {challenge.submissionsOpen === false ? <Notice>This competition has ended. Submissions are closed.</Notice> : null}

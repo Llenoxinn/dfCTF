@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { applyTheme, effectiveTheme, type Theme } from "@/lib/theme";
 import { identiconPath, meterCells } from "@/lib/pixel";
 
@@ -70,9 +70,18 @@ export function InfoTip({ text, label = "What is this?" }: { text: string; label
   }
   function hide() { window.clearTimeout(timer.current); if (open) lastTipClose = Date.now(); setOpen(false); }
   useEffect(() => () => window.clearTimeout(timer.current), []);
+  const bubble = useRef<HTMLSpanElement>(null);
+  // The page clips sideways overflow, so slide an open bubble back inside a narrow screen instead of cutting it off.
+  useLayoutEffect(() => {
+    const el = bubble.current; if (!el) return;
+    el.style.translate = "";
+    if (!open) return;
+    const r = el.getBoundingClientRect(), over = r.right - (window.innerWidth - 8);
+    if (over > 0) el.style.translate = `${-Math.max(0, Math.min(over, r.left - 8))}px 0`;
+  }, [open]);
   return <span className="infotip" onMouseEnter={show} onMouseLeave={hide}>
     <button type="button" className="infotip-button" aria-label={label} aria-describedby={open ? id : undefined} onFocus={show} onBlur={hide} onKeyDown={e => { if (e.key === "Escape") hide(); }} onClick={() => setOpen(v => !v)}><Icon name="info" size={15} /></button>
-    <span role="tooltip" id={id} className="infotip-bubble" data-open={open || undefined} data-instant={instant || undefined}>{text}</span>
+    <span ref={bubble} role="tooltip" id={id} className="infotip-bubble" data-open={open || undefined} data-instant={instant || undefined}>{text}</span>
   </span>;
 }
 
