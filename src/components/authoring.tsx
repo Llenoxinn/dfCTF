@@ -44,7 +44,7 @@ export default function Authoring({ bootstrap, goSettings }: { bootstrap: Bootst
   const shown = filter ? items.filter(i => i.status === filter) : items;
   const n = (s: ChallengeStatus) => items.filter(i => i.status === s).length;
   return <>
-    <div className="page-head"><div><h1>Authoring</h1><p>Write challenges, review other people’s, and publish them to the board.</p></div>{canCreate ? <div className="head-actions"><button className="button button-secondary" onClick={addRules} disabled={busy}>Rules challenge</button><button className="button button-primary" onClick={() => setSelected("new")}><Icon name="plus" size={16} />New challenge</button></div> : null}</div>
+    <div className="page-head"><div><h1>Authoring</h1><p>Write challenges, review other people’s, and publish them to the board.</p></div>{canCreate ? <div className="head-actions"><button className="button button-secondary" onClick={addRules} disabled={busy}>Rules challenge</button><button className="button button-primary" onClick={() => setSelected("new")} disabled={busy}><Icon name="plus" size={16} />New challenge</button></div> : null}</div>
     <ol className="workflow" aria-label="Publishing workflow">
       {([["draft", "Write the description, walkthrough, and flag. Attach files."], ["review", "Someone other than the author downloads the files and solves it."], ["published", "The reviewer’s correct flag publishes it to the board."]] as const).map(([s, t]) => <li key={s}><strong className={s === "published" ? "accent" : ""}>{n(s)}</strong><div><StatusBadge status={s} /><span className="muted">{t}</span></div></li>)}
     </ol>
@@ -108,6 +108,12 @@ function ChallengeEditor({ id, role, viewerId, close }: { id: string; role: stri
     try { await api(`/api/v1/staff/challenges/${encodeURIComponent(currentId)}${status === "publish" ? "/publish" : ""}`, { method: status === "publish" ? "POST" : "PATCH", body: status === "publish" ? JSON.stringify({ flag: testFlag }) : JSON.stringify({ status }) }); await read(currentId); setTestFlag(""); setMessage(status === "publish" ? "Published. The challenge is now on the board." : status === "review" ? "Sent for review. A reviewer other than the author can publish it." : status === "draft" ? "Returned to draft. Make your corrections, save, and send it for review again." : "Archived. The challenge is no longer on the board."); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not update the status."); } finally { setBusy(false); }
   }
+
+  if (!loading && id !== "new" && !detail) return <>
+    <button className="text-button back-link" onClick={close}><Icon name="back" size={16} />Back to authoring</button>
+    <div className="page-head"><h1>Could not open this challenge</h1></div>
+    <Notice type="error">{error || "Return to authoring and try opening the challenge again."}</Notice>
+  </>;
 
   const checklist = [
     { done: form.title.trim().length >= 3 && form.summary.trim().length >= 10, label: "Title and summary" },
