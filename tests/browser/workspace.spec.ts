@@ -58,6 +58,9 @@ test("a late submission cannot solve or reveal a walkthrough on the next challen
   await page.getByLabel("Flag", { exact: true }).fill("dfCTF{first_case}");
   await page.getByRole("button", { name: "Submit flag", exact: true }).click();
   await expect.poll(() => submitted).toBe(true);
+  // The challenge is a modal, so the header behind it is inert until the dialog closes.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "This week", exact: true }).click();
   await expect(page.getByRole("heading", { name: next.title, exact: true })).toBeVisible();
   await page.getByLabel("Flag", { exact: true }).fill("dfCTF{next_case}");

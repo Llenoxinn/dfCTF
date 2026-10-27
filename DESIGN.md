@@ -33,7 +33,9 @@ Radius is 2px everywhere. Elevation is borders; shadows only on floating menus, 
 
 ## Components
 
-- **ChallengeCard** (`cards.tsx`): category, points, title, difficulty pips + label, ASCII status. 3px difficulty stripe on the left edge. States: open, solved, weekly (accent border), progress.
+- **ChallengeCard** (`cards.tsx`): ASCII status and points on top, the title, then difficulty pips + label and solve count. No colored edge stripe; difficulty color lives only in the pips. Category shows only on standalone cards (the board already groups by category). States: open, solved (title recedes to muted), weekly (accent border), progress.
+- **Challenge dialog**: opening a challenge shows a native `<dialog>` over the current page (description, files, flag, walkthrough, solvers). The URL keeps `?challenge=` for deep links; Escape, the close button, or the backdrop close it and return focus to the card. Full-screen sheet under 560px.
+- **Loaders**: `Spinner` is a 3x3 pixel ring with one lit cell chasing its tail (buttons); `Loading` is a 12-cell meter with a light sweeping through it (content). Both are CSS-only. Boot and gate screens sit on the ASCII light field.
 - **Meter**: 20 pixel cells; any non-zero value shows at least one. Tone accent (top 3, you) or ink.
 - **Pips / Difficulty**: three 4x10 bars in the difficulty color, always next to the written label.
 - **Identicon**: 5x5 mirrored pixels hashed from the codename (`lib/pixel.ts`). The signed-in player's is yellow.
@@ -42,8 +44,8 @@ Radius is 2px everywhere. Elevation is borders; shadows only on floating menus, 
 - **RaceChart**: pixel-stepped rank lines (leader yellow and thick, ranks 2-3 bone, the rest at 30%), square markers at 20:00 snapshots, solves-per-hour bars with yellow first-blood caps, end table with movement. Hovering a name isolates its line.
 - **Radar**: dithered polygon of solved/total per category.
 - **Countdown**: four unit cells in Geist Mono, a 7-day week meter, red in the final hour. Digits swap without animation.
-- **Hexdump** (landing hero): a challenge file with the flag's bytes lit in yellow.
-- **Backgrounds**: `gradient-ascii.jsx` (React Bits, recolored, gradient and glow at 0; hides itself if WebGL is lost) and `faulty-terminal.tsx` (canvas 2D block glyphs, written for dfCTF). Both pause off-screen and hold still under reduced motion.
+- **Backgrounds**: `ascii-field.tsx` (canvas 2D ASCII light field: landing hero, boot and gate screens) and `faulty-terminal.tsx` (canvas 2D block glyphs, closing band). Both pause off-screen and hold still under reduced motion.
+- **Navigation**: the wordmark always leads home (the landing page, `/?view=home` when signed in). Settings lives in the profile menu, not the tab row. The landing footer has no oversized wordmark.
 
 ## Motion
 
@@ -52,7 +54,9 @@ Easing token `--ease-out: cubic-bezier(.23, 1, .32, 1)`. Only transform, opacity
 | Where | Motion | Why |
 | --- | --- | --- |
 | Buttons | active scale 0.96, 150ms ease-out; disabled never scales | feedback |
-| Hero | GradientASCII drift; hexdump scramble, scan, highlight once per visit | explanation |
+| Hero | ASCII field drift and decode-in | ambient |
+| Challenge dialog | opacity + 8px rise, 180ms ease-out; backdrop fades | spatial |
+| Loaders | opacity-only pixel trail / sweep; under reduced motion a slow pulse | state |
 | Correct flag | verdict decodes (40ms/char), then +pts fades up 300ms with 8px rise and 4px blur | state change |
 | Wrong flag | input shakes 4px, 280ms; danger border | feedback |
 | FAQ | grid-template-rows 0fr to 1fr, 250ms | state change |

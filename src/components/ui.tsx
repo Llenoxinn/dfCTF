@@ -87,11 +87,9 @@ export function useReducedMotion() {
   return reduced;
 }
 
-const SPIN = ["|", "/", "-", "\\"];
+/** Eight pixels around a 3x3 ring with one bright cell chasing its fading tail. CSS-only, so it keeps moving while the main thread is busy. */
 export function Spinner() {
-  const [i, setI] = useState(0);
-  useEffect(() => { const t = window.setInterval(() => setI(v => (v + 1) % 4), 90); return () => window.clearInterval(t); }, []);
-  return <span className="spinner" aria-hidden="true">[{SPIN[i]}]</span>;
+  return <span className="pixel-spin" aria-hidden="true">{Array.from({ length: 8 }, (_, i) => <i key={i} />)}</span>;
 }
 
 const GLYPHS = "#%&*+=?@$!<>/\\";
@@ -110,7 +108,7 @@ export function DecodeText({ text, className = "" }: { text: string; className?:
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
   }, [text, reduced]);
-  return <span className={className} aria-label={text}><span aria-hidden="true">{shown}</span></span>;
+  return <span className={className}><span aria-hidden="true">{shown}</span><span className="sr-only">{text}</span></span>;
 }
 
 export function useTheme() {
@@ -127,8 +125,30 @@ export function Notice({ children, type = "info" }: { children: ReactNode; type?
   return <div className={`notice notice-${type}`} role={type === "error" ? "alert" : "status"}><Icon name={type === "success" ? "check" : type === "error" ? "alert" : "info"} size={17} /><div>{children}</div></div>;
 }
 
+/** A pixel meter with a light sweeping through it, the same cells the progress meters use. */
 export function Loading({ label = "Loading" }: { label?: string }) {
-  return <div className="loading" role="status"><Spinner />{label}<span className="sr-only">. Please wait.</span></div>;
+  return <div className="loading" role="status"><span className="pixel-scan" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} />)}</span><span className="mono">{label}</span><span className="sr-only">. Please wait.</span></div>;
+}
+
+/** A native modal dialog: the page behind goes inert, Escape and the backdrop close it, and focus returns to whatever opened it. */
+export function Modal({ labelledBy, onClose, children, className = "" }: { labelledBy: string; onClose: () => void; children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+  const downOnBackdrop = useRef(false);
+  useEffect(() => {
+    const dialog = ref.current!;
+    opener.current ??= document.activeElement as HTMLElement | null;
+    if (!dialog.open) dialog.showModal();
+    return () => { if (opener.current?.isConnected) opener.current.focus({ preventScroll: true }); };
+  }, []);
+  // The dialog scrolls itself, so a click on its scrollbar also targets it; only a point outside its box is the backdrop.
+  const outside = (e: { clientX: number; clientY: number; target: EventTarget; currentTarget: HTMLDialogElement }) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    return e.target === e.currentTarget && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom);
+  };
+  return <dialog ref={ref} className={`modal ${className}`} aria-labelledby={labelledBy} onClose={onClose}
+    onPointerDown={e => { downOnBackdrop.current = outside(e); }}
+    onClick={e => { if (downOnBackdrop.current && outside(e)) ref.current?.close(); }}>{children}</dialog>;
 }
 
 export function Empty({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {

@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { Bootstrap, ChallengeDetail, ChallengeSummary, Leaderboard, Progress, Viewer } from "@/lib/types";
 import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
 import { countdownParts } from "@/lib/week";
+import AsciiField from "./ascii-field";
 import AuthPanel, { LocalInbox, type AuthMode } from "./auth-panel";
 import Authoring from "./authoring";
 import AccountSecurity from "./account-security";
@@ -11,14 +12,15 @@ import Competitions, { type CompetitionRoute } from "./competitions";
 import Landing from "./landing";
 import { ChallengeCard, type CardState } from "./cards";
 import { Heatmap, Radar, RaceChart, SolveGrid } from "./viz";
-import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Notice, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
+import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Modal, Notice, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
 
-type View = "practice" | "leaderboard" | "progress" | "competitions" | "authoring" | "settings";
-const VIEWS: { id: View; label: string; staff?: boolean }[] = [
+type View = "home" | "practice" | "leaderboard" | "progress" | "competitions" | "authoring" | "settings";
+// Settings lives in the profile menu; home is the landing page behind the wordmark.
+const TABS: { id: View; label: string; staff?: boolean }[] = [
   { id: "practice", label: "Challenges" }, { id: "leaderboard", label: "Leaderboard" }, { id: "progress", label: "Progress" },
-  { id: "competitions", label: "Competitions" },
-  { id: "authoring", label: "Authoring", staff: true }, { id: "settings", label: "Settings" },
+  { id: "competitions", label: "Competitions" }, { id: "authoring", label: "Authoring", staff: true },
 ];
+const VIEWS: View[] = ["home", ...TABS.map(t => t.id), "settings"];
 
 function hrefFor(view: View, challenge = "") {
   const params = new URLSearchParams({ view });
@@ -60,7 +62,7 @@ export default function Workspace() {
     function readLocation() {
       const params = new URLSearchParams(window.location.search);
       const requested = params.get("view");
-      setView(VIEWS.some(v => v.id === requested) ? requested as View : "practice");
+      setView(VIEWS.includes(requested as View) ? requested as View : "practice");
       setSelected(requested === "competitions" ? "" : params.get("challenge") ?? "");
       setCompetitionRoute({eventId:params.get("competition")??"",challengeId:requested==="competitions"?params.get("challenge")??"":""});
       const auth = params.get("auth");
@@ -96,9 +98,10 @@ export default function Workspace() {
     document.getElementById("main-content")?.focus({ preventScroll: true });
   }
   function openCompetition(eventId="",challengeId="") {
+    const moved = !challengeId && eventId !== competitionRoute.eventId;
     setView("competitions");setSelected("");setCompetitionRoute({eventId,challengeId});
     const params=new URLSearchParams({view:"competitions",...(eventId?{competition:eventId}:{}),...(challengeId?{challenge:challengeId}:{})});
-    window.history.pushState(null,"",`/?${params}`);window.scrollTo({top:0,behavior:"instant"});
+    window.history.pushState(null,"",`/?${params}`);if(moved)window.scrollTo({top:0,behavior:"instant"});
   }
   function openAuth(mode: AuthMode | null) {
     setAuthMode(mode);
@@ -110,57 +113,70 @@ export default function Workspace() {
     catch (err) { setBootError(err instanceof Error ? err.message : "Could not sign out. Please try again."); }
   }
 
-  if (bootError && !bootstrap) return <div className="center-screen"><Wordmark /><div className="gate-card"><Notice type="error">{bootError}</Notice><button className="button button-primary" onClick={refresh}>Try again</button></div></div>;
-  if (!bootstrap) return <div className="center-screen"><Wordmark /><Loading label="Opening dfCTF" /></div>;
+  if (bootError && !bootstrap) return <Screen><Wordmark size="lg" /><div className="gate-card"><Notice type="error">{bootError}</Notice><button className="button button-primary" onClick={refresh}>Try again</button></div></Screen>;
+  if (!bootstrap) return <Screen><Wordmark size="lg" /><Loading label="Opening dfCTF" /></Screen>;
   if (authMode === "reset" || !bootstrap.user) return authMode ? <AuthPanel key={authMode === "reset" ? "reset" : "account"} bootstrap={bootstrap} refresh={refresh} initialMode={authMode} back={() => openAuth(null)} /> : <Landing signIn={() => openAuth("signin")} createAccount={() => openAuth("signup")} />;
   if (!bootstrap.hasAccess) return <AccessGate bootstrap={bootstrap} refresh={refresh} signOut={signOut} />;
   if (!bootstrap.user.codename) return <Onboarding user={bootstrap.user} refresh={refresh} />;
+  if (view === "home") return <Landing signIn={() => navigate("leaderboard")} createAccount={() => navigate("practice")} enter={navigate} />;
 
   const user = bootstrap.user;
   const codename = user.codename!;
   const staff = user.role !== "participant";
   const activeView = view === "authoring" && !staff ? "practice" : view;
   const weekly = challenges.find(isWeekly);
+  // A challenge opens as a dialog over the current page, so closing it keeps your place and scroll.
+  const openChallenge = (id: string) => { setSelected(id); window.history.pushState(null, "", hrefFor(activeView, id)); };
+  const closeChallenge = () => { setSelected(""); window.history.pushState(null, "", hrefFor(activeView)); };
 
   return <div className="app">
     <a className="skip-link" href="#main-content">Skip to content</a>
     <header className="app-bar">
-      <a href={hrefFor("practice")} className="brand-link" aria-label="dfCTF challenges" onClick={e => inPlace(e, () => navigate("practice"))}><Wordmark /></a>
-      <nav className="tabs" aria-label="Main">{VIEWS.filter(v => !v.staff || staff).flatMap(v => {
-        const tab = <a key={v.id} className="tab" href={hrefFor(v.id)} aria-current={activeView === v.id && !selected ? "page" : undefined} data-active={(activeView === v.id && (!weekly || selected !== weekly.id)) || undefined} onClick={e => inPlace(e, () => navigate(v.id))}>{v.label}</a>;
-        return v.id === "leaderboard" && weekly ? [tab, <a key="week" className="tab" href={hrefFor("practice", weekly.id)} aria-current={selected === weekly.id ? "page" : undefined} data-active={selected === weekly.id || undefined} onClick={e => inPlace(e, () => navigate("practice", weekly.id))}>This week</a>] : [tab];
-      })}<a className="tab" href="/rules" aria-label="Rules / Mechanics">Rules</a></nav>
+      <a href={hrefFor("home")} className="brand-link" aria-label="dfCTF home" onClick={e => inPlace(e, () => navigate("home"))}><Wordmark /></a>
+      <nav className="tabs" aria-label="Main">{TABS.filter(v => !v.staff || staff).flatMap(v => {
+        const current = activeView === v.id && (!weekly || selected !== weekly.id);
+        const tab = <a key={v.id} className="tab" href={hrefFor(v.id)} aria-current={current ? "page" : undefined} onClick={e => inPlace(e, () => navigate(v.id))}>{v.label}</a>;
+        return v.id === "leaderboard" && weekly ? [tab, <a key="week" className="tab" href={hrefFor("practice", weekly.id)} aria-current={selected === weekly.id ? "page" : undefined} onClick={e => inPlace(e, () => navigate("practice", weekly.id))}>This week</a>] : [tab];
+      })}<a className="tab" href="/rules">Rules</a></nav>
       <span className="spacer" />
-      <label className="app-search"><span className="sr-only">Search challenges</span><input type="search" placeholder="Search challenges" value={query} onChange={e => { setQuery(e.target.value); if (activeView !== "practice" || selected) navigate("practice"); }} onKeyDown={e => { if (e.key === "Escape") setQuery(""); }} /><kbd aria-hidden="true">/</kbd></label>
-      {board?.viewer ? <span className="standing-pill mono"><b>#{board.viewer.rank}</b>{(progress?.totalXp ?? 0).toLocaleString()} pts</span> : <span className="standing-pill mono">{(progress?.totalXp ?? 0).toLocaleString()} pts</span>}
+      <span className="standing-pill mono">{board?.viewer ? <b><span className="sr-only">Rank </span>#{board.viewer.rank}</b> : null}{(progress?.totalXp ?? 0).toLocaleString()} pts</span>
       <ProfileMenu codename={codename} onSettings={() => navigate("settings")} onSignOut={signOut} />
     </header>
     <main className="app-main" id="main-content" tabIndex={-1}>
       {bootError ? <Notice type="error">{bootError}</Notice> : null}
       {dataError ? <Notice type="error">{dataError} <button className="text-button" onClick={loadData}>Try again</button></Notice> : null}
-      {selected ? <ChallengeView key={selected} id={selected} back={() => navigate("practice")} onSolved={loadData} />
-        : activeView === "settings" ? <Settings bootstrap={bootstrap} refresh={refresh} signOut={signOut} board={board} progress={progress} />
+      {activeView === "settings" ? <Settings bootstrap={bootstrap} refresh={refresh} signOut={signOut} board={board} progress={progress} />
         : activeView === "authoring" ? <Authoring bootstrap={bootstrap} goSettings={() => navigate("settings")} />
         : activeView === "competitions" ? <Competitions bootstrap={bootstrap} route={competitionRoute} open={openCompetition} goSettings={() => navigate("settings")} renderChallenge={(eventId,id,back,onSolved) => <ChallengeView key={`${eventId}:${id}`} id={id} competitionId={eventId} back={back} onSolved={onSolved} />} />
         : dataBusy && !progress ? <Loading label="Loading the board" />
         : activeView === "leaderboard" ? <LeaderboardView initial={board} progress={progress} viewer={codename} />
-        : activeView === "progress" ? <ProgressView progress={progress} board={board} total={challenges.length} open={id => navigate("practice", id)} browse={() => navigate("practice")} />
-        : <Library challenges={challenges} progress={progress} board={board} query={query} setQuery={setQuery} open={id => navigate("practice", id)} />}
+        : activeView === "progress" ? <ProgressView progress={progress} board={board} total={challenges.length} open={openChallenge} browse={() => navigate("practice")} />
+        : <Library challenges={challenges} progress={progress} board={board} query={query} setQuery={setQuery} open={openChallenge} />}
+      {selected && activeView !== "competitions" ? <ChallengeView key={selected} id={selected} back={closeChallenge} onSolved={loadData} /> : null}
     </main>
   </div>;
 }
 
+/** Full-screen gate (boot, email check, codename) over a slow ASCII light field. */
+function Screen({ children }: { children: ReactNode }) {
+  return <div className="center-screen"><AsciiField className="screen-ascii" ox={0.5} oy={1.08} rx={0.75} ry={0.7} fadeFrom={-1} fadeTo={0} />{children}</div>;
+}
+
 function ProfileMenu({ codename, onSettings, onSignOut }: { codename: string; onSettings: () => void; onSignOut: () => void }) {
-  const [open, setOpen] = useState(false); const root = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false); const root = useRef<HTMLDivElement>(null); const button = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
-    const close = (e: Event) => { if (e instanceof KeyboardEvent ? e.key === "Escape" : !root.current?.contains(e.target as Node)) setOpen(false); };
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent) { if (e.key === "Escape") { setOpen(false); button.current?.focus(); } }
+      else if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
     window.addEventListener("pointerdown", close); window.addEventListener("keydown", close);
     return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", close); };
   }, [open]);
+  // A disclosure, not role="menu": two plain buttons need no arrow-key model.
   return <div className="profile" ref={root}>
-    <button type="button" className="profile-button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(v => !v)}><Identicon name={codename} you /><span className="mono">{codename}</span><Icon name="down" size={14} /></button>
-    {open ? <div className="menu" role="menu"><button role="menuitem" onClick={() => { setOpen(false); onSettings(); }}>Settings</button><button role="menuitem" onClick={() => { setOpen(false); onSignOut(); }}><Icon name="exit" size={15} />Sign out</button></div> : null}
+    <button ref={button} type="button" className="profile-button" aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} you /><span className="mono">{codename}</span><Icon name="down" size={14} /></button>
+    {open ? <div className="menu" id="profile-actions"><button type="button" onClick={() => { setOpen(false); onSettings(); }}>Settings</button><button type="button" onClick={() => { setOpen(false); onSignOut(); }}><Icon name="exit" size={15} />Sign out</button></div> : null}
   </div>;
 }
 
@@ -229,7 +245,7 @@ function Library({ challenges, progress, board, query, setQuery, open }: { chall
           : mode === "list" ? <ChallengeTable items={filtered} open={open} />
           : CATEGORIES.filter(c => filtered.some(x => x.category === c)).map(category => { const items = filtered.filter(x => x.category === category); const all = challenges.filter(x => x.category === category); const done = all.filter(x => x.solved).length; return <section className="category" key={category} aria-labelledby={`cat-${category}`}>
             <div className="category-head"><h2 id={`cat-${category}`}>{category}</h2><span className="spacer" /><Meter value={done} max={all.length} label={`${done} of ${all.length} solved`} /><span className="mono muted">{done}/{all.length} solved</span></div>
-            <div className="cards">{items.map(c => <ChallengeCard key={c.id} title={c.title} category={c.category} xp={c.xp} difficulty={c.difficulty} solveCount={c.solveCount} state={cardState(c)} href={hrefFor("practice", c.id)} onOpen={e => inPlace(e, () => open(c.id))} />)}</div>
+            <div className="cards">{items.map(c => <ChallengeCard key={c.id} title={c.title} xp={c.xp} difficulty={c.difficulty} solveCount={c.solveCount} state={cardState(c)} href={hrefFor("practice", c.id)} onOpen={e => inPlace(e, () => open(c.id))} />)}</div>
           </section>; })}
       </div>
     </div>
@@ -239,12 +255,12 @@ function Library({ challenges, progress, board, query, setQuery, open }: { chall
 function ChallengeTable({ items, open }: { items: ChallengeSummary[]; open: (id: string) => void }) {
   return <div className="table" role="table" aria-label="Challenges">
     <div className="tr th" role="row"><span role="columnheader">Challenge</span><span role="columnheader">Category</span><span role="columnheader">Level</span><span role="columnheader">Time</span><span role="columnheader">Points</span><span role="columnheader">Status</span></div>
-    {items.map(c => <a key={c.id} className={`tr diff-${c.difficulty.toLowerCase()}`} role="row" href={hrefFor("practice", c.id)} onClick={e => inPlace(e, () => open(c.id))}>
-      <span role="cell" className="td-title"><strong>{c.title}</strong><span>{c.summary}</span></span>
+    {items.map(c => { const [glyph, status] = c.solved ? ["[x]", "solved"] : c.attempted ? ["[~]", "in progress"] : ["[ ]", "open"]; return <div key={c.id} className="tr" role="row">
+      <span role="cell" className="td-title"><a className="row-link" href={hrefFor("practice", c.id)} onClick={e => inPlace(e, () => open(c.id))}><strong>{c.title}</strong></a><span>{c.summary}</span></span>
       <span role="cell" className="muted">{c.category}</span><span role="cell"><Difficulty value={c.difficulty} /></span>
       <span role="cell" className="mono muted">{c.estimatedMinutes} min</span><span role="cell" className="mono strong">{c.xp}</span>
-      <span role="cell" className={`mono ${c.solved ? "accent" : "faint"}`}>{c.solved ? "[x] solved" : c.attempted ? "[~] in progress" : "[ ] open"}</span>
-    </a>)}
+      <span role="cell" className={`mono ${c.solved ? "accent" : "faint"}`}><span aria-hidden="true">{glyph} </span>{status}</span>
+    </div>; })}
   </div>;
 }
 
@@ -271,61 +287,63 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
       if (response.status !== "incorrect") await refreshSolvers();
     } catch (err) { setError(err instanceof Error ? err.message : "Could not submit your flag."); } finally { setBusy(false); }
   }
-  if (loadError) return <><button className="text-button back-link" onClick={back}><Icon name="back" size={16} />Back to challenges</button><Empty title="This challenge isn’t available" action={<button className="button button-secondary" onClick={back}>Back to challenges</button>}>{loadError}</Empty></>;
-  if (!challenge) return <Loading label="Opening the challenge" />;
-  const level = challenge.difficulty.toLowerCase();
-  const solvers = challenge.solvers ?? [], latest = solvers.slice(-5).reverse();
+  const backLabel = competitionId ? "Back to the competition" : "Back to challenges";
+  const level = challenge?.difficulty.toLowerCase();
+  const solvers = challenge?.solvers ?? [], latest = solvers.slice(-5).reverse();
   const firstBlood = solvers.find(s => s.firstBlood);
-  return <article className="challenge">
-    <button className="text-button back-link" onClick={back}><Icon name="back" size={16} />{competitionId ? "Back to competition" : "Back to challenges"}</button>
-    <header className="challenge-head">
-      <div className="tags"><span className="tag">{challenge.category.toLowerCase()}</span><span className={`tag tag-${level}`}>{level}</span>{isWeekly(challenge) ? <span className="tag tag-accent">this week</span> : null}<span className="spacer" /><span className="mono accent strong points">{challenge.xp} pts</span></div>
-      <h1>{challenge.title}</h1>
-      <p className="challenge-summary">{challenge.summary}</p>
-      <div className="challenge-meta muted">{latest.length ? <span className="solver-stack" aria-hidden="true">{latest.map((s,i) => <Identicon key={i} name={s.codename} size={26} />)}</span> : null}
-        <span>{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}{latest.length ? <>, latest by <span className="mono">{latest[0].codename}</span></> : ""}. About {challenge.estimatedMinutes} min. Author <span className="mono">{challenge.author}</span>, version {challenge.version}.</span></div>
-    </header>
-    <div className="challenge-grid">
-      <div className="challenge-main">
-        <section className="panel" aria-labelledby="desc-title"><div className="panel-head"><h2 id="desc-title">Description</h2></div><div className="panel-pad"><Content text={challenge.description} />{challenge.tags.includes("rules") ? <a className="button button-secondary" href="/rules">Read Rules / Mechanics</a> : null}{challenge.tags.length ? <ul className="tag-list" aria-label="Tags">{challenge.tags.map(t => <li key={t} className="tag">{t}</li>)}</ul> : null}</div></section>
-        <section className="panel" aria-labelledby="files-title"><div className="panel-head"><h2 id="files-title">Files</h2><span className="spacer" /><span className="mono muted">{challenge.files.length} {challenge.files.length === 1 ? "file" : "files"}</span></div>
-          {challenge.files.length ? <ul className="files">{challenge.files.map(file => <li key={file.id}>
-            <div className="file-info"><span className="mono strong">{file.name}</span><span className="mono faint">{humanSize(file.size)}</span><span className="checksum mono">sha256 <code>{file.sha256}</code><CopyButton value={file.sha256} label={`Copy the SHA-256 checksum for ${file.name}`} /></span></div>
-            <a className="button button-secondary" href={`${endpoint}/files/${encodeURIComponent(file.id)}`} download><Icon name="download" size={16} />Download</a>
-          </li>)}</ul> : <p className="muted panel-pad">This challenge has no files. Everything you need is in the description.</p>}
-        </section>
-        {challenge.solved && challenge.solution ? <section className="panel unlocked" aria-labelledby="walk-title"><div className="panel-head"><h2 id="walk-title">Walkthrough</h2><span className="spacer" /><span className="mono accent">[open]</span></div><div className="panel-pad"><Content text={challenge.solution} /></div></section>
-          : <section className="locked" aria-label="Walkthrough"><span className="mono faint">[locked]</span>The walkthrough opens after you capture the flag.</section>}
-      </div>
-      <aside className="challenge-side">
-        <section className="panel submit" aria-labelledby="submit-title">
-          {challenge.solved ? <div className="captured">
-            <div className="verdict verdict-correct"><span className="mono">[x]</span>{result?.status === "correct" ? <DecodeText text="correct" className="mono strong" /> : <span className="mono strong">solved</span>}{result?.status === "correct" ? <span className="fade-up mono strong">+{result.xp} pts</span> : null}</div>
-            <h2 id="submit-title">Flag captured</h2>
-            <p className="muted">{result?.status === "correct" ? <>{competitionId ? "Your competition score" : "Your total"} is now <span className="mono">{result.totalXp.toLocaleString()}</span> points.</> : result?.status === "already_solved" ? "You had already solved this one, so no extra points. Your progress is saved." : <>This one is on your record for <span className="mono">{challenge.xp}</span> points.</>}</p>
-            <button className="button button-secondary" onClick={back}>Find another challenge</button>
-          </div> : <>
-            <h2 id="submit-title">Submit the flag</h2>
-            {challenge.submissionsOpen === false ? <Notice>This competition has ended. Submissions are closed.</Notice> : null}
-            <p className="muted">Flags look like <code>{challenge.flagFormat.replace(/^dfctf/i, "dfCTF")}</code>. Paste the whole thing, wrapper included.</p>
-            <form onSubmit={submit} className="stack">
-              <label className="field"><span>Flag</span><input key={miss} className={`flag-input${result?.status === "incorrect" ? " shake is-wrong" : ""}`} value={flag} onChange={e => setFlag(e.target.value)} placeholder="dfCTF{...}" required maxLength={1000} autoComplete="off" spellCheck={false} autoCapitalize="off" disabled={busy || challenge.submissionsOpen === false} /></label>
-              <button className="button button-primary block" disabled={busy || !flag.trim() || challenge.submissionsOpen === false}>{busy ? <><Spinner />Checking</> : "Submit flag"}</button>
-            </form>
-            {result?.status === "incorrect" ? <p className="verdict verdict-wrong mono" role="alert">[ ] incorrect. Nothing was deducted; check the files again.</p> : null}
-            {error ? <Notice type="error">{error}</Notice> : null}
-            <p className="fine">Wrong answers never cost points. After several quick misses you’ll see a short cooldown.</p>
-          </>}
-        </section>
-      </aside>
+  return <Modal labelledBy="challenge-title" onClose={back} className="challenge-modal">
+    <div className="modal-bar">
+      {challenge ? <div className="tags"><span className="tag">{challenge.category.toLowerCase()}</span><span className={`tag tag-${level}`}>{level}</span>{isWeekly(challenge) ? <span className="tag tag-accent">this week</span> : null}</div> : null}
+      <span className="spacer" />
+      {challenge ? <span className="mono accent strong points">{challenge.xp} pts</span> : null}
+      <button type="button" className="icon-button" onClick={back} aria-label={competitionId ? "Close and return to the competition" : "Close challenge"}><Icon name="close" size={18} /></button>
     </div>
-    <section className="panel" aria-labelledby="solvers-title">
-      <div className="panel-head"><h2 id="solvers-title">Solvers</h2><span className="spacer" /><span className="mono muted">{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}</span><button className="text-button" onClick={refreshSolvers}>Refresh solves</button></div>
-      {solverError ? <div className="panel-pad"><Notice type="error">{solverError}</Notice></div> : null}
-      {firstBlood ? <div className="first-blood"><Identicon name={firstBlood.codename} size={36} /><div><strong>First blood</strong><span className="mono">{firstBlood.codename}</span></div><time dateTime={firstBlood.solvedAt}>{solveTime(firstBlood.solvedAt)}</time></div> : null}
-      {solvers.length ? <><p className="fine panel-pad solver-caption">Earliest solves first. Times are in Philippine time (UTC+8).</p><ol className="challenge-solvers">{solvers.slice(0,shownSolvers).map((s,i) => <li key={`${s.codename}:${i}`}><span className="mono faint">{i+1}</span><Identicon name={s.codename} /><strong className="mono solver-name">{s.codename}</strong>{s.firstBlood ? <span className="tag tag-accent">first blood</span> : null}<time dateTime={s.solvedAt}>{solveTime(s.solvedAt)}</time></li>)}</ol>{shownSolvers < solvers.length ? <div className="panel-pad"><button className="button button-secondary" onClick={() => setShownSolvers(n => n+20)}>Show more solvers</button></div> : null}</> : <p className="muted panel-pad">No solves yet. Capture the flag to claim first blood.</p>}
-    </section>
-  </article>;
+    {loadError ? <div className="modal-body"><h2 id="challenge-title" className="sr-only">Challenge unavailable</h2><Empty title="This challenge isn’t available" action={<button className="button button-secondary" onClick={back}>{backLabel}</button>}>{loadError}</Empty></div>
+    : !challenge ? <div className="modal-body"><h2 id="challenge-title" className="sr-only">Opening the challenge</h2><Loading label="Opening the challenge" /></div>
+    : <div className="modal-body challenge">
+      <header className="challenge-head">
+        <h2 id="challenge-title">{challenge.title}</h2>
+        <p className="challenge-summary">{challenge.summary}</p>
+        <div className="challenge-meta muted">{latest.length ? <span className="solver-stack" aria-hidden="true">{latest.map((s,i) => <Identicon key={i} name={s.codename} size={22} />)}</span> : null}
+          <span>{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}{latest.length ? <>, latest by <span className="mono">{latest[0].codename}</span></> : ""}. About {challenge.estimatedMinutes} min. By <span className="mono">{challenge.author}</span>, version {challenge.version}.</span></div>
+      </header>
+      <section className="modal-section" aria-label="Description"><Content text={challenge.description} />{challenge.tags.includes("rules") ? <a className="button button-secondary fit" href="/rules">Read Rules / Mechanics</a> : null}{challenge.tags.length ? <ul className="tag-list" aria-label="Tags">{challenge.tags.map(t => <li key={t} className="tag">{t}</li>)}</ul> : null}</section>
+      <section className="modal-section" aria-labelledby="files-title"><div className="section-head"><h3 id="files-title">Files</h3><span className="spacer" /><span className="mono muted">{challenge.files.length} {challenge.files.length === 1 ? "file" : "files"}</span></div>
+        {challenge.files.length ? <ul className="files">{challenge.files.map(file => <li key={file.id}>
+          <div className="file-info"><span className="mono strong">{file.name}</span><span className="mono faint">{humanSize(file.size)}</span><span className="checksum mono">sha256 <code>{file.sha256}</code><CopyButton value={file.sha256} label={`Copy the SHA-256 checksum for ${file.name}`} /></span></div>
+          <a className="button button-secondary" href={`${endpoint}/files/${encodeURIComponent(file.id)}`} download><Icon name="download" size={16} />Download</a>
+        </li>)}</ul> : <p className="muted">No files. Everything you need is in the description.</p>}
+      </section>
+      <section className="submit" aria-labelledby="submit-title">
+        {challenge.solved ? <div className="captured">
+          <div className="verdict verdict-correct"><span className="mono" aria-hidden="true">[x]</span>{result?.status === "correct" ? <DecodeText text="correct" className="mono strong" /> : <span className="mono strong">solved</span>}{result?.status === "correct" ? <span className="fade-up mono strong">+{result.xp} pts</span> : null}</div>
+          <h3 id="submit-title">Flag captured</h3>
+          <p className="muted">{result?.status === "correct" ? <>{competitionId ? "Your competition score" : "Your total"} is now <span className="mono">{result.totalXp.toLocaleString()}</span> points.</> : result?.status === "already_solved" ? "You had already solved this one, so no extra points. Your progress is saved." : <>This one is on your record for <span className="mono">{challenge.xp}</span> points.</>}</p>
+          <button className="button button-secondary" onClick={back}>{competitionId ? "Back to the competition" : "Find another challenge"}</button>
+        </div> : <>
+          <h3 id="submit-title">Submit the flag</h3>
+          {challenge.submissionsOpen === false ? <Notice>This competition has ended. Submissions are closed.</Notice> : null}
+          <p className="muted">Flags look like <code>{challenge.flagFormat.replace(/^dfctf/i, "dfCTF")}</code>. Paste the whole thing, wrapper included.</p>
+          <form onSubmit={submit} className="flag-row">
+            <label className="sr-only" htmlFor="flag-input">Flag</label>
+            <input id="flag-input" key={miss} className={`flag-input${result?.status === "incorrect" ? " shake is-wrong" : ""}`} value={flag} onChange={e => setFlag(e.target.value)} placeholder="dfCTF{...}" required maxLength={1000} autoComplete="off" spellCheck={false} autoCapitalize="off" disabled={busy || challenge.submissionsOpen === false} aria-invalid={result?.status === "incorrect" || undefined} aria-describedby={result?.status === "incorrect" ? "flag-verdict" : undefined} />
+            <button className="button button-primary" disabled={busy || !flag.trim() || challenge.submissionsOpen === false}>{busy ? <><Spinner />Checking</> : "Submit flag"}</button>
+          </form>
+          {result?.status === "incorrect" ? <p id="flag-verdict" className="verdict verdict-wrong mono" role="alert"><span aria-hidden="true">[ ] </span>incorrect. Nothing was deducted; check the files again.</p> : null}
+          {error ? <Notice type="error">{error}</Notice> : null}
+          <p className="fine">Wrong answers never cost points. After several quick misses you’ll see a short cooldown.</p>
+        </>}
+      </section>
+      {challenge.solved && challenge.solution ? <section className="modal-section unlocked" aria-labelledby="walk-title"><div className="section-head"><h3 id="walk-title">Walkthrough</h3><span className="spacer" /><span className="mono accent" aria-hidden="true">[open]</span></div><Content text={challenge.solution} /></section>
+        : <p className="locked"><span className="mono faint" aria-hidden="true">[locked]</span>The walkthrough opens after you capture the flag.</p>}
+      <section className="modal-section" aria-labelledby="solvers-title">
+        <div className="section-head"><h3 id="solvers-title">Solvers</h3><span className="spacer" /><span className="mono muted">{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}</span><button className="text-button" onClick={refreshSolvers}>Refresh</button></div>
+        {solverError ? <Notice type="error">{solverError}</Notice> : null}
+        {firstBlood ? <div className="first-blood"><Identicon name={firstBlood.codename} size={36} /><div><strong>First blood</strong><span className="mono">{firstBlood.codename}</span></div><time dateTime={firstBlood.solvedAt}>{solveTime(firstBlood.solvedAt)}</time></div> : null}
+        {solvers.length ? <><p className="fine">Earliest solves first. Times are in Philippine time (UTC+8).</p><ol className="challenge-solvers">{solvers.slice(0,shownSolvers).map((s,i) => <li key={`${s.codename}:${i}`}><span className="mono faint">{i+1}</span><Identicon name={s.codename} /><strong className="mono solver-name">{s.codename}</strong>{s.firstBlood ? <span className="tag tag-accent">first blood</span> : null}<time dateTime={s.solvedAt}>{solveTime(s.solvedAt)}</time></li>)}</ol>{shownSolvers < solvers.length ? <button className="button button-secondary fit" onClick={() => setShownSolvers(n => n+20)}>Show more solvers</button> : null}</> : <p className="muted">No solves yet. Capture the flag to claim first blood.</p>}
+      </section>
+    </div>}
+  </Modal>;
 }
 
 function solveTime(value: string) {
@@ -405,8 +423,8 @@ function AccessGate({ bootstrap, refresh, signOut }: { bootstrap: Bootstrap; ref
     catch (err) { setError(err instanceof Error ? err.message : "Could not send email."); } finally { setBusy(false); }
   }
   async function check() { setBusy(true); await refresh(); setBusy(false); setMessage(verified ? "Your account access is still suspended. Contact an administrator if you think this is a mistake." : ""); }
-  return <div className="center-screen">
-    <Wordmark />
+  return <Screen>
+    <Wordmark size="lg" />
     <div className="gate-card">
       <ol className="steps-inline" aria-label="Getting in"><li data-done>[x] Account created</li><li data-done={verified || undefined}>{verified ? "[x]" : "[ ]"} Email verified</li></ol>
       <h1>{verified ? "Access suspended" : "Check your inbox."}</h1>
@@ -419,7 +437,7 @@ function AccessGate({ bootstrap, refresh, signOut }: { bootstrap: Bootstrap; ref
       </div>
       {bootstrap.localMail ? <LocalInbox /> : null}
     </div>
-  </div>;
+  </Screen>;
 }
 
 const CODENAME = /^[A-Za-z0-9_.-]{3,24}$/;
@@ -427,8 +445,8 @@ function Onboarding({ user, refresh }: { user: Viewer; refresh: () => Promise<vo
   const [codename, setCodename] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   async function save(e: FormEvent) { e.preventDefault(); setBusy(true); setError(""); try { await api("/api/v1/me", { method: "PATCH", body: JSON.stringify({ codename }) }); await refresh(); } catch (err) { setError(err instanceof Error ? err.message : "Could not save codename."); } finally { setBusy(false); } }
   const valid = CODENAME.test(codename);
-  return <div className="center-screen">
-    <Wordmark />
+  return <Screen>
+    <Wordmark size="lg" />
     <div className="gate-card">
       <h1>Choose your codename</h1>
       <p className="muted">This is the name on the leaderboard. Your email, <strong>{user.email}</strong>, stays private.</p>
@@ -440,7 +458,7 @@ function Onboarding({ user, refresh }: { user: Viewer; refresh: () => Promise<vo
         <button className="button button-primary block" disabled={busy || !valid}>{busy ? "Saving" : "Save codename and start"}</button>
       </form>
     </div>
-  </div>;
+  </Screen>;
 }
 
 function Settings({ bootstrap, refresh, signOut, board, progress }: { bootstrap: Bootstrap; refresh: () => Promise<void>; signOut: () => Promise<void>; board: Leaderboard | null; progress: Progress | null }) {
@@ -471,24 +489,31 @@ function MfaSettings({ bootstrap, refresh }: { bootstrap: Bootstrap; refresh: ()
   async function verify(e: FormEvent) { e.preventDefault(); setBusy(true); setError(""); try { await api("/api/v1/auth/mfa/verify", { method: "POST", body: JSON.stringify({ code, method: backup && !setup ? "backup" : "totp" }) }); setCode(""); setSetup(null); await refresh(); } catch (err) { setError(err instanceof Error ? err.message : "Could not verify code."); } finally { setBusy(false); } }
   const secret = setup ? new URL(setup.totpURI).searchParams.get("secret") ?? "" : "";
   const enrolled = !!bootstrap.user?.twoFactorEnabled;
-  return <SettingsSection title="Staff verification" description="Authoring, review, and access tools need an authenticator app and a verified session. A verification lasts up to 12 hours.">
-    <ol className="steps-inline" aria-label="Staff verification steps"><li data-done={enrolled || !!setup || undefined}>{enrolled || setup ? "[x]" : "[ ]"} Authenticator connected</li><li data-done={bootstrap.staffVerified || undefined}>{bootstrap.staffVerified ? "[x]" : "[ ]"} This session verified</li></ol>
+  const codeForm = <form className="stack" onSubmit={verify}>
+    <div className="field"><label htmlFor="mfa-code">{backup && !setup ? "Backup code" : "Authenticator code"}</label><input id="mfa-code" className="mono code-input" value={code} onChange={e => setCode(e.target.value)} inputMode={backup && !setup ? "text" : "numeric"} autoComplete="one-time-code" placeholder={backup && !setup ? "Your saved backup code" : "6 digits"} required minLength={6} maxLength={20} disabled={busy} aria-describedby="mfa-code-help" />
+      <small id="mfa-code-help">{backup && !setup ? "Each backup code works once." : "Open your authenticator app and type the 6-digit code shown under dfCTF. It changes every 30 seconds."}</small></div>
+    <button className="button button-primary fit" disabled={busy}>{busy ? "Verifying" : "Verify code"}</button>
+    {enrolled && !setup ? <button type="button" className="text-button fit" disabled={busy} onClick={() => { setBackup(v => !v); setCode(""); setError(""); }}>{backup ? "Use an authenticator code instead" : "Use a backup code instead"}</button> : null}
+  </form>;
+  return <SettingsSection title="Staff verification" description="Authoring, review, and admin tools ask for a second step: a 6-digit code from an authenticator app on your phone. You enter it once per sign-in, and it lasts up to 12 hours.">
+    <ol className="steps-inline" aria-label="Staff verification steps"><li data-done={enrolled || undefined}><span aria-hidden="true">{enrolled ? "[x]" : "[ ]"} </span>Authenticator app linked</li><li data-done={bootstrap.staffVerified || undefined}><span aria-hidden="true">{bootstrap.staffVerified ? "[x]" : "[ ]"} </span>This session verified</li></ol>
     {error ? <Notice type="error">{error}</Notice> : null}
     {bootstrap.staffVerified ? <Notice type="success">This session is verified. Staff tools are unlocked.</Notice> : !enrolled && !setup ? <form className="stack" onSubmit={start}>
-      <label className="field"><span>Current password</span><input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" /><small>Leave this empty if you sign in with Google or GitHub.</small></label>
+      <p className="muted">You need a free authenticator app on your phone, such as Google Authenticator, Microsoft Authenticator, or 2FAS. dfCTF gives the app a secret key once, and the app turns it into a new 6-digit code every 30 seconds. Nobody sends you the code; you read it from the app.</p>
+      <label className="field"><span>Current password</span><input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" /><small>Leave this empty if you sign in with Google, GitHub, or Facebook.</small></label>
       <button className="button button-primary fit" disabled={busy}>{busy ? "Preparing" : "Set up authenticator"}</button>
-    </form> : <>
-      {setup ? <div className="mfa-setup">
-        <p>In your authenticator app, add an account with this setup key:</p>
-        <div className="setup-key"><code>{secret}</code><CopyButton value={secret} label="Copy the setup key" /></div>
-        <details><summary>Show the full authenticator link</summary><code className="break">{setup.totpURI}</code></details>
-        <div className="backup-codes"><strong>Save these backup codes somewhere safe.</strong><p className="muted">Each one works once if you lose your authenticator.</p><pre>{setup.backupCodes.join("\n")}</pre><CopyButton value={setup.backupCodes.join("\n")} label="Copy all backup codes" /></div>
-      </div> : <p className="muted">{backup ? "Enter one of your saved backup codes to unlock staff tools for this session. Each code works once." : "Enter the current code from your authenticator to unlock staff tools for this session."}</p>}
-      <form className="stack" onSubmit={verify}>
-        <label className="field"><span>{backup && !setup ? "Backup code" : "Authenticator code"}</span><input className="mono code-input" value={code} onChange={e => setCode(e.target.value)} inputMode={backup && !setup ? "text" : "numeric"} autoComplete="one-time-code" placeholder={backup && !setup ? "Your saved backup code" : "000000"} required minLength={6} maxLength={20} disabled={busy} /></label>
-        <button className="button button-primary fit" disabled={busy}>{busy ? "Verifying" : "Verify code"}</button>
-        {enrolled && !setup ? <button type="button" className="text-button fit" disabled={busy} onClick={() => { setBackup(v => !v); setCode(""); setError(""); }}>{backup ? "Use an authenticator code instead" : "Use a backup code instead"}</button> : null}
-      </form>
+    </form> : setup ? <ol className="mfa-steps">
+      <li><h3>Add dfCTF to your authenticator app</h3>
+        <p className="muted">In the app, tap <strong>+</strong>, choose <strong>Enter a setup key</strong> (some apps call it manual entry), name it dfCTF, and paste this key. Time-based is the default.</p>
+        <div className="setup-key"><code>{secret.match(/.{1,4}/g)?.join(" ")}</code><CopyButton value={secret} label="Copy the setup key" /></div>
+        <p className="fine">Reading this on the phone that has the app? <a className="text-button" href={setup.totpURI}>Open it in your authenticator</a></p></li>
+      <li><h3>Save your backup codes</h3>
+        <p className="muted">Keep them in a password manager. Each one works once if you lose your phone.</p>
+        <div className="backup-codes"><pre>{setup.backupCodes.join("\n")}</pre><CopyButton value={setup.backupCodes.join("\n")} label="Copy all backup codes" /></div></li>
+      <li><h3>Type the code the app shows</h3>{codeForm}</li>
+    </ol> : <>
+      <p className="muted">{backup ? "Enter one of your saved backup codes to unlock staff tools for this session." : "Your authenticator is linked. Enter its current code to unlock staff tools for this session."}</p>
+      {codeForm}
     </>}
   </SettingsSection>;
 }

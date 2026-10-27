@@ -22,11 +22,11 @@ export default function Competitions({bootstrap,goSettings,renderChallenge,route
     try{const data=selected?await api<CompetitionDetail>(`${base}/${encodeURIComponent(selected)}`):await api<Competition[]>(base);if(version!==requestVersion.current||currentLocation.current!==locationKey)return;if(selected)setDetail(data as CompetitionDetail);else setItems(data as Competition[]);setError("");}
     catch(err){if(version===requestVersion.current&&currentLocation.current===locationKey)setError(err instanceof Error?err.message:"Could not load competitions.");}finally{if(version===requestVersion.current&&currentLocation.current===locationKey)setLoading(false);}
   },[base,selected]);
-  useEffect(()=>{setEditor(null);setLoading(true);setDetail(null);void load();},[load,route]);
+  // Opening or closing a challenge dialog keeps the event page behind it instead of blanking it to a loader.
+  useEffect(()=>{setEditor(null);if(detail?.id!==route.eventId){setLoading(true);setDetail(null);}void load();},[load,route]);
   useEffect(()=>{if(!selected)return;const timer=window.setInterval(()=>void load(),30_000);return()=>window.clearInterval(timer);},[selected,load]);
   async function join(){if(!detail)return;setBusy(true);try{await api(`/api/v1/competitions/${encodeURIComponent(detail.id)}/join`,{method:"POST"});await load();}catch(err){setError(err instanceof Error?err.message:"Could not join this competition.");}finally{setBusy(false);}}
   if(editor!==null)return <CompetitionEditor key={editor} id={editor} close={()=>{setEditor(null);void load();}} />;
-  if(challenge&&selected)return renderChallenge(selected,challenge,()=>open(selected),load);
   return <>
     <div className="page-head"><div><h1>Competitions</h1><p>Scheduled CTF events, hosted here or on a CTFd server.</p></div><div className="head-actions">
       {host&&!canManage?<button className="button button-secondary" onClick={goSettings}>Verify staff session to host</button>:null}
@@ -60,6 +60,7 @@ export default function Competitions({bootstrap,goSettings,renderChallenge,route
     </>:!selected?<>{manage?<Notice>Create a draft, choose its host and schedule, then publish. Prepare competition-only challenges in Authoring and send them through independent review first.</Notice>:null}
       {items.length?<ul className="competition-list">{items.map(event=><li key={event.id}><div><div className="tags"><span className="tag">{event.platform==="dfctf"?"dfCTF":"CTFd"}</span><span className={event.phase==="live"?"accent":"muted"}>{phaseName[event.phase]}{manage?` · ${event.status}`:""}</span></div><h2><a href={href(event.id)} onClick={e=>{if(e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();open(event.id);}}>{event.title}</a></h2><p>{event.description}</p><span className="fine">{dateTime(event.startsAt)} – {dateTime(event.endsAt)} · Philippine time</span></div><button className="button button-secondary" onClick={()=>open(event.id)}>View event</button></li>)}</ul>:<Empty title={manage?"No competitions yet":"No competitions published yet"}>{manage?"Create an event with the hosting option that fits your competition.":"Published events will appear here with their schedule and hosting details."}</Empty>}
     </>:null}
+    {challenge&&selected?renderChallenge(selected,challenge,()=>open(selected),load):null}
   </>;
 }
 

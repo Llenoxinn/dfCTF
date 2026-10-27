@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Leaderboard, SolveEvent } from "@/lib/types";
 import { ditherPath, heatCellPath, heatLevel, relativeLevels } from "@/lib/pixel";
 import { countdownParts } from "@/lib/week";
-import { clock, Identicon, useReducedMotion } from "./ui";
+import { clock, Identicon } from "./ui";
 
 export function DitherArt({ width, height, cell = 4, density, className = "", label }: { width: number; height: number; cell?: number; density: (x: number, y: number) => number; className?: string; label?: string }) {
   const d = useMemo(() => ditherPath(width, height, cell, density), [width, height, cell, density]);
@@ -140,60 +140,4 @@ export function Ticker({ events }: { events: SolveEvent[] }) {
   if (!events.length) return null;
   const items = events.map((e, i) => <span className="tick" key={i}><span className="faint mono">{clock(e.at)}</span><span className="mono strong">{e.codename}</span><span className={e.firstBlood ? "mono accent" : "mono muted"}>{e.firstBlood ? "first blood" : "solved"}</span><span className="muted">{e.title}</span>{e.points ? <span className="mono accent strong">+{e.points}</span> : null}<span className="faint mono">//</span></span>);
   return <div className="ticker" aria-label="Recent solves"><span className="ticker-live mono">[live]</span><div className="ticker-track"><div className="ticker-run">{items}</div><div className="ticker-run" aria-hidden="true">{items}</div></div></div>;
-}
-
-const FLAG = "dfCTF{n0t_s0_h1dd3n}";
-function hexBytes() {
-  const pcap = [0xd4, 0xc3, 0xb2, 0xa1, 0x02, 0x00, 0x04, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0, 0x01, 0, 0, 0];
-  return Array.from({ length: 16 * 15 }, (_, i) => {
-    if (i < pcap.length) return pcap[i];
-    if (i >= 0x94 && i < 0x94 + FLAG.length) return FLAG.charCodeAt(i - 0x94);
-    let h = Math.imul(i + 7, 2654435761) >>> 0; h ^= h >>> 15; return h & 255;
-  });
-}
-
-/** A challenge file with its flag in plain sight: scramble, scan, highlight, submit. Plays once. */
-export function Hexdump() {
-  const reduced = useReducedMotion();
-  const bytes = useMemo(hexBytes, []);
-  const [phase, setPhase] = useState<"scramble" | "scan" | "found" | "done">("done");
-  const [row, setRow] = useState(15);
-  const [tick, setTick] = useState(0);
-  const [scan, setScan] = useState(-1);
-  const box = useRef<HTMLElement>(null);
-  // After the opening sequence, a scan line sweeps the rows every few seconds while the panel is on screen.
-  useEffect(() => {
-    if (reduced || phase !== "done") return;
-    let visible = true, timers: number[] = [];
-    const io = new IntersectionObserver(e => { visible = e.some(x => x.isIntersecting); });
-    if (box.current) io.observe(box.current);
-    const sweep = window.setInterval(() => {
-      if (!visible || document.hidden) return;
-      setScan(0); timers = Array.from({ length: 16 }, (_, r) => window.setTimeout(() => setScan(r + 1 < 16 ? r + 1 : -1), (r + 1) * 70));
-    }, 6000);
-    return () => { io.disconnect(); window.clearInterval(sweep); timers.forEach(t => window.clearTimeout(t)); };
-  }, [reduced, phase]);
-  useEffect(() => {
-    if (reduced) { setPhase("done"); setRow(15); return; }
-    setPhase("scramble"); setRow(0);
-    const timers: number[] = [];
-    const spin = window.setInterval(() => setTick(t => t + 1), 60);
-    timers.push(window.setTimeout(() => { window.clearInterval(spin); setPhase("scan"); }, 600));
-    for (let r = 1; r <= 15; r++) timers.push(window.setTimeout(() => setRow(r), 600 + r * 40));
-    timers.push(window.setTimeout(() => setPhase("found"), 600 + 16 * 40 + 120));
-    timers.push(window.setTimeout(() => setPhase("done"), 600 + 16 * 40 + 1200));
-    return () => { window.clearInterval(spin); timers.forEach(t => window.clearTimeout(t)); };
-  }, [reduced]);
-  const inFlag = (i: number) => i >= 0x94 && i < 0x94 + FLAG.length && (phase === "found" || phase === "done");
-  return <figure ref={box} className="hexdump" aria-label={`A challenge file. The flag ${FLAG} is hidden in its bytes.`}>
-    <figcaption className="hexdump-head"><span className="mono strong">night-shift.pcap</span><span className="mono faint">1.8 MB</span><span className="spacer" /><span className="muted">Forensics, 300 pts</span></figcaption>
-    <div className="hexdump-body" aria-hidden="true">
-      {Array.from({ length: 15 }, (_, r) => <div key={r} className={`hex-row${(phase === "scan" && r === row) || r === scan ? " scanning" : ""}`}>
-        <span className="hex-off">{(r * 16).toString(16).padStart(8, "0")}</span>
-        <span className="hex-bytes">{bytes.slice(r * 16, r * 16 + 16).map((b, k) => { const i = r * 16 + k; const v = phase === "scramble" ? (b ^ ((tick * 31 + i * 17) & 255)) : b; return <span key={k} className={inFlag(i) ? "hit" : ""}>{v.toString(16).padStart(2, "0")}{k === 7 ? " " : ""}</span>; })}</span>
-        <span className="hex-ascii">{bytes.slice(r * 16, r * 16 + 16).map((b, k) => { const i = r * 16 + k; return <span key={k} className={inFlag(i) ? "hit" : ""}>{b >= 0x21 && b < 0x7f ? String.fromCharCode(b) : "."}</span>; })}</span>
-      </div>)}
-    </div>
-    <div className="hexdump-foot" aria-hidden="true"><span className="mono">&gt; submit {phase === "done" || phase === "found" ? FLAG : "dfCTF{...}"}</span>{phase === "done" ? <span className="mono accent strong fade-up">correct  +300 pts</span> : null}</div>
-  </figure>;
 }
