@@ -109,6 +109,12 @@ function ChallengeEditor({ id, role, viewerId, close }: { id: string; role: stri
     catch (err) { setError(err instanceof Error ? err.message : "Could not update the status."); } finally { setBusy(false); }
   }
 
+  if (!loading && id !== "new" && !detail) return <>
+    <button className="text-button back-link" onClick={close}><Icon name="back" size={16} />Back to authoring</button>
+    <div className="page-head"><h1>Could not open this challenge</h1></div>
+    <Notice type="error">{error || "Return to authoring and try opening the challenge again."}</Notice>
+  </>;
+
   const checklist = [
     { done: form.title.trim().length >= 3 && form.summary.trim().length >= 10, label: "Title and summary" },
     { done: form.description.trim().length >= 20, label: "Description" },
