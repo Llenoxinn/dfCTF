@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { Bootstrap, ChallengeDetail, ChallengeSummary, Leaderboard, Progress, Viewer } from "@/lib/types";
 import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
@@ -10,15 +11,16 @@ import Authoring from "./authoring";
 import AccountSecurity from "./account-security";
 import Competitions, { type CompetitionRoute } from "./competitions";
 import Landing from "./landing";
+import RulesContent from "./rules-content";
 import { ChallengeCard, type CardState } from "./cards";
 import { Heatmap, Radar, RaceChart, SolveGrid } from "./viz";
 import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Modal, Notice, Pips, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
 
-type View = "home" | "practice" | "leaderboard" | "progress" | "competitions" | "authoring" | "settings";
+type View = "home" | "practice" | "leaderboard" | "progress" | "competitions" | "authoring" | "rules" | "settings";
 // Settings lives in the profile menu; home is the landing page behind the wordmark.
 const TABS: { id: View; label: string; staff?: boolean }[] = [
   { id: "practice", label: "Challenges" }, { id: "leaderboard", label: "Leaderboard" }, { id: "progress", label: "Progress" },
-  { id: "competitions", label: "Competitions" }, { id: "authoring", label: "Authoring", staff: true },
+  { id: "competitions", label: "Competitions" }, { id: "authoring", label: "Authoring", staff: true }, { id: "rules", label: "Rules" },
 ];
 const VIEWS: View[] = ["home", ...TABS.map(t => t.id), "settings"];
 
@@ -38,8 +40,11 @@ const isWeekly = (c: { weeklyEndsAt?: string }) => !!c.weeklyEndsAt && new Date(
 const cardState = (c: ChallengeSummary): CardState => c.solved ? "solved" : isWeekly(c) ? "weekly" : c.attempted ? "progress" : "open";
 const roleName = (role: Viewer["role"]) => ({ participant: "Player", author: "Author", reviewer: "Reviewer", admin: "Administrator" })[role];
 
+// Only ever set in the browser (refresh runs from an effect), so server renders never share it between requests.
+let lastBootstrap: Bootstrap | null = null;
+
 export default function Workspace() {
-  const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
+  const [bootstrap, setBootstrap] = useState<Bootstrap | null>(() => lastBootstrap);
   const [bootError, setBootError] = useState("");
   const [view, setView] = useState<View>("practice");
   const [selected, setSelected] = useState("");
@@ -53,7 +58,7 @@ export default function Workspace() {
   const [dataError, setDataError] = useState("");
 
   const refresh = useCallback(async () => {
-    try { setBootstrap(await api<Bootstrap>("/api/v1/auth/bootstrap")); setBootError(""); }
+    try { lastBootstrap = await api<Bootstrap>("/api/v1/auth/bootstrap"); setBootstrap(lastBootstrap); setBootError(""); }
     catch (err) { setBootError(err instanceof Error ? err.message : "Could not connect to dfCTF."); }
   }, []);
 
@@ -135,18 +140,19 @@ export default function Workspace() {
       <a href={hrefFor("home")} className="brand-link" aria-label="dfCTF home" onClick={e => inPlace(e, () => navigate("home"))}><Wordmark /></a>
       <nav className="tabs" aria-label="Main">{TABS.filter(v => !v.staff || staff).flatMap(v => {
         const current = activeView === v.id && (!weekly || selected !== weekly.id);
-        const tab = <a key={v.id} className="tab" href={hrefFor(v.id)} aria-current={current ? "page" : undefined} onClick={e => inPlace(e, () => navigate(v.id))}>{v.label}</a>;
-        return v.id === "leaderboard" && weekly ? [tab, <a key="week" className="tab" href={hrefFor("practice", weekly.id)} aria-current={selected === weekly.id ? "page" : undefined} onClick={e => inPlace(e, () => navigate("practice", weekly.id))}>This week</a>] : [tab];
-      })}<a className="tab" href="/rules">Rules</a></nav>
+        const tab = <a key={v.id} className="tab" href={hrefFor(v.id)} aria-current={current ? "page" : undefined} onClick={e => inPlace(e, () => navigate(v.id))}><span>{v.label}</span></a>;
+        return v.id === "leaderboard" && weekly ? [tab, <a key="week" className="tab" href={hrefFor("practice", weekly.id)} aria-current={selected === weekly.id ? "page" : undefined} onClick={e => inPlace(e, () => navigate("practice", weekly.id))}><span>This week</span></a>] : [tab];
+      })}</nav>
       <span className="spacer" />
-      <span className="standing-pill mono">{board?.viewer ? <b><span className="sr-only">Rank </span>#{board.viewer.rank}</b> : null}{(progress?.totalXp ?? 0).toLocaleString()} pts</span>
-      <ProfileMenu codename={codename} onSettings={() => navigate("settings")} onSignOut={signOut} />
+      {board?.weekEndsAt ? <WeekChip endsAt={board.weekEndsAt} onOpen={e => inPlace(e, () => navigate("leaderboard"))} /> : null}
+      <ProfileMenu codename={codename} points={progress?.totalXp ?? 0} rank={board?.viewer?.rank} onSettings={() => navigate("settings")} onSignOut={signOut} />
     </header>
     <main className="app-main" id="main-content" tabIndex={-1}>
       {bootError ? <Notice type="error">{bootError}</Notice> : null}
       {dataError ? <Notice type="error">{dataError} <button className="text-button" onClick={loadData}>Try again</button></Notice> : null}
       {activeView === "settings" ? <Settings bootstrap={bootstrap} refresh={refresh} signOut={signOut} board={board} progress={progress} />
         : activeView === "authoring" ? <Authoring bootstrap={bootstrap} goSettings={() => navigate("settings")} />
+        : activeView === "rules" ? <RulesContent />
         : activeView === "competitions" ? <Competitions bootstrap={bootstrap} route={competitionRoute} open={openCompetition} goSettings={() => navigate("settings")} renderChallenge={(eventId,id,back,onSolved) => <ChallengeView key={`${eventId}:${id}`} id={id} competitionId={eventId} back={back} onSolved={onSolved} />} />
         : dataBusy && !progress ? <Loading label="Loading the board" />
         : activeView === "leaderboard" ? <LeaderboardView initial={board} progress={progress} viewer={codename} />
@@ -162,7 +168,7 @@ function Screen({ children }: { children: ReactNode }) {
   return <div className="center-screen"><AsciiField className="screen-ascii" ox={0.5} oy={1.08} rx={0.75} ry={0.7} fadeFrom={-1} fadeTo={0} />{children}</div>;
 }
 
-function ProfileMenu({ codename, onSettings, onSignOut }: { codename: string; onSettings: () => void; onSignOut: () => void }) {
+function ProfileMenu({ codename, points, rank, onSettings, onSignOut }: { codename: string; points: number; rank?: number; onSettings: () => void; onSignOut: () => void }) {
   const [open, setOpen] = useState(false); const root = useRef<HTMLDivElement>(null); const button = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -175,9 +181,15 @@ function ProfileMenu({ codename, onSettings, onSignOut }: { codename: string; on
   }, [open]);
   // A disclosure, not role="menu": two plain buttons need no arrow-key model.
   return <div className="profile" ref={root}>
-    <button ref={button} type="button" className="profile-button" aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} you /><span className="mono">{codename}</span><Icon name="down" size={14} /></button>
+    <button ref={button} type="button" className="profile-button" aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} size={32} you /><span className="profile-text"><span className="mono profile-name">{codename}</span><span className="standing-pill">{rank ? <b>#{rank} this week</b> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></span><Icon name="down" size={14} /></button>
     {open ? <div className="menu" id="profile-actions"><button type="button" onClick={() => { setOpen(false); onSettings(); }}>Settings</button><button type="button" onClick={() => { setOpen(false); onSignOut(); }}><Icon name="exit" size={15} />Sign out</button></div> : null}
   </div>;
+}
+
+/** When the weekly board resets, as a quiet link to the leaderboard. */
+function WeekChip({ endsAt, onOpen }: { endsAt: string; onOpen: (e: MouseEvent) => void }) {
+  const left = useCountdownLabel(endsAt);
+  return left ? <a className="week-chip" href={hrefFor("leaderboard")} onClick={onOpen}>Week ends in <span className="mono">{left}</span></a> : null;
 }
 
 function useCountdownLabel(endsAt: string) {
@@ -199,16 +211,16 @@ function WeeklyBanner({ challenge, open }: { challenge: ChallengeSummary; open: 
 type Status = "" | "open" | "solved";
 function Library({ challenges, progress, board, query, setQuery, open }: { challenges: ChallengeSummary[]; progress: Progress | null; board: Leaderboard | null; query: string; setQuery: (v: string) => void; open: (id: string) => void }) {
   const [status, setStatus] = useState<Status>("");
-  const [cats, setCats] = useState<Set<string>>(new Set());
+  const [cat, setCat] = useState("");
   const [levels, setLevels] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<"board" | "list">("board");
   const [sort, setSort] = useState<"points" | "solves" | "newest">("points");
   const toggle = (set: Set<string>, value: string, update: (s: Set<string>) => void) => { const next = new Set(set); if (next.has(value)) next.delete(value); else next.add(value); update(next); };
-  const filtered = useMemo(() => challenges.filter(c => (!query || `${c.title} ${c.summary} ${c.tags.join(" ")} ${c.category}`.toLowerCase().includes(query.toLowerCase())) && (!cats.size || cats.has(c.category)) && (!levels.size || levels.has(c.difficulty)) && (!status || (status === "solved" ? c.solved : !c.solved)))
-    .sort((a, b) => sort === "points" ? a.xp - b.xp : sort === "solves" ? b.solveCount - a.solveCount : 0), [challenges, query, cats, levels, status, sort]);
+  const filtered = useMemo(() => challenges.filter(c => (!query || `${c.title} ${c.summary} ${c.tags.join(" ")} ${c.category}`.toLowerCase().includes(query.toLowerCase())) && (!cat || c.category === cat) && (!levels.size || levels.has(c.difficulty)) && (!status || (status === "solved" ? c.solved : !c.solved)))
+    .sort((a, b) => sort === "points" ? a.xp - b.xp : sort === "solves" ? b.solveCount - a.solveCount : 0), [challenges, query, cat, levels, status, sort]);
   const count = (fn: (c: ChallengeSummary) => boolean) => challenges.filter(fn).length;
-  const filtering = !!(query || cats.size || levels.size || status);
-  const clear = () => { setQuery(""); setCats(new Set()); setLevels(new Set()); setStatus(""); };
+  const filtering = !!(query || cat || levels.size || status);
+  const clear = () => { setQuery(""); setCat(""); setLevels(new Set()); setStatus(""); };
   const solved = progress?.solvedCount ?? 0, total = challenges.length;
   const weekly = challenges.find(isWeekly);
   const usedCats = CATEGORIES.filter(c => challenges.some(x => x.category === c));
@@ -217,14 +229,17 @@ function Library({ challenges, progress, board, query, setQuery, open }: { chall
   return <>
     <div className="page-head library-head">
       <div><h1>Challenges</h1><p>{total ? `${total} challenges in ${usedCats.length} categories. Open any of them, in any order.` : "Challenges appear here once they’re published."}</p></div>
-      <dl className="lib-stats">
-        <div><dt>Solved</dt><dd><span className="mono">{solved}<small>/{total}</small></span><Meter value={solved} max={total} tone="accent" cells={12} label={`${solved} of ${total} solved`} /></dd></div>
-        <div><dt>Points</dt><dd className="mono">{(progress?.totalXp ?? 0).toLocaleString()}</dd></div>
-        <div><dt>This week</dt><dd className="mono accent">{board?.viewer ? `#${board.viewer.rank}` : "unranked"}</dd></div>
-      </dl>
+      <div className="lib-progress">
+        <div className="lib-progress-head"><p><strong className="tabular-nums">{solved}</strong> of {total} solved</p><p className="lib-progress-meta">{board?.viewer ? <b>#{board.viewer.rank} this week</b> : <span>Not ranked this week</span>}<span className="tabular-nums">{(progress?.totalXp ?? 0).toLocaleString()} pts</span></p></div>
+        <Meter value={solved} max={total} tone="accent" cells={30} label={`${solved} of ${total} solved`} />
+      </div>
     </div>
     {weekly ? <WeeklyBanner challenge={weekly} open={open} /> : null}
     <div className="lib-filters">
+      <div className="filter-tabs" role="group" aria-label="Category">
+        <button type="button" aria-pressed={!cat} onClick={() => setCat("")}>All<span className="count">{total}</span></button>
+        {CATEGORIES.map(c => { const n = count(x => x.category === c); return n ? <button key={c} type="button" aria-pressed={cat === c} onClick={() => setCat(cat === c ? "" : c)}>{c}<span className="count">{n}</span></button> : null; })}
+      </div>
       <div className="lib-filter-row">
         <label className="search-box lib-search"><Icon name="search" size={16} /><span className="sr-only">Search challenges</span><input type="search" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setQuery(""); }} placeholder="Search titles, tags, categories" /></label>
         <div className="segmented" role="group" aria-label="Status">{([["", "All"], ["open", "Open"], ["solved", "Solved"]] as const).map(([v, l]) => <button key={l} type="button" aria-pressed={status === v} onClick={() => setStatus(v)}>{l}</button>)}</div>
@@ -233,11 +248,8 @@ function Library({ challenges, progress, board, query, setQuery, open }: { chall
         <label className="select-inline"><span className="muted">Sort</span><select value={sort} onChange={e => setSort(e.target.value as typeof sort)}><option value="points">Points</option><option value="solves">Most solved</option><option value="newest">Newest</option></select></label>
         <div className="segmented" role="group" aria-label="Layout">{(["board", "list"] as const).map(m => <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)}>{m === "board" ? "Board" : "List"}</button>)}</div>
       </div>
-      <div className="cat-chips" role="group" aria-label="Category">
-        <button type="button" className="cat-chip" aria-pressed={!cats.size} onClick={() => setCats(new Set())}>All<span className="mono">{total}</span></button>
-        {CATEGORIES.map(c => { const n = count(x => x.category === c); return <button key={c} type="button" className="cat-chip" aria-pressed={cats.has(c)} disabled={!n} onClick={() => toggle(cats, c, setCats)}>{c}<span className="mono">{n}</span></button>; })}
-      </div>
-      <p className="lib-count"><span className="mono" aria-live="polite">{filtered.length} {filtered.length === 1 ? "challenge" : "challenges"}{filtering ? " match" : ""}</span>{filtering ? <button type="button" className="text-button" onClick={clear}>Clear filters</button> : null}</p>
+      {/* The live region stays mounted so screen readers hear each change; it only shows text while filtering. */}
+      <p className="lib-count" aria-live="polite">{filtering ? <><span>{filtered.length} of {total} {total === 1 ? "challenge" : "challenges"} match</span><button type="button" className="text-button" onClick={clear}>Clear filters</button></> : null}</p>
     </div>
     {!filtered.length ? <Empty title={total ? "No challenges match" : "The board is empty for now"} action={total ? <button className="button button-secondary" onClick={clear}>Clear filters</button> : undefined}>{total ? "Try a different search or remove a filter." : "Published challenges appear here when an author releases them."}</Empty>
       : mode === "list" ? <ChallengeTable items={filtered} open={open} />
@@ -302,7 +314,7 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
         <div className="challenge-meta muted">{latest.length ? <span className="solver-stack" aria-hidden="true">{latest.map((s,i) => <Identicon key={i} name={s.codename} size={22} />)}</span> : null}
           <span>{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}{latest.length ? <>, latest by <span className="mono">{latest[0].codename}</span></> : ""}. About {challenge.estimatedMinutes} min. By <span className="mono">{challenge.author}</span>, version {challenge.version}.</span></div>
       </header>
-      <section className="modal-section" aria-label="Description"><Content text={challenge.description} />{challenge.tags.includes("rules") ? <a className="button button-secondary fit" href="/rules">Read Rules / Mechanics</a> : null}{challenge.tags.length ? <ul className="tag-list" aria-label="Tags">{challenge.tags.map(t => <li key={t} className="tag">{t}</li>)}</ul> : null}</section>
+      <section className="modal-section" aria-label="Description"><Content text={challenge.description} />{challenge.tags.includes("rules") ? <Link className="button button-secondary fit" href="/rules">Read Rules / Mechanics</Link> : null}{challenge.tags.length ? <ul className="tag-list" aria-label="Tags">{challenge.tags.map(t => <li key={t} className="tag">{t}</li>)}</ul> : null}</section>
       <section className="modal-section" aria-labelledby="files-title"><div className="section-head"><h3 id="files-title">Files</h3><span className="spacer" /><span className="mono muted">{challenge.files.length} {challenge.files.length === 1 ? "file" : "files"}</span></div>
         {challenge.files.length ? <ul className="files">{challenge.files.map(file => <li key={file.id}>
           <div className="file-info"><span className="mono strong">{file.name}</span><span className="mono faint">{humanSize(file.size)}</span><span className="checksum mono">sha256 <code>{file.sha256}</code><CopyButton value={file.sha256} label={`Copy the SHA-256 checksum for ${file.name}`} /></span></div>

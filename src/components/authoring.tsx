@@ -13,9 +13,16 @@ type EditorData = {
 const blank: EditorData = { title: "", category: "General skills", difficulty: "Easy", description: "", solution: "", flag: "", flagFormat: "dfCTF{...}", tags: "", xp: 100, estimatedMinutes: 20, visibility: "practice" };
 type StaffDetail = ChallengeDetail & { authorId?: string; canPublish?: boolean };
 const STATUS_LABEL: Record<ChallengeStatus, string> = { draft: "Draft", review: "In review", published: "Live", archived: "Archived" };
-const BADGE: Record<ChallengeStatus, string> = { draft: "[draft]", review: "[in review]", published: "[live]", archived: "[archived]" };
+const STATUS_HINT: Record<ChallengeStatus | "", string> = {
+  "": "Drafts need a description, a walkthrough, and a flag; files are optional. A different staff member test-solves each one before it goes live.",
+  draft: "Still being written. Save it, then send it for review when the checklist is done.",
+  review: "Waiting for someone other than the author to solve it. Their correct flag publishes it.",
+  published: "On the board. Published versions are locked; archive one to take it down.",
+  archived: "Taken off the board. Players can no longer open these.",
+};
 
-function StatusBadge({ status }: { status: ChallengeStatus }) { return <span className={`badge badge-${status} mono`}>{BADGE[status]}</span>; }
+/** A small square plus the status word: color is never the only cue. */
+function StatusBadge({ status }: { status: ChallengeStatus }) { return <span className={`status status-${status}`}>{STATUS_LABEL[status]}</span>; }
 function updated(value?: string) {
   if (!value) return "";
   const d = new Date(value), today = new Date(), yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
@@ -45,25 +52,22 @@ export default function Authoring({ bootstrap, goSettings }: { bootstrap: Bootst
   const n = (s: ChallengeStatus) => items.filter(i => i.status === s).length;
   return <>
     <div className="page-head"><div><h1>Authoring</h1><p>Write challenges, review other people’s, and publish them to the board.</p></div>{canCreate ? <div className="head-actions"><button className="button button-secondary" onClick={addRules} disabled={busy}>Rules challenge</button><button className="button button-primary" onClick={() => setSelected("new")} disabled={busy}><Icon name="plus" size={16} />New challenge</button></div> : null}</div>
-    <ol className="workflow" aria-label="Publishing workflow">
-      {([["draft", "Write the description, walkthrough, and flag. Attach files."], ["review", "Someone other than the author downloads the files and solves it."], ["published", "The reviewer’s correct flag publishes it to the board."]] as const).map(([s, t]) => <li key={s}><strong className={s === "published" ? "accent" : ""}>{n(s)}</strong><div><StatusBadge status={s} /><span className="muted">{t}</span></div></li>)}
-    </ol>
     {error ? <Notice type="error">{error}</Notice> : null}
     {busy ? <Loading label="Loading challenges" /> : items.length ? <>
-      <div className="chips" role="group" aria-label="Status">
-        <button type="button" className="chip" aria-pressed={!filter} onClick={() => setFilter("")}>All<span className="mono faint">{items.length}</span></button>
-        {(Object.keys(STATUS_LABEL) as ChallengeStatus[]).map(status => <button type="button" className="chip" key={status} aria-pressed={filter === status} onClick={() => setFilter(filter === status ? "" : status)} disabled={!n(status)}>{STATUS_LABEL[status]}<span className="mono faint">{n(status)}</span></button>)}
+      <div className="filter-tabs" role="group" aria-label="Show challenges by status">
+        {(["", ...Object.keys(STATUS_LABEL)] as (ChallengeStatus | "")[]).map(status => <button type="button" key={status || "all"} aria-pressed={filter === status} onClick={() => setFilter(status)}>{status ? STATUS_LABEL[status] : "All"}<span className="count">{status ? n(status) : items.length}</span></button>)}
       </div>
-      <div className="table authoring" role="table" aria-label="Challenges you can author or review">
+      <p className="fine status-hint">{STATUS_HINT[filter]}</p>
+      {shown.length ? <div className="table authoring" role="table" aria-label="Challenges you can author or review">
         <div className="tr th" role="row"><span role="columnheader">Challenge</span><span role="columnheader">Category</span><span role="columnheader">Level</span><span role="columnheader">Points</span><span role="columnheader">Author</span><span role="columnheader">Updated</span><span role="columnheader">Status</span></div>
-        {shown.map(item => <button key={item.id} className={`tr diff-${item.difficulty.toLowerCase()}`} role="row" onClick={() => setSelected(item.id)}>
-          <span role="cell" className="td-title"><strong>{item.title}</strong><span>{item.summary}</span></span>
+        {shown.map(item => <div key={item.id} className="tr" role="row">
+          <span role="cell" className="td-title"><button type="button" className="row-link" onClick={() => setSelected(item.id)}><strong>{item.title}</strong></button><span>{item.summary}</span></span>
           <span role="cell" className="muted">{item.category}</span><span role="cell"><Difficulty value={item.difficulty} /></span>
           <span role="cell" className="mono strong">{item.xp}</span>
           <span role="cell" className="author">{item.author ? <><Identicon name={item.author} size={22} /><span className="mono">{item.author}</span></> : null}</span>
           <span role="cell" className="muted">{updated(item.updatedAt)}</span><span role="cell"><StatusBadge status={item.status} /></span>
-        </button>)}
-      </div>
+        </div>)}
+      </div> : <Empty title={`No ${STATUS_LABEL[filter as ChallengeStatus].toLowerCase()} challenges`}>{STATUS_HINT[filter]}</Empty>}
     </> : <Empty title="No challenges yet" action={canCreate ? <button className="button button-primary" onClick={() => setSelected("new")}><Icon name="plus" size={16} />New challenge</button> : undefined}>{canCreate ? "Create a draft, attach the files, and send it for review." : "Challenges submitted for review will appear here."}</Empty>}
   </>;
 }
