@@ -20,7 +20,7 @@ import { Heatmap, Radar, RaceChart, SolveGrid } from "./viz";
 import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Modal, Notice, Pips, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
 
 // The guides are long, so their text loads only when the Resources tab opens.
-const ResourcesContent = dynamic(() => import("./resources-content"), { loading: () => <Loading label="Opening the guides" /> });
+const ResourcesContent = dynamic(() => import("./resources-content"), { loading: () => <Loading label="Opening the guides" backdrop /> });
 
 type View = "home" | "practice" | "leaderboard" | "progress" | "competitions" | "authoring" | "rules" | "resources" | "settings";
 // Settings lives in the profile menu; home is the landing page behind the wordmark.
@@ -205,7 +205,7 @@ export default function Workspace() {
         : activeView === "rules" ? <RulesContent />
         : activeView === "resources" ? <LearningProgressProvider key={bootstrap.user.id} userId={bootstrap.user.id}><ResourcesContent /></LearningProgressProvider>
         : activeView === "competitions" ? <Competitions bootstrap={bootstrap} route={competitionRoute} open={openCompetition} goSettings={() => navigate("settings")} renderChallenge={(eventId,id,back,onSolved) => <ChallengeView key={`${eventId}:${id}`} id={id} competitionId={eventId} back={back} onSolved={onSolved} />} />
-        : dataBusy && !progress ? <Loading label="Loading the board" />
+        : dataBusy && !progress ? <Loading label="Loading the board" backdrop />
         : activeView === "leaderboard" ? <LeaderboardView initial={board} progress={progress} viewer={codename} />
         : activeView === "progress" ? <ProgressView progress={progress} board={board} total={challenges.length} open={openChallenge} browse={() => navigate("practice")} />
         : <Library challenges={challenges} progress={progress} board={board} query={query} setQuery={setQuery} searchInput={searchInput} open={openChallenge} />}
@@ -448,7 +448,7 @@ function LeaderboardView({ initial, progress, viewer }: { initial: Leaderboard |
   return <>
     <div className="page-head"><div><h1>Leaderboard</h1><p>{range === "week" ? "This week, updated as flags land. Ties go to whoever reached the score first." : "Every point since dfCTF opened. Ties go to whoever reached the score first."}</p></div>
       <div className="segmented" role="group" aria-label="Range">{([["week", "This week"], ["all", "All time"]] as const).map(([v, l]) => <button key={v} type="button" aria-pressed={range === v} onClick={() => setRange(v)}>{l}</button>)}</div></div>
-    {error ? <Notice type="error">{error} <button className="text-button" onClick={() => setRetry(n => n + 1)}>Try again</button></Notice> : !data ? <Loading label="Loading the leaderboard" /> : <>
+    {error ? <Notice type="error">{error} <button className="text-button" onClick={() => setRetry(n => n + 1)}>Try again</button></Notice> : !data ? <Loading label="Loading the leaderboard" backdrop /> : <>
     {range === "week" ? <section className="panel" aria-labelledby="race-title"><div className="panel-head"><h2 id="race-title">Race for #1</h2><InfoTip text="Each line is a player’s rank against all players, sampled at 20:00 Philippine time each day and now. Gaps mean the player had no solves yet. The bars are solves per hour; yellow caps mark hours with a first blood." /><span className="muted hide-sm">How this week’s top players have moved. Hover a name to follow its line.</span><span className="spacer" /><span className="muted">{left} left</span></div><RaceChart race={data.race} hourly={data.hourly} viewer={viewer} /></section> : null}
     <div className="lb-grid">
       <section className="panel" aria-labelledby="stand-title"><div className="panel-head"><h2 id="stand-title">Standings</h2><InfoTip text="Points in this range. The meter shows each player’s points relative to the leader." /><span className="spacer" /><span className="muted">{data.players} {data.players === 1 ? "player" : "players"}</span></div><StandingsTable standings={data.standings} viewer={data.viewer} max={data.standings[0]?.points ?? 0} /></section>

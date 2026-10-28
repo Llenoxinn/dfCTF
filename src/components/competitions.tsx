@@ -34,7 +34,7 @@ export default function Competitions({bootstrap,goSettings,renderChallenge,route
       {canManage?<><button className="button button-secondary" aria-pressed={manage} onClick={()=>{setManage(v=>!v);open();}}>{manage?"Browse published events":"Manage events"}</button>{manage?<button className="button button-primary" onClick={()=>setEditor("new")}>Create competition</button>:null}</>:null}
     </div></div>
     {error?<Notice type="error">{error} <button className="text-button" onClick={load}>Try again</button></Notice>:null}
-    {loading?<Loading label="Loading competitions"/>:selected&&detail?<>
+    {loading?<Loading label="Loading competitions" backdrop/>:selected&&detail?<>
       <button className="text-button back-link" onClick={()=>open()}><Icon name="back" size={16}/>All competitions</button>
       <section className="panel competition-overview" aria-labelledby="event-title"><div className="panel-pad stack">
         <div className="tags"><span className="tag">{detail.platform==="dfctf"?"Built-in dfCTF":"CTFd host"}</span><span className={`tag ${detail.phase==="live"?"tag-accent":""}`}>{phaseName[detail.phase]}</span>{manage?<span className="tag">{detail.status}</span>:null}</div>
