@@ -45,7 +45,7 @@ function PixelIcon({ rows }: { rows: string[] }) {
 const FAQ: [string, ReactNode][] = [
   ["What is a CTF?", "Capture the flag is a security game. Each challenge hides a short secret string, the flag, inside something: a file, a web page, a program. Your job is to find it. On dfCTF every flag looks like dfCTF{...}."],
   ["Do I need experience?", "No. Every category has easy starters, and each solve unlocks a walkthrough that explains the intended approach."],
-  ["What tools do I need?", <>A laptop, a terminal, and a text editor. Some challenges are easier with free tools like Wireshark or CyberChef, and the description says when. Start with <Link href="/resources">Tutorials & Resources</Link> for tool guides and beginner references.</>],
+  ["What tools do I need?", <>A laptop, a terminal, and a text editor. Some challenges are easier with free tools like Wireshark or CyberChef, and the description says when. Start with <Link className="resource-topic-link" href="/resources">Tutorials & Resources<span className="resource-link-arrow" aria-hidden="true">↗</span></Link> for tool guides and beginner references.</>],
   ["Is this legal?", "Yes. Every target is fictional and built for practice. You download files and work on your own machine; you never attack a real system."],
   ["How do points work?", "Each challenge has a point value. Your first correct flag earns it once. Wrong answers never cost points."],
   ["Who makes the challenges?", "DFC Developers and community authors. A second person solves every challenge before it is published."],

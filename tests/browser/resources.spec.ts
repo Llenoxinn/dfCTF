@@ -341,7 +341,14 @@ test("landing navigation, footer, and tools FAQ link to the library", async ({ p
   await expect(page.getByRole("banner").getByRole("link", { name: "Resources", exact: true })).toHaveAttribute("href", "/resources");
   await expect(page.getByRole("contentinfo").getByRole("navigation", { name: "Footer", exact: true }).getByRole("link", { name: "Resources", exact: true })).toHaveAttribute("href", "/resources");
   await page.getByRole("button", { name: /What tools do I need\?/ }).click();
-  await page.getByRole("region", { name: "What tools do I need?", exact: true }).getByRole("link", { name: "Tutorials & Resources", exact: true }).click();
+  const answer = page.getByRole("region", { name: "What tools do I need?", exact: true });
+  const resources = answer.getByRole("link", { name: "Tutorials & Resources", exact: true });
+  await expect(resources).toHaveCSS("color", "rgb(236, 232, 223)");
+  await expect(resources).toHaveCSS("text-decoration-line", "none");
+  await expect(resources.locator(".resource-link-arrow")).toBeVisible();
+  await resources.hover();
+  await expect(resources).toHaveCSS("color", "rgb(255, 210, 63)");
+  await resources.click();
   await expect(page.getByRole("heading", { name: "Tutorials & Resources", exact: true })).toBeVisible();
 });
 
