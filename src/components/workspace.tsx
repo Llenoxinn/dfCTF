@@ -12,6 +12,7 @@ import AccountSecurity from "./account-security";
 import Competitions, { type CompetitionRoute } from "./competitions";
 import Landing from "./landing";
 import RulesContent from "./rules-content";
+import { Content } from "./content";
 import { ChallengeCard, type CardState } from "./cards";
 import { Heatmap, Radar, RaceChart, SolveGrid } from "./viz";
 import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Modal, Notice, Pips, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
@@ -355,13 +356,6 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
 
 function solveTime(value: string) {
   return new Date(value).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-}
-
-export function Content({ text }: { text: string }) {
-  return <div className="prose">{text.split(/\n\s*\n/).map((paragraph, i) => paragraph.startsWith("### ") ? <h4 key={i}>{paragraph.slice(4)}</h4> : paragraph.startsWith("## ") ? <h3 key={i}>{paragraph.slice(3)}</h3> : paragraph.startsWith("# ") ? <h3 key={i}>{paragraph.slice(2)}</h3> : paragraph.startsWith("```") ? <pre key={i}>{paragraph.replace(/^```[^\n]*\n?/, "").replace(/```$/, "")}</pre> : <p key={i}>{inlineCode(paragraph)}</p>)}</div>;
-}
-function inlineCode(text: string) {
-  return text.split(/(`[^`]+`)/).map((part, i) => part.length > 2 && part.startsWith("`") && part.endsWith("`") ? <code key={i}>{part.slice(1, -1)}</code> : part);
 }
 
 function StandingsTable({ standings, viewer, max }: { standings: Leaderboard["standings"]; viewer: Leaderboard["viewer"]; max: number }) {

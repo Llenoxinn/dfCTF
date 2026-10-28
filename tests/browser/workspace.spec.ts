@@ -37,6 +37,70 @@ function challenge(id: string, title: string): ChallengeDetail {
   };
 }
 
+test("description formatting survives saving and matches the player's view", async ({ page }, testInfo) => {
+  const detail: ChallengeDetail & { authorId: string } = { ...challenge("format-draft", "Formatted training case"), status: "draft", authorId: "test-author", solution: "Read the fictional evidence to recover the flag." };
+  let saved = "";
+  const state = await mockWorkspace(page, async (route, url) => {
+    if (url.pathname === "/api/v1/staff/challenges") await route.fulfill({ json: [detail] });
+    else if (url.pathname === "/api/v1/staff/challenges/format-draft") {
+      if (route.request().method() === "PATCH") { Object.assign(detail, route.request().postDataJSON()); saved = detail.description; }
+      await route.fulfill({ json: detail });
+    } else if (url.pathname === "/api/v1/challenges/format-draft") await route.fulfill({ json: detail });
+    else return false;
+    return true;
+  });
+  state.challenges.push(detail);
+  await page.goto("/?view=authoring");
+  await page.getByRole("row", { name: /Formatted training case/ }).click();
+  const description = page.getByLabel("Description", { exact: true });
+  const toolbar = page.getByRole("group", { name: "Text formatting" });
+  async function select(word: string) {
+    await description.evaluate((element, word) => { const input = element as HTMLTextAreaElement; input.focus(); const start = input.value.indexOf(word); input.setSelectionRange(start, start + word.length); }, word);
+  }
+  await description.fill("Inspect the evidence carefully and recover the flag.");
+  await select("evidence"); await toolbar.getByRole("button", { name: "Bold", exact: true }).click();
+  await select("carefully"); await description.press("Control+i");
+  await select("flag"); await toolbar.getByRole("button", { name: "Underline", exact: true }).click();
+  await select("Inspect"); await toolbar.getByRole("button", { name: "Link", exact: true }).click();
+  await page.getByLabel("Link URL", { exact: true }).fill("https://example.com/guide");
+  await page.getByRole("button", { name: "Insert link", exact: true }).click();
+  await expect(description).toHaveValue("[Inspect](https://example.com/guide) the **evidence** *carefully* and recover the <u>flag</u>.");
+  await page.locator(".description-field").screenshot({ path: testInfo.outputPath("formatting-desktop.png") });
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  const preview = page.getByRole("region", { name: "Formatted preview" });
+  await expect(preview.locator("strong")).toHaveText("evidence");
+  await expect(preview.locator("em")).toHaveText("carefully");
+  await expect(preview.locator("u")).toHaveText("flag");
+  await expect(preview.getByRole("link", { name: "Inspect" })).toHaveAttribute("href", "https://example.com/guide");
+  await expect(toolbar.getByRole("button", { name: "Bold", exact: true })).toBeDisabled();
+  await preview.screenshot({ path: testInfo.outputPath("formatted-preview.png") });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(preview.locator("strong")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.locator(".description-field").screenshot({ path: testInfo.outputPath("formatting-mobile.png") });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.getByRole("button", { name: "Write", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect.poll(() => saved).toContain("**evidence**");
+  await expect(description).toHaveValue(saved);
+  await page.getByRole("button", { name: "Back to authoring" }).click();
+  await page.getByRole("row", { name: /Formatted training case/ }).click();
+  await expect(description).toHaveValue(saved);
+  // Non-editable review versions still have a preview, with formatting controls locked.
+  detail.status = "review";
+  await page.reload();
+  await page.getByRole("row", { name: /Formatted training case/ }).click();
+  await expect(description).not.toBeEditable();
+  await expect(toolbar.getByRole("button", { name: "Bold", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(preview.locator("u")).toHaveText("flag");
+  await page.goto("/?view=practice&challenge=format-draft");
+  const playerDescription = page.getByRole("dialog").getByRole("region", { name: "Description", exact: true });
+  await expect(playerDescription.locator("strong")).toHaveText("evidence");
+  await expect(playerDescription.locator("em")).toHaveText("carefully");
+  await expect(playerDescription.locator("u")).toHaveText("flag");
+});
+
 test("a late submission cannot solve or reveal a walkthrough on the next challenge", async ({ page }) => {
   const first = challenge("challenge-a", "First training case");
   const next = { ...challenge("challenge-b", "Weekly training case"), weeklyEndsAt: new Date(Date.now() + 86_400_000).toISOString() };
