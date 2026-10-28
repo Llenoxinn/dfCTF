@@ -216,6 +216,36 @@ test("landing navigation, footer, tools FAQ, and rules link to the resources pag
   await expect(page.getByRole("banner").getByRole("link", { name: "Resources", exact: true })).toHaveAttribute("href", "/resources");
 });
 
+test("public pages keep the full sticky navigation and link back to home sections", async ({ page }) => {
+  await mockHome(page);
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const path of ["/resources", "/rules"]) {
+      await page.goto(path);
+      const header = page.getByRole("banner");
+      const sections = header.getByRole("navigation", { name: "Sections", exact: true });
+      await expect(sections.getByRole("link")).toHaveText(["Leaderboard", "This week", "Categories", "Resources", "Rules", "FAQ"]);
+      for (const [name, hash] of [["Leaderboard", "leaderboard"], ["This week", "this-week"], ["Categories", "categories"], ["FAQ", "faq"]]) {
+        await expect(sections.getByRole("link", { name, exact: true })).toHaveAttribute("href", `/?view=home#${hash}`);
+      }
+      await expect(header.getByRole("link", { name: "Start solving", exact: true })).toHaveAttribute("href", "/?auth=signup");
+      if (width === 1440) await expect(header.getByRole("link", { name: "Sign in", exact: true })).toHaveAttribute("href", "/?auth=signin");
+      await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" }));
+      expect(await header.evaluate(element => element.getBoundingClientRect().top)).toBe(0);
+      const next = sections.getByRole("link", { name: path === "/resources" ? "Rules" : "Resources", exact: true });
+      await next.focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("heading", { level: 1, name: path === "/resources" ? "Rules / Mechanics" : "Tutorials & Resources", exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await page.getByRole("banner").getByRole("link", { name: "FAQ", exact: true }).click();
+    await expect(page).toHaveURL(/\/\?view=home#faq$/);
+    await expect(page.locator("#faq")).toBeInViewport();
+    const headerBottom = await page.getByRole("banner").evaluate(element => element.getBoundingClientRect().bottom);
+    expect(await page.locator("#faq-title").evaluate(element => element.getBoundingClientRect().top)).toBeGreaterThanOrEqual(headerBottom);
+  }
+});
+
 test("signed-in navigation opens the public resources page", async ({ page }) => {
   await mockHome(page, true);
   await page.goto("/?view=practice");

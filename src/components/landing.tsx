@@ -8,6 +8,7 @@ import { countdownParts, weekEnd } from "@/lib/week";
 import AsciiField from "./ascii-field";
 import FaultyTerminal from "./faulty-terminal";
 import GradientASCII from "./gradient-ascii";
+import SiteHeader from "./site-header";
 import { ChallengeCard } from "./cards";
 import { busiestDay, Countdown, DitherArt, Heatmap, HeatLegend, Ticker } from "./viz";
 import { api, clock, DecodeText, Identicon, InfoTip, Meter, Notice, useTheme, Wordmark } from "./ui";
@@ -154,6 +155,9 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
     finally { setBusy(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ behavior: "instant" });
+  }, []);
   const endsAt = useMemo(() => data?.weekly?.endsAt ?? weekEnd().toISOString(), [data]);
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), Math.max(0, new Date(endsAt).getTime() + 1 - Date.now()));
@@ -185,13 +189,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
   return <div className="landing min-h-screen bg-bg text-fg min-[1520px]:bg-[radial-gradient(circle_at_1px_1px,var(--line)_1px,transparent_0)] min-[1520px]:bg-size-[20px_20px]">
     <a className="skip-link" href="#landing-main">Skip to content</a>
-    <header className="sticky top-0 z-30 border-b border-line bg-bg">
-      <div className={`${FRAME} ${PAD} flex h-16 items-center gap-6`}>
-        <a className="brand-link" href={signedIn ? "/?view=home" : "/"} aria-label="dfCTF home"><Wordmark /></a>
-        <nav aria-label="Sections" className="mx-auto hidden items-center gap-1 lg:flex">{[["#leaderboard", "Leaderboard"], ["#this-week", "This week"], ["#categories", "Categories"], ["/resources", "Resources"], ["/rules", "Rules"], ["#faq", "FAQ"]].map(([href, label]) => <Link key={href} href={href} className="rounded-xs px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-fg">{label}</Link>)}</nav>
-        <div className="ml-auto flex items-center gap-2 lg:ml-0">{signedIn ? null : <button className="button button-ghost max-sm:hidden" onClick={signIn}>Sign in</button>}<button className="button button-primary" onClick={createAccount}>{start}</button></div>
-      </div>
-    </header>
+    <SiteHeader home signedIn={signedIn} signIn={signIn} createAccount={createAccount} />
 
     <main id="landing-main" className={`${FRAME} bg-bg`}>
       {error ? <div className={`${PAD} border-b border-line py-4`}><Notice type="error">{error} <button className="text-button" onClick={load} disabled={busy}>Try again</button></Notice></div> : null}

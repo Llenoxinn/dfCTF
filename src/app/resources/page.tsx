@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Icon, Wordmark } from "@/components/ui";
+import { Icon } from "@/components/ui";
+import SiteHeader from "@/components/site-header";
 import { RESOURCE_GUIDES, type ResourceTool } from "@/lib/resources";
 
 export const metadata: Metadata = {
@@ -29,13 +30,7 @@ function ToolGuide({ tool }: { tool: ResourceTool }) {
 export default function ResourcesPage() {
   return <div className="resources-page">
     <a className="skip-link" href="#resources-content">Skip to content</a>
-    <header className="site-nav rules-nav resources-nav">
-      <a className="brand-link" href="/" aria-label="dfCTF home"><Wordmark /></a>
-      <nav aria-label="Resources navigation">
-        <a className="text-button" href="/rules">Rules / Mechanics</a>
-        <a className="button button-secondary" href="/?view=practice">Open challenges</a>
-      </nav>
-    </header>
+    <SiteHeader />
     <main id="resources-content" className="resources-main" tabIndex={-1}>
       <div className="resources-heading">
         <span className="label-dot">A place to get curious about cybersecurity.</span>

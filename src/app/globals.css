@@ -499,7 +499,7 @@ a.card:active { transform: scale(.98); }
 .challenge-solvers li:last-child { border-bottom: 0; }
 .solver-name { overflow-wrap: anywhere; }
 .challenge-solvers time { grid-column: 3 / -1; color: var(--muted); font-size: .8125rem; font-variant-numeric: tabular-nums; }
-.rules-nav { justify-content: space-between; flex-wrap: wrap; }
+.landing section[id] { scroll-margin-top: 128px; }
 .rules-main { max-width: 1160px; margin: 0 auto; padding: 56px 32px 80px; }
 .rules-main .page-head { margin-bottom: 40px; }
 .rules-main .page-head p { max-width: 65ch; }
@@ -514,7 +514,6 @@ a.card:active { transform: scale(.98); }
 .rules-note code { margin-left: 8px; color: var(--text); overflow-wrap: anywhere; }
 .rules-copy .rules-checkpoint { border: 0; margin-bottom: 0; padding-bottom: 0; }
 /* ---------- tutorials and resources ---------- */
-.resources-nav nav { display: flex; align-items: center; gap: 20px; }
 .resources-main { max-width: 1240px; margin: 0 auto; padding: 64px 32px 88px; }
 .resources-heading { max-width: 800px; margin-bottom: 56px; }
 .resources-heading h1 { font-size: clamp(2rem, 5vw, 3.5rem); margin: 20px 0; }
@@ -590,18 +589,19 @@ a.card:active { transform: scale(.98); }
   .resources-index { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 20px; padding-bottom: 24px; border-bottom: 1px solid var(--line); max-height: none; overflow: visible; }
   .resources-index > .fine { grid-column: 1 / -1; }
 }
+@media (max-width: 1023px) {
+  .resources-copy > section, .resource-tool, .rules-copy section { scroll-margin-top: 128px; }
+}
+@media (min-width: 901px) and (max-width: 1023px) {
+  .resources-index { top: 128px; max-height: calc(100dvh - 152px); }
+}
 @media (max-width: 600px) {
-  .resources-nav { flex-wrap: wrap; gap: 14px; }
-  .resources-nav nav { gap: 12px; flex-wrap: wrap; }
-  .resources-nav nav > .text-button { display: none; }
   .resources-main { padding: 36px 16px 56px; }
   .resources-heading { margin-bottom: 32px; }
   .resources-heading > p { font-size: 1rem; }
   .resource-tool > summary, .resource-tool-copy, .resource-deep-dive > summary { padding: 18px 16px; }
   .resource-deep-content { padding: 8px; }
   .resources-platform-note, .resources-scope { padding: 18px 16px; }
-  .resources-copy > section, .resource-tool { scroll-margin-top: 128px; }
-  .rules-copy section { scroll-margin-top: 128px; }
 }
 .competition-list { list-style: none; margin: 0; padding: 0; }
 .competition-list li { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 28px 0; border-bottom: 1px solid var(--line); }
