@@ -58,8 +58,18 @@ test("description formatting survives saving and matches the player's view", asy
     await description.evaluate((element, word) => { const input = element as HTMLTextAreaElement; input.focus(); const start = input.value.indexOf(word); input.setSelectionRange(start, start + word.length); }, word);
   }
   await description.fill("Inspect the evidence carefully and recover the flag.");
+  // Hold animation frames so a stale selection restore cannot hide behind a fast local browser.
+  const heldFrames = await page.evaluateHandle(() => {
+    const request = window.requestAnimationFrame;
+    const callbacks: FrameRequestCallback[] = [];
+    window.requestAnimationFrame = callback => { callbacks.push(callback); return -callbacks.length; };
+    return () => { window.requestAnimationFrame = request; for (const callback of callbacks) callback(performance.now()); };
+  });
   await select("evidence"); await toolbar.getByRole("button", { name: "Bold", exact: true }).click();
-  await select("carefully"); await description.press("Control+i");
+  await select("carefully");
+  await heldFrames.evaluate(resume => resume());
+  await heldFrames.dispose();
+  await description.press("Control+i");
   await select("flag"); await toolbar.getByRole("button", { name: "Underline", exact: true }).click();
   await select("Inspect"); await toolbar.getByRole("button", { name: "Link", exact: true }).click();
   await page.getByLabel("Link URL", { exact: true }).fill("https://example.com/guide");

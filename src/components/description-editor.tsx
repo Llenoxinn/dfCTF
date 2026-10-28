@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { formatText, linkText, type Format, type TextSelection } from "@/lib/formatting";
 import { Content } from "./content";
 import { Icon } from "./ui";
@@ -27,12 +27,22 @@ export default function DescriptionEditor({ value, onChange, readOnly }: { value
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const locked = readOnly || preview;
+  const pendingSelection = useRef<TextSelection | null>(null);
+
+  useLayoutEffect(() => {
+    const edit = pendingSelection.current;
+    pendingSelection.current = null;
+    if (!edit || edit.value !== value) return;
+    // Restore before the next interaction; a delayed frame can overwrite a newer selection.
+    input.current?.focus();
+    input.current?.setSelectionRange(edit.start, edit.end);
+  }, [value]);
 
   function apply(edit: TextSelection) {
     if (readOnly) return;
     if (edit.value.length > limit) { setError("The description can contain up to 20,000 characters."); return; }
+    pendingSelection.current = edit;
     onChange(edit.value); setError(""); setLink(null);
-    requestAnimationFrame(() => { input.current?.focus(); input.current?.setSelectionRange(edit.start, edit.end); });
   }
   function format(kind: Format) {
     if (locked || !input.current) return;
