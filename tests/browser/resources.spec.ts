@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { RESOURCE_GUIDES } from "../../src/lib/resources";
+import { LEARNING_PATHS } from "../../src/lib/resource-learning";
 
 async function mockHome(page: Page, signedIn = false, featured = false) {
   await page.route("**/api/**", async route => {
@@ -37,6 +38,13 @@ test("the public library introduces learning before topics and makes paths disco
   await expect(page.getByRole("heading", { name: "Start with the big picture", exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Find your next topic" }).getByRole("article")).toHaveCount(RESOURCE_GUIDES.length);
   await expect(page.getByRole("region", { name: "Learning paths", exact: true }).getByRole("article")).toHaveCount(6);
+  for (const path of LEARNING_PATHS) {
+    const lane = page.getByRole("article", { name: path.title, exact: true });
+    await expect(lane.getByRole("list", { name: `${path.title} topic sequence`, exact: true }).getByRole("link")).toHaveCount(path.topics.length);
+    const first = lane.locator(".learning-map-node").first();
+    await expect(first).toHaveAttribute("href", `/resources/${path.topics[0]}?path=${path.id}`);
+    await expect(first).toContainText("Next suggested");
+  }
   await expect(page.getByRole("heading", { name: "Practice with permission" })).toBeVisible();
   await expect(page.getByRole("main").getByRole("link", { name: "Rules / Mechanics", exact: true })).toHaveAttribute("href", "/rules");
   await expect(page.locator("pre, .resource-exercise")).toHaveCount(0);
@@ -117,6 +125,9 @@ test("topic and tool bookmarks, completed topics, and nested disclosures survive
   await expect(saved.getByRole("link", { name: "General skills", exact: true })).toHaveAttribute("href", "/resources/general-skills");
   await expect(saved.getByRole("link", { name: "CyberChef · General skills", exact: true })).toHaveAttribute("href", "/resources/general-skills#cyberchef");
   await expect(saved).toContainText("1 of 15 topics marked read");
+  const foundation = page.getByRole("article", { name: "Beginner foundations", exact: true });
+  await expect(foundation.locator(".learning-map-node").first()).toContainText("Marked read");
+  await expect(foundation.locator(".learning-map-node").nth(1)).toContainText("Next suggested");
   await saved.getByRole("link", { name: "CyberChef · General skills", exact: true }).click();
   await expect(cyberchef.locator(".resource-tool-copy")).toBeVisible();
   await expect(cyberchef.locator(":scope > summary")).toBeInViewport();
@@ -242,6 +253,22 @@ test("library and expanded topic pages fit mobile and desktop and retain the sti
     await expect(page.getByRole("button", { name: "Bookmark General skills", exact: true })).toBeEnabled();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (width === 390 || width === 1440) await page.screenshot({ path: `test-results/resource-library-${width}.png` });
+    await page.getByRole("link", { name: "Explore learning paths", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Learning paths", exact: true })).toBeInViewport();
+    const map = page.locator(".learning-map");
+    expect(await map.locator(".learning-map-node").evaluateAll(nodes => nodes.every(node => {
+      const bounds = node.getBoundingClientRect();
+      return bounds.left >= 0 && bounds.right <= innerWidth;
+    }))).toBe(true);
+    if (width === 390 || width === 1440) {
+      await page.evaluate(() => document.querySelector("#learning-paths")!.scrollIntoView({ behavior: "instant" }));
+      await page.screenshot({ path: `test-results/learning-map-${width}.png` });
+    }
+    if (width === 390) {
+      await page.evaluate(() => document.documentElement.dataset.theme = "light");
+      await page.screenshot({ path: "test-results/learning-map-light-390.png" });
+      await page.evaluate(() => document.documentElement.dataset.theme = "dark");
+    }
     await page.goto("/resources/audio-recovery");
     await expect(page.getByRole("button", { name: "Bookmark topic", exact: true })).toBeEnabled();
     await page.locator("details").evaluateAll(items => items.forEach(item => item.setAttribute("open", "")));

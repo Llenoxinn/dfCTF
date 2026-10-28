@@ -74,13 +74,28 @@ export default function ResourceLibrary({ guides }: { guides: ResourceCard[] }) 
     </section>
 
     <section id="learning-paths" className="resource-paths" aria-labelledby="learning-paths-title">
-      <h2 id="learning-paths-title">Learning paths</h2><p>Follow a suggested order or jump to anything that interests you. Marking a topic read records your own progress; there is no test to unlock the next one.</p>
-      <div className="resource-topic-grid">{LEARNING_PATHS.map(path => <article className="resource-topic-card" key={path.id}>
-        <span className="fine">{path.topics.filter(topic => progress.completed.includes(topic)).length} of {path.topics.length} topics marked read</span>
-        <h3>{path.title}</h3><p>{path.summary}</p>
-        <ol className="resource-path-outline">{path.topics.map(id => <li key={id}><Link href={`/resources/${id}?path=${path.id}`}>{guides.find(guide => guide.id === id)!.title}</Link>{progress.completed.includes(id) ? <span className="sr-only">, marked read</span> : null}</li>)}</ol>
-        <Link className="button button-secondary" href={`/resources/${path.topics[0]}?path=${path.id}`}>Start {path.title}</Link>
-      </article>)}</div>
+      <h2 id="learning-paths-title">Learning paths</h2><p>Choose a direction, then follow the connected topics at your own pace. Every node is open to explore. Mark topics read to keep track of your progress.</p>
+      <nav className="learning-map-shortcuts" aria-label="Learning path shortcuts">{LEARNING_PATHS.map(path => <a href={`#learning-path-${path.id}`} key={path.id}>{path.title}<span aria-hidden="true">↗</span></a>)}</nav>
+      <div className="learning-map">
+        <div className="learning-map-root"><span className="learning-map-label">dfCTF / learning map</span><strong>Choose your direction</strong><span className="fine">One topic at a time.</span></div>
+        <div className="learning-map-legend" role="group" aria-label="Map legend"><span><i className="is-read" aria-hidden="true" />Marked read</span><span><i className="is-next" aria-hidden="true" />Next suggested</span><span><i aria-hidden="true" />Explore</span></div>
+        <div className="learning-map-lanes">{LEARNING_PATHS.map((path, pathIndex) => {
+          const next = path.topics.find(id => !progress.completed.includes(id));
+          return <article className="learning-map-lane" id={`learning-path-${path.id}`} key={path.id} aria-labelledby={`learning-path-${path.id}-title`}>
+            <header className="learning-map-heading"><span className="learning-map-label">Path {String(pathIndex + 1).padStart(2, "0")} / {path.topics.filter(topic => progress.completed.includes(topic)).length} of {path.topics.length} read</span><h3 id={`learning-path-${path.id}-title`}>{path.title}</h3><p>{path.summary}</p><Link className="text-button" href={`/resources/${path.topics[0]}?path=${path.id}`} aria-label={`Start ${path.title}`}>Start path <span aria-hidden="true">→</span></Link></header>
+            <ol className="learning-map-flow" aria-label={`${path.title} topic sequence`}>{path.topics.map((id, index) => {
+              const read = progress.completed.includes(id);
+              return <li key={id} className={read ? "is-read" : next === id ? "is-next" : undefined}>
+                <Link className="learning-map-node" href={`/resources/${id}?path=${path.id}`}>
+                  <span className="learning-map-label">{String(index + 1).padStart(2, "0")}<span aria-hidden="true">{read ? "[x]" : "[ ]"}</span></span>
+                  <strong>{guides.find(guide => guide.id === id)!.title}</strong>
+                  <span className="learning-map-node-status">{read ? "Marked read" : next === id ? "Next suggested" : "Explore topic"}<span aria-hidden="true">↗</span></span>
+                </Link>
+              </li>;
+            })}</ol>
+          </article>;
+        })}</div>
+      </div>
     </section>
     <section className="resources-scope" aria-labelledby="practice-safely-title">
       <h2 id="practice-safely-title">Practice with permission</h2><p>Learn with supplied files, synthetic examples, and explicitly authorized labs. Keep private evidence out of public upload services. dfCTF and its infrastructure are not targets for scanning or traffic testing.</p><p>Read the <a href="/rules">Rules / Mechanics</a> before solving. Optional exercises teach techniques without providing challenge answers.</p>
