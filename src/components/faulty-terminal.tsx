@@ -14,6 +14,7 @@ export default function FaultyTerminal({ tint = "#FFD23F", cell = 16, brightness
   useEffect(() => {
     const el = host.current, canvas = canvasRef.current, ctx = canvas?.getContext("2d");
     if (!el || !canvas || !ctx) return;
+    const interaction = el.parentElement ?? el;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let cols = 0, rows = 0, raf = 0, visible = true, t = 0, last = 0;
     let glitchUntil = 0, glitchSeed = 0;
@@ -62,11 +63,12 @@ export default function FaultyTerminal({ tint = "#FFD23F", cell = 16, brightness
 
     const ro = new ResizeObserver(resize); ro.observe(el);
     const io = new IntersectionObserver(entries => { visible = entries.some(e => e.isIntersecting); wake(); }); io.observe(el);
-    el.addEventListener("pointermove", onMove); el.addEventListener("pointerleave", onLeave); el.addEventListener("pointerdown", onDown);
+    // Track the whole section while the decorative layer stays transparent to input.
+    interaction.addEventListener("pointermove", onMove, { passive: true }); interaction.addEventListener("pointerleave", onLeave); interaction.addEventListener("pointerdown", onDown, { passive: true });
     document.addEventListener("visibilitychange", wake);
     resize(); wake();
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); io.disconnect(); el.removeEventListener("pointermove", onMove); el.removeEventListener("pointerleave", onLeave); el.removeEventListener("pointerdown", onDown); document.removeEventListener("visibilitychange", wake); };
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); io.disconnect(); interaction.removeEventListener("pointermove", onMove); interaction.removeEventListener("pointerleave", onLeave); interaction.removeEventListener("pointerdown", onDown); document.removeEventListener("visibilitychange", wake); };
   }, [tint, cell, brightness, timeScale]);
 
-  return <div ref={host} className={`faulty-terminal ${className}`} aria-hidden="true"><canvas ref={canvasRef} /></div>;
+  return <div ref={host} className={`faulty-terminal pointer-events-none ${className}`} aria-hidden="true"><canvas ref={canvasRef} /></div>;
 }
