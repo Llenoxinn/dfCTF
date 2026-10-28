@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { Bootstrap, ChallengeDetail, ChallengeSummary, Leaderboard, Progress, Viewer } from "@/lib/types";
 import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
@@ -17,11 +18,15 @@ import { ChallengeCard, type CardState } from "./cards";
 import { Heatmap, Radar, RaceChart, SolveGrid } from "./viz";
 import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Modal, Notice, Pips, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
 
-type View = "home" | "practice" | "leaderboard" | "progress" | "competitions" | "authoring" | "rules" | "settings";
+// The guides are long, so their text loads only when the Resources tab opens.
+const ResourcesContent = dynamic(() => import("./resources-content"), { loading: () => <Loading label="Opening the guides" /> });
+
+type View = "home" | "practice" | "leaderboard" | "progress" | "competitions" | "authoring" | "rules" | "resources" | "settings";
 // Settings lives in the profile menu; home is the landing page behind the wordmark.
 const TABS: { id: View; label: string; staff?: boolean }[] = [
   { id: "practice", label: "Challenges" }, { id: "leaderboard", label: "Leaderboard" }, { id: "progress", label: "Progress" },
   { id: "competitions", label: "Competitions" }, { id: "authoring", label: "Authoring", staff: true }, { id: "rules", label: "Rules" },
+  { id: "resources", label: "Resources" },
 ];
 const VIEWS: View[] = ["home", ...TABS.map(t => t.id), "settings"];
 
@@ -143,7 +148,7 @@ export default function Workspace() {
         const current = activeView === v.id && (!weekly || selected !== weekly.id);
         const tab = <a key={v.id} className="tab" href={hrefFor(v.id)} aria-current={current ? "page" : undefined} onClick={e => inPlace(e, () => navigate(v.id))}><span>{v.label}</span></a>;
         return v.id === "leaderboard" && weekly ? [tab, <a key="week" className="tab" href={hrefFor("practice", weekly.id)} aria-current={selected === weekly.id ? "page" : undefined} onClick={e => inPlace(e, () => navigate("practice", weekly.id))}><span>This week</span></a>] : [tab];
-      })}<Link className="tab" href="/resources"><span>Resources</span></Link></nav>
+      })}</nav>
       <span className="spacer" />
       {board?.weekEndsAt ? <WeekChip endsAt={board.weekEndsAt} onOpen={e => inPlace(e, () => navigate("leaderboard"))} /> : null}
       <ProfileMenu codename={codename} points={progress?.totalXp ?? 0} rank={board?.viewer?.rank} onSettings={() => navigate("settings")} onSignOut={signOut} />
@@ -154,6 +159,7 @@ export default function Workspace() {
       {activeView === "settings" ? <Settings bootstrap={bootstrap} refresh={refresh} signOut={signOut} board={board} progress={progress} />
         : activeView === "authoring" ? <Authoring bootstrap={bootstrap} goSettings={() => navigate("settings")} />
         : activeView === "rules" ? <RulesContent />
+        : activeView === "resources" ? <ResourcesContent openView={(event, next) => inPlace(event, () => navigate(next))} />
         : activeView === "competitions" ? <Competitions bootstrap={bootstrap} route={competitionRoute} open={openCompetition} goSettings={() => navigate("settings")} renderChallenge={(eventId,id,back,onSolved) => <ChallengeView key={`${eventId}:${id}`} id={id} competitionId={eventId} back={back} onSolved={onSolved} />} />
         : dataBusy && !progress ? <Loading label="Loading the board" />
         : activeView === "leaderboard" ? <LeaderboardView initial={board} progress={progress} viewer={codename} />
