@@ -103,7 +103,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
             {mode !== "signin" ? <small id="password-help">At least 15 characters, up to 128. {password.length ? <span className="mono">{password.length} so far.</span> : null}</small> : null}
           </div> : null}
           {mode === "mfa" ? <div className="field"><label htmlFor="mfa-code">{backup ? "Backup code" : "Authenticator code"}</label><input id="mfa-code" className={backup ? "mono" : "mono code-input"} autoComplete="one-time-code" inputMode={backup ? "text" : "numeric"} value={code} onChange={e => setCode(e.target.value)} required placeholder={backup ? "One unused backup code" : "000000"} pattern={backup ? undefined : "[0-9]{6}"} maxLength={backup ? 50 : 6} /><button type="button" className="text-button" onClick={() => { setBackup(v => !v); setCode(""); }}>{backup ? "Use your authenticator app instead" : "Use a backup code instead"}</button></div> : null}
-          <button className="button button-primary block" type="submit" disabled={busy}>{busy ? <><Spinner />Working</> : action}</button>
+          <button className="button button-primary w-full" type="submit" disabled={busy}>{busy ? <><Spinner />Working</> : action}</button>
         </form>
         {mode === "signin" || mode === "signup" ? <>
           <div className="divider"><span>or continue with</span></div>

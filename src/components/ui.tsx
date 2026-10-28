@@ -25,6 +25,12 @@ export function Icon({ name, size = 20, className = "" }: { name: string; size?:
     archive: <><rect x="3.5" y="4.5" width="17" height="4.5" rx="1" /><path d="M5 9v10.5h14V9M10 13h4" /></>,
     mail: <><rect x="3.5" y="5.5" width="17" height="13" rx="2" /><path d="m4 7 8 6 8-6" /></>,
     terminal: <><rect x="3" y="4.5" width="18" height="15" rx="2" /><path d="m7 9.5 3 2.5-3 2.5m5.5 0H17" /></>,
+    heading: <path d="M5 5v14M16 5v14M5 12h11m3 3h2v5m-2 0h4" />,
+    "list-bullet": <><path d="M9 6h12M9 12h12M9 18h12" /><circle cx="4" cy="6" r=".75" /><circle cx="4" cy="12" r=".75" /><circle cx="4" cy="18" r=".75" /></>,
+    "list-number": <path d="M10 6h11M10 12h11M10 18h11M3 4h1v5M3 9h2m-3 6a2 2 0 0 1 4 0c0 1-4 3-4 5h4" />,
+    quote: <><path d="M4 7h6v6H4zm10 0h6v6h-6zM10 13c0 3-2 5-5 5m15-5c0 3-2 5-5 5" /></>,
+    code: <path d="m7 7-5 5 5 5m10-10 5 5-5 5m-4-13-2 16" />,
+    link: <><path d="m10 13 4-4m-5 7-2 2a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 0 2-2a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0" transform="translate(1 0)" /></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">{paths[name] ?? paths.info}</svg>;
 }
