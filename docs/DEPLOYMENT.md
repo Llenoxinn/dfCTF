@@ -96,7 +96,7 @@ Administrative shell access is privileged access to the application's database. 
 
 ## Release checks
 
-Run `npm run check` on the exact revision you intend to deploy. Then complete these checks against staging with its real deployment configuration:
+Run `npm audit --include=dev --audit-level=high` and `npm run check` on the exact revision you intend to deploy. Include development dependencies in the audit because the Docker image retains the administrative CLI dependencies. Then complete these checks against staging with its real deployment configuration:
 
 - Registration, verification email, sign-in, password reset, and sign-out work through the public HTTPS origin.
 - The ingress overwrites spoofed `X-Real-IP` and `X-Forwarded-For` values: repeated failed sign-ins from one client are throttled even when those request headers change, while another client has its own budget. Verify IPv4 and IPv6 where available, and confirm the application origin cannot be reached externally except through the trusted ingress.

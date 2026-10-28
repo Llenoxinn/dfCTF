@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { DrizzleQueryError } from "drizzle-orm";
 import { ZodError, type ZodType } from "zod";
 
 export class HttpError extends Error {
@@ -38,9 +39,10 @@ export function route(handler:(request:Request, context:any)=>Promise<Response>|
     try {checkOrigin(request);const response=await handler(request,context);response.headers.set("X-Request-Id",requestId);return response;}
     catch(error) {
       let status=500,code="INTERNAL_ERROR",message="Something went wrong. Try again or share this request ID with staff.",details:unknown;
+      const databaseError=error instanceof DrizzleQueryError?error.cause:error;
       if(error instanceof HttpError) {({status,code,message,details}=error);}
       else if(error instanceof ZodError) {status=422;code="VALIDATION_FAILED";message="Check the highlighted fields.";details=error.flatten();}
-      else if(error && typeof error === "object" && "code" in error && error.code === "23505") {status=409;code="CONFLICT";message="That value is already in use.";}
+      else if(databaseError && typeof databaseError === "object" && "code" in databaseError && databaseError.code === "23505") {status=409;code="CONFLICT";message="That value is already in use.";}
       console.error(JSON.stringify({level:status>=500?"error":"warn",requestId,route:new URL(request.url).pathname,status,duration:Date.now()-started,errorType:error instanceof Error?error.name:"Unknown"}));
       const response=json({error:{code,message,details,requestId}},status);
       response.headers.set("X-Request-Id",requestId);

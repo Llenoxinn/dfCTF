@@ -38,7 +38,7 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci
-      - run: npm audit --omit=dev --audit-level=high
+      - run: npm audit --include=dev --audit-level=high
       - run: npm run typecheck
       - run: npm test
       - name: PostgreSQL competition and database access tests
@@ -49,8 +49,8 @@ jobs:
         run: npx vitest run tests/artifacts.test.ts
         env:
           TEST_DATABASE_URL: postgres://dfctf_test:dfctf_ci_test@127.0.0.1:5432/dfctf_test
-      - name: PostgreSQL learning progress isolation and concurrency
-        run: npx vitest run tests/learning-progress.test.ts
+      - name: PostgreSQL learning progress and profile concurrency
+        run: npx vitest run tests/learning-progress.test.ts tests/profile.test.ts
         env:
           TEST_DATABASE_URL: postgres://dfctf_test:dfctf_ci_test@127.0.0.1:5432/dfctf_test
       - run: npm run build

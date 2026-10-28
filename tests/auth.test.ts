@@ -98,8 +98,9 @@ describe("production authentication proxy boundary", () => {
     if (ip !== undefined) headers.set("x-real-ip", ip);
     const native = await authPost(new Request(`${origin}/api/auth/sign-in/email`, { method: "POST", headers, body: JSON.stringify(credentials) }));
     const session = await authGet(new Request(`${origin}/api/auth/get-session`, { headers }));
+    const callback = await authGet(new Request(`${origin}/api/auth/callback/github?state=missing-state&code=missing-code`, { headers }));
     const wrapped = await invokeAuth(new Request(origin, { headers }), "/sign-in/email", credentials);
-    for (const result of [native, session, wrapped]) {
+    for (const result of [native, session, callback, wrapped]) {
       expect(result.status).toBe(403);
       expect(await result.json()).toMatchObject({ code: "TRUSTED_PROXY_REQUIRED" });
     }
@@ -116,6 +117,33 @@ describe("production authentication proxy boundary", () => {
     const headers = new Headers({ origin, "x-real-ip": "198.51.100.43", "x-forwarded-for": "198.51.100.42" });
     const otherClient = await invokeAuth(new Request(origin, { headers }), "/sign-in/email", credentials);
     expect(otherClient.status).toBe(401);
+  });
+
+  it.each([
+    ["IPv4-mapped aliases", ["198.51.100.60", "::ffff:198.51.100.60", "::ffff:c633:643c", "198.51.100.60"]],
+    ["IPv6 spellings", ["2001:db8::1", "2001:0db8:0000:0000:0000:0000:0000:0001", "2001:db8::0001", "2001:db8::1"]],
+    ["addresses in one IPv6 /64", ["2001:db8:10:20::1", "2001:db8:10:20::2", "2001:db8:10:20::ffff", "2001:db8:10:20:1111:2222:3333:4444"]],
+  ])("shares one login budget across %s", async (_label, addresses) => {
+    const statuses: number[] = [];
+    for (const ip of addresses) {
+      const headers = new Headers({ origin, "content-type": "application/json", "x-real-ip": ip });
+      const result = await authPost(new Request(`${origin}/api/auth/sign-in/email`, { method: "POST", headers, body: JSON.stringify(credentials) }));
+      statuses.push(result.status);
+    }
+    expect(statuses).toEqual([401, 401, 401, 429]);
+  });
+
+  it("atomically shares the login budget between concurrent native and wrapped requests", async () => {
+    const headers = new Headers({ origin, "content-type": "application/json", "x-real-ip": "198.51.100.61" });
+    const results = await Promise.all(Array.from({ length: 10 }, (_, attempt) => attempt % 2
+      ? invokeAuth(new Request(origin, { headers }), "/sign-in/email", credentials)
+      : authPost(new Request(`${origin}/api/auth/sign-in/email`, { method: "POST", headers, body: JSON.stringify(credentials) }))));
+    expect(results.filter(result => result.status === 401)).toHaveLength(3);
+    expect(results.filter(result => result.status === 429)).toHaveLength(7);
+    for (const result of results.filter(result => result.status === 429)) {
+      expect(Number(result.headers.get("x-retry-after"))).toBeGreaterThan(0);
+      expect(Number(result.headers.get("x-retry-after"))).toBeLessThanOrEqual(10);
+    }
   });
 
   it.each(["198.51.100.44", "2001:db8::1", "::ffff:198.51.100.44"])("accepts proxy-stamped %s without an Origin header and preserves internal session lookups", async (ip) => {
