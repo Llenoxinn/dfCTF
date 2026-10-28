@@ -58,3 +58,44 @@ test("loading data is distinct from a successfully loaded empty leaderboard", as
   await expect(page.getByText("No solves yet. Be the first.", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Solves across dfCTF", exact: true }).locator(".stat strong .counter__sr")).toHaveText("0");
 });
+
+test("the closing cursor effect follows foreground text and buttons without blocking selection or clicks", async ({ page }) => {
+  await anonymous(page);
+  await page.route("**/api/v1/community", route => route.fulfill({ json: community() }));
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/");
+  const closing = page.locator('section[aria-labelledby="closing-title"]');
+  await closing.scrollIntoViewIfNeeded();
+  const canvas = closing.locator("canvas");
+  await expect.poll(() => canvas.evaluate(node => (node as HTMLCanvasElement).width)).toBeGreaterThan(1000);
+  const pixels = () => canvas.evaluate(node => (node as HTMLCanvasElement).toDataURL());
+  await page.mouse.move(0, 0);
+  const idle = await pixels();
+  await closing.getByRole("heading").hover();
+  await expect.poll(pixels).not.toBe(idle);
+  const overText = await pixels();
+  await closing.getByRole("button", { name: "Start solving", exact: true }).hover();
+  await expect.poll(pixels).not.toBe(overText);
+  await expect(canvas).toHaveCSS("pointer-events", "none");
+  const paragraph = closing.locator("p");
+  const selection = await paragraph.evaluate(element => {
+    const range = document.createRange();
+    range.setStart(element.firstChild!, 0);
+    range.setEnd(element.firstChild!, "Create an account in a minute.".length);
+    const box = range.getBoundingClientRect();
+    return { left: box.left + 1, right: box.right - 1, y: box.top + box.height / 2 };
+  });
+  await page.mouse.move(selection.left, selection.y);
+  await page.mouse.down();
+  await page.mouse.move(selection.right, selection.y, { steps: 12 });
+  await page.mouse.up();
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("Create an account in a minute.");
+  await closing.getByRole("button", { name: "Start solving", exact: true }).click();
+  await expect(page).toHaveURL(/auth=signup/);
+  await expect(page.locator("form").getByRole("button", { name: "Create account", exact: true })).toBeVisible();
+  await page.goBack();
+  await closing.getByRole("button", { name: "See the leaderboard", exact: true }).click();
+  await expect(page).toHaveURL(/auth=signin/);
+  await expect(page.locator("form").getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+});

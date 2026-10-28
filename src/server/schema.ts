@@ -1,7 +1,14 @@
 import { pgTable, text, integer, timestamp, boolean, jsonb, uniqueIndex, index, check, primaryKey, customType } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { user } from "./auth-schema";
+import type { LearningProgress } from "@/lib/resource-learning";
 export * from "./auth-schema";
+
+export const learningProgress = pgTable("learning_progress", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  progress: jsonb("progress").$type<LearningProgress>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}).enableRLS();
 
 const at = (name: string) => timestamp(name, { withTimezone: true }).notNull().defaultNow();
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({

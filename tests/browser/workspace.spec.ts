@@ -37,6 +37,66 @@ function challenge(id: string, title: string): ChallengeDetail {
   };
 }
 
+test("slash focuses visible search without typing and leaves modified keys, composition, and hidden search alone", async ({ page }) => {
+  await mockWorkspace(page);
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto("/?view=practice");
+  const search = page.getByRole("searchbox", { name: "Search challenges" });
+  const main = page.getByRole("main");
+  await expect(search).toBeVisible();
+  await main.focus();
+  await page.keyboard.press("/");
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue("");
+  await search.fill("training");
+  await search.press("Escape");
+  await expect(search).toHaveValue("");
+  await main.focus();
+  for (const key of ["Control+/", "Meta+/", "Alt+/", "Shift+/"]) {
+    await page.keyboard.press(key);
+    await expect(main).toBeFocused();
+  }
+  await main.dispatchEvent("keydown", { key: "/", isComposing: true, bubbles: true, cancelable: true });
+  await expect(main).toBeFocused();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(search).toBeVisible();
+  await main.focus();
+  await page.keyboard.press("/");
+  await expect(search).toBeFocused();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Leaderboard", exact: true }).click();
+  await expect(search).toBeHidden();
+  await main.focus();
+  await page.keyboard.press("/");
+  await expect(main).toBeFocused();
+});
+
+test("slash remains normal text in staff form fields and editable content", async ({ page }) => {
+  await mockWorkspace(page, async (route, url) => {
+    if (url.pathname !== "/api/v1/staff/challenges") return false;
+    await route.fulfill({ json: [] }); return true;
+  });
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto("/?view=authoring");
+  await page.getByRole("button", { name: "New challenge", exact: true }).click();
+  for (const field of [page.getByPlaceholder("Night shift"), page.getByLabel(/^Description/)]) {
+    await field.press("/");
+    await expect(field).toBeFocused();
+    await expect(field).toHaveValue("/");
+  }
+  const category = page.locator("#challenge-editor").getByRole("combobox", { name: "Category", exact: true });
+  await category.press("/");
+  await expect(category).toBeFocused();
+  await page.evaluate(() => {
+    const editor = document.createElement("div");
+    editor.contentEditable = "true"; editor.setAttribute("aria-label", "Editable notes"); editor.setAttribute("role", "textbox");
+    document.getElementById("main-content")!.append(editor);
+  });
+  const notes = page.getByRole("textbox", { name: "Editable notes" });
+  await notes.press("/");
+  await expect(notes).toBeFocused();
+  await expect(notes).toHaveText("/");
+});
+
 test("description formatting survives saving and matches the player's view", async ({ page }, testInfo) => {
   const detail: ChallengeDetail & { authorId: string } = { ...challenge("format-draft", "Formatted training case"), status: "draft", authorId: "test-author", solution: "Read the fictional evidence to recover the flag." };
   let saved = "";

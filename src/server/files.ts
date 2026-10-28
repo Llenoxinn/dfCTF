@@ -44,6 +44,28 @@ export async function saveArtifact(db:Database,viewer:Viewer,id:string,name:stri
     });
   } catch(error) {await unlink(location).catch(()=>{});throw error;}
 }
+export async function removeArtifact(db:Database,viewer:Viewer,id:string,fileId:string) {
+  const location=await db.transaction(async tx=>{
+    await tx.select().from(challenges).where(eq(challenges.id,id)).for("update");
+    const row=await challengeRecord(tx,id);
+    if(!["author","admin"].includes(viewer.role)||(viewer.role==="author"&&row.challenge.authorId!==viewer.id))throw new HttpError(404,"NOT_FOUND","This draft is unavailable.");
+    if(row.challenge.status!=="draft"||row.version.locked)throw new HttpError(409,"IMMUTABLE_VERSION","Files can only be removed from an unlocked draft.");
+    const [file]=await tx.select().from(artifacts).where(and(eq(artifacts.id,fileId),eq(artifacts.versionId,row.version.id)));
+    if(!file)throw new HttpError(404,"NOT_FOUND","File unavailable.");
+    const location=artifactPath(file.storageKey);
+    await tx.delete(artifacts).where(eq(artifacts.id,fileId));
+    await audit(tx,viewer.id,"artifact.remove",id,{fileId});
+    return location;
+  });
+  // Commit first so a failed transaction cannot leave a published file missing.
+  try {await unlink(location);} catch(error) {
+    if(!(error&&typeof error==="object"&&"code" in error&&error.code==="ENOENT")) {
+      // shortcut: failed cleanup leaves an inaccessible orphan; add retries if storage errors recur.
+      console.error(JSON.stringify({level:"error",action:"artifact.cleanup",fileId,errorType:error instanceof Error?error.name:"Unknown"}));
+    }
+  }
+  return {removed:true};
+}
 export async function downloadArtifact(db:Database,viewer:Viewer,id:string,fileId:string,staff=false,competitionId?:string) {
   const row=await challengeRecord(db,id);
   if(competitionId)await requireCompetitionChallenge(db,viewer,id,competitionId);
