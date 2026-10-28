@@ -317,7 +317,7 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
       <section className="modal-section" aria-label="Description"><Content text={challenge.description} />{challenge.tags.includes("rules") ? <Link className="button button-secondary fit" href="/rules">Read Rules / Mechanics</Link> : null}{challenge.tags.length ? <ul className="tag-list" aria-label="Tags">{challenge.tags.map(t => <li key={t} className="tag">{t}</li>)}</ul> : null}</section>
       <section className="modal-section" aria-labelledby="files-title"><div className="section-head"><h3 id="files-title">Files</h3><span className="spacer" /><span className="mono muted">{challenge.files.length} {challenge.files.length === 1 ? "file" : "files"}</span></div>
         {challenge.files.length ? <ul className="files">{challenge.files.map(file => <li key={file.id}>
-          <div className="file-info"><span className="mono strong">{file.name}</span><span className="mono faint">{humanSize(file.size)}</span><span className="checksum mono">sha256 <code>{file.sha256}</code><CopyButton value={file.sha256} label={`Copy the SHA-256 checksum for ${file.name}`} /></span></div>
+          <div className="file-info"><span className="mono strong">{file.name}</span><span className="mono faint">{humanSize(file.size)}</span></div>
           <a className="button button-secondary" href={`${endpoint}/files/${encodeURIComponent(file.id)}`} download><Icon name="download" size={16} />Download</a>
         </li>)}</ul> : <p className="muted">No files. Everything you need is in the description.</p>}
       </section>

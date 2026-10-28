@@ -192,12 +192,16 @@ textarea { resize: vertical; min-height: 88px; }
 .tag-accent { color: var(--accent-text); border-color: var(--accent); }
 .tags { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .tag-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
-/* Status: a small square in the status color plus the word, so color is never the only cue. */
+/* Status: the square fills as a challenge moves on (empty draft, half in review, full when live, a dash once archived).
+   Only "In review" takes the accent, because it is the one state waiting on someone. */
 .status { display: inline-flex; align-items: center; gap: 8px; font-size: .8125rem; font-weight: 500; color: var(--muted); white-space: nowrap; }
-.status::before { content: ""; width: 7px; height: 7px; border-radius: 1px; background: currentColor; }
-.status-review { color: var(--text); }
-.status-published { color: var(--accent-text); }
+.status::before { content: ""; flex: none; width: 8px; height: 8px; border: 1px solid currentColor; border-radius: 1px; }
+.status-review { color: var(--accent-text); }
+.status-review::before { box-shadow: inset 3px 0 0 currentColor; }
+.status-published { color: var(--text); }
+.status-published::before { background: currentColor; }
 .status-archived { color: var(--faint); }
+.status-archived::before { height: 2px; border: 0; background: currentColor; }
 .ascii-check { font-family: var(--font-code); font-size: .8125rem; color: var(--faint); }
 [aria-pressed="true"] > .ascii-check { color: var(--accent-text); }
 .verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: .9375rem; }
@@ -307,9 +311,11 @@ a.card:active { transform: scale(.98); }
 .stat { display: grid; gap: 4px; }
 .stat strong { font-size: 2.25rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
 .stat span { color: var(--muted); font-size: .875rem; }
-.heat-wrap { display: grid; gap: 12px; justify-items: start; overflow-x: auto; }
-.heat-foot { display: flex; justify-content: space-between; gap: 16px; width: 100%; font-size: .75rem; }
-.heat-skeleton { width: 100%; height: 160px; }
+/* The chart and its caption row form one block centered in the panel, so spare width splits evenly on both sides. */
+.heat-wrap { display: grid; gap: 12px; width: fit-content; max-width: 100%; margin-inline: auto; overflow-x: auto; }
+.heat-foot { display: flex; justify-content: space-between; gap: 16px; font-size: .75rem; }
+/* Same box as the 20-week, 24px-cell heatmap it stands in for, so nothing moves when the data arrives. */
+.heat-skeleton { width: 576px; max-width: 100%; aspect-ratio: 576 / 207; }
 
 .mini { width: 100%; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r); }
 .mini-head { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--line); font-size: .8125rem; }
@@ -328,10 +334,22 @@ a.card:active { transform: scale(.98); }
 .countdown-unit[data-unit="seconds"] b { color: var(--text); }
 .countdown-unit small { font-size: .75rem; color: var(--muted); }
 .countdown.urgent .countdown-unit b { color: var(--danger); }
-/* A rolling digit: a 0-9 strip behind a one-digit window. The roll is feedback that time moved, so it stays short. */
-.roll { display: inline-block; height: 1em; overflow: hidden; }
-.roll-strip { display: flex; flex-direction: column; transition: transform 380ms var(--ease-out); }
-.roll-strip > span { display: block; height: 1em; line-height: 1; }
+/* Counter from React Bits: digits on spring-driven strips inside a faded window. */
+.counter { position: relative; display: inline-flex; align-items: baseline; line-height: 1; white-space: nowrap; direction: ltr; unicode-bidi: isolate; }
+.counter__sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.counter__row { display: inline-flex; align-items: baseline; margin: 0 calc(var(--counter-gap, 0px) / -2); user-select: none; -webkit-user-select: none; }
+.counter__affix, .counter__digit, .counter__symbol { margin: 0 calc(var(--counter-gap, 0px) / 2 * var(--counter-shown, 1)); opacity: var(--counter-shown, 1); }
+.counter__affix { white-space: pre; }
+.counter__digit { position: relative; display: inline-block; box-sizing: content-box; line-height: calc(1em + var(--counter-padding, 0px)); text-align: center; }
+.counter__sizer { visibility: hidden; }
+.counter__window { position: absolute; top: calc(var(--counter-fade, 0em) * -1); right: 0; bottom: calc(var(--counter-fade, 0em) * -1); left: 0; overflow: hidden; pointer-events: none; }
+.counter__strip { position: absolute; inset: 0; }
+.counter__numeral { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; will-change: transform; }
+.counter__symbol { position: relative; display: inline-flex; justify-content: center; clip-path: inset(-0.5em 0); }
+.counter__symbol-text { display: inline-block; white-space: pre; }
+.counter__blur { position: absolute; width: 0; height: 0; overflow: hidden; }
+.counter__measure { position: absolute; top: 0; left: 0; height: 0; overflow: hidden; white-space: nowrap; visibility: hidden; pointer-events: none; }
+.counter__measure > span { display: inline-block; }
 .week-meter { display: flex; gap: 4px; }
 .week-meter span { display: grid; flex: 1; gap: 6px; font-size: .6875rem; color: var(--faint); }
 .week-meter i { height: 10px; border-radius: 1px; background: var(--surface-2); }
@@ -827,7 +845,6 @@ a.card:active { transform: scale(.98); }
   .ticker-run[aria-hidden="true"] { display: none; }
   .button:not(:disabled):active, a.card:active, .theme-card:active, .icon-button:active { transform: none; }
   .modal[open] { transform: none; }
-  .roll-strip { transition: none; }
   /* Loaders keep a slow, still pulse instead of a running light. */
   .pixel-spin i, .pixel-scan i { animation: none; opacity: .55; }
   .pixel-spin, .pixel-scan { animation: fade-pulse 1600ms ease-in-out infinite alternate; }
