@@ -31,7 +31,7 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
         "id": "powershell",
         "name": "PowerShell 7",
         "platform": "Windows native; also available on macOS and Linux",
-        "when": "Use a shell to find files, inspect short text, and check that a downloaded artifact matches its listed SHA-256. You do not need a Linux terminal for these first steps.",
+        "when": "Use a shell to find files, inspect short text, and record a file's SHA-256 so you can tell later whether a copy has changed. You do not need a Linux terminal for these first steps.",
         "steps": [
           "Create a separate practice folder and put a self-written notes.txt inside it. In Windows Terminal, select a PowerShell profile and use Get-Location to confirm where commands will run.",
           "List the folder with Get-ChildItem. Read a small preview with Get-Content -LiteralPath .\\notes.txt -TotalCount 20; -LiteralPath treats square brackets in filenames as ordinary characters.",

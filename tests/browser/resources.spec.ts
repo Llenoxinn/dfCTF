@@ -216,11 +216,48 @@ test("landing navigation, footer, tools FAQ, and rules link to the resources pag
   await expect(page.getByRole("banner").getByRole("link", { name: "Resources", exact: true })).toHaveAttribute("href", "/resources");
 });
 
-test("signed-in navigation opens the public resources page", async ({ page }) => {
+test("guides start closed, open from links, and the public page always offers a way home", async ({ page }) => {
+  await page.goto("/resources");
+  await expect(page.locator("details.resource-tool[open]")).toHaveCount(0);
+  await expect(page.getByRole("banner").getByRole("link", { name: "Home", exact: true })).toHaveAttribute("href", "/?view=home");
+  const index = page.getByRole("navigation", { name: "Resource sections", exact: true });
+  await expect(index.getByText("Challenge categories", { exact: true })).toBeVisible();
+  await expect(index.getByText("Going further", { exact: true })).toBeVisible();
+  // The setup notes link to the PowerShell guide, which opens on the click.
+  await page.locator("#before-exercises > summary").click();
+  await page.locator("#getting-started").getByRole("link", { name: "PowerShell guide", exact: true }).click();
+  await expect(page.locator("#powershell")).toHaveAttribute("open", "");
+  await expect(page.locator("#powershell .resource-tool-copy")).toBeInViewport();
+  // A direct link to a Go deeper guide opens it and the list around it.
+  const deep = RESOURCE_GUIDES[0].deeper[0].id;
+  await page.goto("about:blank");
+  await page.goto(`/resources#${deep}`);
+  await expect(page.locator(`#${deep}`)).toHaveAttribute("open", "");
+  await expect(page.locator(`#${RESOURCE_GUIDES[0].id}-deeper`)).toHaveAttribute("open", "");
+  await expect(page.locator(`#${deep} > summary`)).toBeInViewport();
+});
+
+test("signed-in players get Resources as an app tab and keep the app header", async ({ page }) => {
   await mockHome(page, true);
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/?view=practice");
-  const resources = page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "Resources", exact: true });
-  await expect(resources).toHaveAttribute("href", "/resources");
+  const tabs = page.getByRole("navigation", { name: "Main", exact: true });
+  const resources = tabs.getByRole("link", { name: "Resources", exact: true });
+  await expect(resources).toHaveAttribute("href", "/?view=resources");
   await resources.click();
+  await expect(page).toHaveURL(/\?view=resources$/);
   await expect(page.getByRole("heading", { name: "Tutorials & Resources", exact: true })).toBeVisible();
+  await expect(resources).toHaveAttribute("aria-current", "page");
+  // Links inside the guides switch tabs instead of leaving the app.
+  await page.locator("#practice-safely").getByRole("link", { name: "Read the rules", exact: true }).click();
+  await expect(page).toHaveURL(/\?view=rules$/);
+  await expect(page.getByRole("heading", { name: "Rules / Mechanics", exact: true })).toBeVisible();
+  await expect(tabs.getByRole("link", { name: "Rules", exact: true })).toHaveAttribute("aria-current", "page");
+  // From the signed-in home page, the Resources link opens the tab too.
+  await page.goto("/?view=home");
+  const landingLink = page.getByRole("banner").getByRole("navigation", { name: "Sections", exact: true }).getByRole("link", { name: "Resources", exact: true });
+  await expect(landingLink).toHaveAttribute("href", "/?view=resources");
+  await landingLink.click();
+  await expect(page.getByRole("heading", { name: "Tutorials & Resources", exact: true })).toBeVisible();
+  await expect(tabs.getByRole("link", { name: "Resources", exact: true })).toHaveAttribute("aria-current", "page");
 });
