@@ -1,20 +1,15 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import ResourcesContent from "@/components/resources-content";
-import { Icon, Wordmark } from "@/components/ui";
+import ResourceLibrary from "@/components/resource-library";
+import { RESOURCE_GUIDES } from "@/lib/resources";
 
 export const metadata: Metadata = {
   title: "Tutorials & Resources · dfCTF",
-  description: "Get to know the main areas of cybersecurity, understand the basics, and explore tools and optional guided exercises at your own pace.",
+  description: "Explore cybersecurity topics, find tool guides, and follow learning paths from an introduction to optional practice.",
 };
 
 export default function ResourcesPage() {
-  return <div className="resources-page">
-    <a className="skip-link" href="#resources-content">Skip to content</a>
-    <header className="site-nav rules-nav">
-      <Link className="brand-link" href="/?view=home" aria-label="dfCTF home"><Wordmark /></Link>
-      <div className="head-actions"><Link className="text-button" href="/?view=home"><Icon name="back" size={16} />Home</Link><Link className="text-button page-cross-link" href="/rules">Rules / Mechanics</Link><Link className="button button-secondary" href="/?view=practice">Open challenges</Link></div>
-    </header>
-    <main id="resources-content" className="resources-main" tabIndex={-1}><ResourcesContent /></main>
-  </div>;
+  const guides = RESOURCE_GUIDES.map(({ id, title, summary, tools, deeper }) => ({
+    id, title, summary, tools: [...tools, ...deeper].map(({ id, name, when, platform }) => ({ id, name, when, platform })),
+  }));
+  return <ResourceLibrary guides={guides} />;
 }

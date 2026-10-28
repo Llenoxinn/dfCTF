@@ -4,6 +4,7 @@ const config: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["@electric-sql/pglite", "pg", "@node-rs/argon2"],
   experimental: { cpus: 1 },
+  ...(process.env.DFCTF_INTEGRATION_ROOT ? { turbopack: { root: process.env.DFCTF_INTEGRATION_ROOT } } : {}),
   async headers() {
     return [{ source: "/:path*", headers: [
       {key: "X-Content-Type-Options", value: "nosniff"},

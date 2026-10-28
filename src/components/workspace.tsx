@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import type { Bootstrap, ChallengeDetail, ChallengeSummary, Leaderboard, Progress, Viewer } from "@/lib/types";
 import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
 import { countdownParts } from "@/lib/week";
@@ -13,6 +13,7 @@ import AccountSecurity from "./account-security";
 import Competitions, { type CompetitionRoute } from "./competitions";
 import Landing from "./landing";
 import RulesContent from "./rules-content";
+import { LearningProgressProvider } from "./resource-progress";
 import { Content } from "./content";
 import { ChallengeCard, type CardState } from "./cards";
 import { Heatmap, Radar, RaceChart, SolveGrid } from "./viz";
@@ -62,6 +63,11 @@ export default function Workspace() {
   const [query, setQuery] = useState("");
   const [dataBusy, setDataBusy] = useState(false);
   const [dataError, setDataError] = useState("");
+  const searchInput = useRef<HTMLInputElement>(null);
+  const leaveGuard = useRef<(() => boolean) | null>(null);
+  const historyIndex = useRef(0);
+  const historyState = useRef<Record<string, unknown>>({});
+  const registerLeaveGuard = useCallback((guard: (() => boolean) | null) => { leaveGuard.current = guard; }, []);
 
   const refresh = useCallback(async () => {
     try { lastBootstrap = await api<Bootstrap>("/api/v1/auth/bootstrap"); setBootstrap(lastBootstrap); setBootError(""); }
@@ -70,7 +76,24 @@ export default function Workspace() {
 
   useEffect(() => {
     void refresh();
-    function readLocation() {
+    const index = window.history.state?.dfctfIndex;
+    historyIndex.current = typeof index === "number" ? index : 0;
+    window.history.replaceState({ ...window.history.state, dfctfIndex: historyIndex.current }, "");
+    historyState.current = window.history.state;
+    function readLocation(event?: PopStateEvent) {
+      let nextIndex = window.history.state?.dfctfIndex;
+      // Native fragment links create entries without application state.
+      if (typeof nextIndex !== "number") {
+        nextIndex = historyIndex.current + 1;
+        // Keep the router's opaque state so restoring this entry stays in place.
+        window.history.replaceState({ ...historyState.current, ...window.history.state, dfctfIndex: nextIndex }, "");
+      }
+      // Restore the previous entry on cancellation without destroying forward history.
+      if (event && nextIndex !== historyIndex.current && leaveGuard.current && !leaveGuard.current()) {
+        window.history.go(historyIndex.current - nextIndex); return;
+      }
+      historyIndex.current = nextIndex;
+      historyState.current = window.history.state;
       const params = new URLSearchParams(window.location.search);
       const requested = params.get("view");
       setView(VIEWS.includes(requested as View) ? requested as View : "practice");
@@ -96,31 +119,52 @@ export default function Workspace() {
   const ready = !!bootstrap?.user && bootstrap.hasAccess && !!bootstrap.user.codename;
   useEffect(() => { if (ready) void loadData(); }, [ready, loadData]);
   useEffect(() => {
+    if (!ready) return;
+    function focusSearch(event: KeyboardEvent) {
+      const target = event.target;
+      if (event.defaultPrevented || event.key !== "/" || event.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select"))) return;
+      const input = searchInput.current;
+      if (!input || input.disabled || !input.getClientRects().length || getComputedStyle(input).visibility !== "visible") return;
+      event.preventDefault(); input.focus();
+    }
+    window.addEventListener("keydown", focusSearch);
+    return () => window.removeEventListener("keydown", focusSearch);
+  }, [ready]);
+  useEffect(() => {
     if (!ready || !board?.weekEndsAt) return;
     const timer = window.setTimeout(() => void loadData(), Math.max(0, new Date(board.weekEndsAt).getTime() + 1 - Date.now()));
     return () => window.clearTimeout(timer);
   }, [ready, board?.weekEndsAt, loadData]);
 
+  function pushLocation(url: string) {
+    window.history.pushState({ dfctfIndex: ++historyIndex.current }, "", url);
+    historyState.current = window.history.state;
+  }
   function navigate(next: View, challenge = "") {
+    if (leaveGuard.current && !leaveGuard.current()) return;
     setView(next); setSelected(challenge);
     setCompetitionRoute({eventId:"",challengeId:""});
-    window.history.pushState(null, "", hrefFor(next, challenge));
+    pushLocation(hrefFor(next, challenge));
     window.scrollTo({ top: 0, behavior: "instant" });
     document.getElementById("main-content")?.focus({ preventScroll: true });
   }
   function openCompetition(eventId="",challengeId="") {
+    if (leaveGuard.current && !leaveGuard.current()) return;
     const moved = !challengeId && eventId !== competitionRoute.eventId;
     setView("competitions");setSelected("");setCompetitionRoute({eventId,challengeId});
     const params=new URLSearchParams({view:"competitions",...(eventId?{competition:eventId}:{}),...(challengeId?{challenge:challengeId}:{})});
-    window.history.pushState(null,"",`/?${params}`);if(moved)window.scrollTo({top:0,behavior:"instant"});
+    pushLocation(`/?${params}`);if(moved)window.scrollTo({top:0,behavior:"instant"});
   }
   function openAuth(mode: AuthMode | null) {
+    if (leaveGuard.current && !leaveGuard.current()) return;
     setAuthMode(mode);
-    window.history.pushState(null, "", mode ? `/?auth=${mode}` : "/");
+    pushLocation(mode ? `/?auth=${mode}` : "/");
     window.scrollTo({ top: 0, behavior: "instant" });
   }
   async function signOut() {
-    try { await api("/api/auth/sign-out", { method: "POST", body: "{}" }); setChallenges([]); setProgress(null); setBoard(null); window.history.pushState(null, "", "/"); setAuthMode(null); await refresh(); }
+    if (leaveGuard.current && !leaveGuard.current()) return;
+    try { await api("/api/auth/sign-out", { method: "POST", body: "{}" }); setChallenges([]); setProgress(null); setBoard(null); pushLocation("/"); setAuthMode(null); await refresh(); }
     catch (err) { setBootError(err instanceof Error ? err.message : "Could not sign out. Please try again."); }
   }
 
@@ -137,11 +181,11 @@ export default function Workspace() {
   const activeView = view === "authoring" && !staff ? "practice" : view;
   const weekly = challenges.find(isWeekly);
   // A challenge opens as a dialog over the current page, so closing it keeps your place and scroll.
-  const openChallenge = (id: string) => { setSelected(id); window.history.pushState(null, "", hrefFor(activeView, id)); };
-  const closeChallenge = () => { setSelected(""); window.history.pushState(null, "", hrefFor(activeView)); };
+  const openChallenge = (id: string) => { setSelected(id); pushLocation(hrefFor(activeView, id)); };
+  const closeChallenge = () => { setSelected(""); pushLocation(hrefFor(activeView)); };
 
   return <div className="app">
-    <a className="skip-link" href="#main-content">Skip to content</a>
+    <a className="skip-link" href="#main-content" onClick={event => inPlace(event, () => document.getElementById("main-content")?.focus())}>Skip to content</a>
     <header className="app-bar">
       <a href={hrefFor("home")} className="brand-link" aria-label="dfCTF home" onClick={e => inPlace(e, () => navigate("home"))}><Wordmark /></a>
       <nav className="tabs" aria-label="Main">{TABS.filter(v => !v.staff || staff).flatMap(v => {
@@ -157,14 +201,14 @@ export default function Workspace() {
       {bootError ? <Notice type="error">{bootError}</Notice> : null}
       {dataError ? <Notice type="error">{dataError} <button className="text-button" onClick={loadData}>Try again</button></Notice> : null}
       {activeView === "settings" ? <Settings bootstrap={bootstrap} refresh={refresh} signOut={signOut} board={board} progress={progress} />
-        : activeView === "authoring" ? <Authoring bootstrap={bootstrap} goSettings={() => navigate("settings")} />
+        : activeView === "authoring" ? <Authoring bootstrap={bootstrap} goSettings={() => navigate("settings")} registerLeaveGuard={registerLeaveGuard} />
         : activeView === "rules" ? <RulesContent />
-        : activeView === "resources" ? <ResourcesContent openView={(event, next) => inPlace(event, () => navigate(next))} />
+        : activeView === "resources" ? <LearningProgressProvider key={bootstrap.user.id} userId={bootstrap.user.id}><ResourcesContent /></LearningProgressProvider>
         : activeView === "competitions" ? <Competitions bootstrap={bootstrap} route={competitionRoute} open={openCompetition} goSettings={() => navigate("settings")} renderChallenge={(eventId,id,back,onSolved) => <ChallengeView key={`${eventId}:${id}`} id={id} competitionId={eventId} back={back} onSolved={onSolved} />} />
         : dataBusy && !progress ? <Loading label="Loading the board" />
         : activeView === "leaderboard" ? <LeaderboardView initial={board} progress={progress} viewer={codename} />
         : activeView === "progress" ? <ProgressView progress={progress} board={board} total={challenges.length} open={openChallenge} browse={() => navigate("practice")} />
-        : <Library challenges={challenges} progress={progress} board={board} query={query} setQuery={setQuery} open={openChallenge} />}
+        : <Library challenges={challenges} progress={progress} board={board} query={query} setQuery={setQuery} searchInput={searchInput} open={openChallenge} />}
       {selected && activeView !== "competitions" ? <ChallengeView key={selected} id={selected} back={closeChallenge} onSolved={loadData} /> : null}
     </main>
   </div>;
@@ -216,12 +260,18 @@ function WeeklyBanner({ challenge, open }: { challenge: ChallengeSummary; open: 
 }
 
 type Status = "" | "open" | "solved";
-function Library({ challenges, progress, board, query, setQuery, open }: { challenges: ChallengeSummary[]; progress: Progress | null; board: Leaderboard | null; query: string; setQuery: (v: string) => void; open: (id: string) => void }) {
+function Library({ challenges, progress, board, query, setQuery, searchInput, open }: { challenges: ChallengeSummary[]; progress: Progress | null; board: Leaderboard | null; query: string; setQuery: (v: string) => void; searchInput: RefObject<HTMLInputElement | null>; open: (id: string) => void }) {
   const [status, setStatus] = useState<Status>("");
   const [cat, setCat] = useState("");
   const [levels, setLevels] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<"board" | "list">("board");
   const [sort, setSort] = useState<"points" | "solves" | "newest">("points");
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const category = params.get("category"), difficulty = params.get("difficulty");
+    if (CATEGORIES.some(value => value === category)) setCat(category!);
+    if (DIFFICULTIES.some(value => value === difficulty)) setLevels(new Set([difficulty!]));
+  }, []);
   const toggle = (set: Set<string>, value: string, update: (s: Set<string>) => void) => { const next = new Set(set); if (next.has(value)) next.delete(value); else next.add(value); update(next); };
   const filtered = useMemo(() => challenges.filter(c => (!query || `${c.title} ${c.summary} ${c.tags.join(" ")} ${c.category}`.toLowerCase().includes(query.toLowerCase())) && (!cat || c.category === cat) && (!levels.size || levels.has(c.difficulty)) && (!status || (status === "solved" ? c.solved : !c.solved)))
     .sort((a, b) => sort === "points" ? a.xp - b.xp : sort === "solves" ? b.solveCount - a.solveCount : 0), [challenges, query, cat, levels, status, sort]);
@@ -248,7 +298,7 @@ function Library({ challenges, progress, board, query, setQuery, open }: { chall
         {CATEGORIES.map(c => { const n = count(x => x.category === c); return n ? <button key={c} type="button" aria-pressed={cat === c} onClick={() => setCat(cat === c ? "" : c)}>{c}<span className="count">{n}</span></button> : null; })}
       </div>
       <div className="lib-filter-row">
-        <label className="search-box lib-search"><Icon name="search" size={16} /><span className="sr-only">Search challenges</span><input type="search" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setQuery(""); }} placeholder="Search titles, tags, categories" /></label>
+        <label className="search-box lib-search"><Icon name="search" size={16} /><span className="sr-only">Search challenges</span><input ref={searchInput} type="search" aria-keyshortcuts="/" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setQuery(""); }} placeholder="Search titles, tags, categories" /></label>
         <div className="segmented" role="group" aria-label="Status">{([["", "All"], ["open", "Open"], ["solved", "Solved"]] as const).map(([v, l]) => <button key={l} type="button" aria-pressed={status === v} onClick={() => setStatus(v)}>{l}</button>)}</div>
         <div className="segmented" role="group" aria-label="Difficulty">{DIFFICULTIES.map(d => <button key={d} type="button" aria-pressed={levels.has(d)} onClick={() => toggle(levels, d, setLevels)}><Pips value={d} />{d}</button>)}</div>
         <span className="spacer" />

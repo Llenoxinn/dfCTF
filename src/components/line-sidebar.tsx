@@ -37,7 +37,7 @@ const FALLOFF_CURVES: Record<Falloff, (p: number) => number> = {
   sharp: p => p * p * p,
 };
 // How far below the top of the window a section's heading must reach before it counts as the current one.
-const SPY_LINE = 140;
+const SPY_LINE = 160;
 
 export default function LineSidebar({
   items, label,
