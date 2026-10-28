@@ -21,6 +21,7 @@ describe("resource guide content", () => {
 
   it("gives every area a starting workflow and an optional deeper path with references", () => {
     for (const guide of RESOURCE_GUIDES) {
+      expect(guide.summary.trim(), guide.id).not.toBe("");
       expect(guide.tools.length, guide.id).toBeGreaterThan(0);
       expect(guide.deeper.length, guide.id).toBeGreaterThanOrEqual(3);
       expect(guide.concepts.length, guide.id).toBeGreaterThanOrEqual(3);

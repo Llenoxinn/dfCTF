@@ -25,7 +25,7 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
   {
     "id": "general-skills",
     "title": "General skills",
-    "summary": "Start with file handling, encodings, and reproducible notes. Identify the evidence before choosing a tool, keep the original unchanged, and test each idea on a copy.",
+    "summary": "General skills are the everyday foundations of cybersecurity: understanding files, reading unfamiliar data, and keeping track of what you discover. They help you make sense of a clue before deciding which specialist tool might help.",
     "tools": [
       {
         "id": "powershell",
@@ -180,7 +180,7 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
   {
     "id": "osint",
     "title": "OSINT",
-    "summary": "Collect verifiable facts from permitted sources and separate observations from guesses. These exercises use your own files or public images you have permission to investigate, never private people or accounts.",
+    "summary": "Open-source intelligence, or OSINT, means finding and checking information from public sources. It brings together clues from things such as published pages, photographs, and domain records to build a picture you can explain and support.",
     "tools": [
       {
         "id": "exiftool",
@@ -315,7 +315,7 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
   {
     "id": "steganography",
     "title": "Steganography",
-    "summary": "Look for information represented inside another medium. Start with format, metadata, and ordinary viewing before testing channels, bit planes, or audio spectra; a suspicious pattern is only a hypothesis.",
+    "summary": "Steganography is the practice of hiding information inside something that looks ordinary, such as a picture or an audio recording. Learning about it starts with understanding how those files store information and how a hidden signal might differ from normal content.",
     "tools": [
       {
         "id": "audacity",
@@ -450,7 +450,7 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
   {
     "id": "forensics",
     "title": "Forensics",
-    "summary": "Preserve evidence, reconstruct a sequence, and connect claims to specific bytes or records. Work from supplied captures, logical files, or fictional images; live collection is unnecessary for these starting exercises.",
+    "summary": "Digital forensics uses the traces left in files, devices, and recordings of activity to understand what happened. It is a little like reconstructing a story: each clue needs context, and the explanation should be supported by evidence someone else can check.",
     "tools": [
       {
         "id": "wireshark",
@@ -585,7 +585,7 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
   {
     "id": "web-exploitation",
     "title": "Web exploitation",
-    "summary": "Learn HTTP by inspecting your own local pages or an explicitly authorized training lab. dfCTF's current web challenges use downloadable material; the platform, its login, and its users are not attack targets.",
+    "summary": "Web security looks at how browsers, websites, and their servers exchange information and decide who can do what. Understanding those everyday interactions makes it easier to see how a website can accidentally expose information or trust the wrong input.",
     "tools": [
       {
         "id": "chrome-devtools",
@@ -728,7 +728,7 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
   {
     "id": "binary-exploitation",
     "title": "Binary exploitation",
-    "summary": "Begin with program structure and reverse engineering rather than exploitation. The current library uses downloadable exercises, not live targets. Compile your own tiny program for these tutorials; WSL is not a sandbox for unknown executables.",
+    "summary": "Binary analysis explores how a compiled program works when its original source code may not be available. It introduces the instructions, memory, and decisions behind software, and helps explain why mistakes in those areas can become security problems.",
     "tools": [
       {
         "id": "ghidra",
@@ -875,7 +875,7 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
   {
     "id": "miscellaneous",
     "title": "Miscellaneous",
-    "summary": "Use small, inspectable transformations for structured data and puzzles. Write down the rule, preserve the input, and check a miniature example before applying that rule to a larger file.",
+    "summary": "Some cybersecurity problems are mostly about making sense of information: finding a pattern, comparing two records, or putting events in the right order. This area brings together useful ways of thinking about data that apply across many kinds of investigation.",
     "tools": [
       {
         "id": "jq",
@@ -1022,7 +1022,7 @@ export const RESOURCE_GUIDES: ResourceGuide[] = [
   {
     "id": "cryptography",
     "title": "Cryptography foundations",
-    "summary": "Extra foundations, not a current dfCTF library category. Learn the difference between encoding, hashing, and encryption, then practice small mathematical properties before considering larger cryptography exercises.",
+    "summary": "Cryptography helps protect information and check whether it has changed or who signed it. Its different building blocks have different jobs, so the first step is understanding what encoding, hashing, encryption, and digital signatures each do.",
     "tools": [
       {
         "id": "openssl",

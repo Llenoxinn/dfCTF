@@ -4,7 +4,7 @@ export const RESOURCE_SPECIALTIES: ResourceGuide[] = [
   {
     "id": "audio-recovery",
     "title": "Audio & media recovery",
-    "summary": "Inspect streams, separate channels, and compare careful restoration with the original recording. Distinguish a hidden signal, a damaged container, and information that was never captured.",
+    "summary": "An audio recording contains more than the sounds you notice on the first listen: it also has channels, timing, and information about how it was stored. Audio analysis helps you understand those layers, while restoration explores whether an existing sound can be made clearer.",
     "tools": [
       {
         "id": "audio-channel-isolation",
@@ -115,7 +115,7 @@ export const RESOURCE_SPECIALTIES: ResourceGuide[] = [
   {
     "id": "network-defense",
     "title": "Network defense & DDoS",
-    "summary": "Learn protocols, availability signals, and incident triage from saved captures and fictional metrics. Follow an offline investigation from a traffic spike to a defensible mitigation decision.",
+    "summary": "Network defense is about keeping connected systems available and understanding the traffic moving between them. A denial-of-service attack tries to interrupt that availability; learning to investigate one begins with recognizing normal demand, bottlenecks, and the signals of a service under pressure.",
     "tools": [
       {
         "id": "network-ddos-triage",
@@ -226,7 +226,7 @@ export const RESOURCE_SPECIALTIES: ResourceGuide[] = [
   {
     "id": "scripting-automation",
     "title": "Scripting & automation",
-    "summary": "Turn a repeatable observation into a small, bounded script. Parse structured input, reject unexpected shapes, preserve sources, and make errors visible before automating bigger investigations.",
+    "summary": "Scripting lets you turn a repeatable task into a small program, such as organizing records or summarizing a log. In cybersecurity, a useful script makes a careful investigation easier to repeat while keeping its assumptions and mistakes visible.",
     "tools": [
       {
         "id": "automation-python-jsonl",
@@ -337,7 +337,7 @@ export const RESOURCE_SPECIALTIES: ResourceGuide[] = [
   {
     "id": "cloud-containers",
     "title": "Cloud & container security",
-    "summary": "Review configuration and intended permissions before deploying anything. Work from local sample files and sanitized plans to learn exposure, identity boundaries, and the difference between declared and effective controls.",
+    "summary": "Cloud services and containers give applications flexible places to run, but their security still depends on configuration and access choices. This area explains how permissions, network exposure, and isolation fit together, and who is responsible for each part.",
     "tools": [
       {
         "id": "cloud-container-review",
@@ -448,7 +448,7 @@ export const RESOURCE_SPECIALTIES: ResourceGuide[] = [
   {
     "id": "incident-response",
     "title": "Detection & incident response",
-    "summary": "Build a timeline, test a detection hypothesis, and state what remains unknown. Use exported logs and harmless text fixtures rather than executing suspicious programs.",
+    "summary": "Detection is the work of noticing activity that deserves attention; incident response is the process of understanding it and deciding what to do next. Both rely on connecting evidence, considering other explanations, and keeping a clear record of decisions.",
     "tools": [
       {
         "id": "response-event-timeline",
@@ -559,7 +559,7 @@ export const RESOURCE_SPECIALTIES: ResourceGuide[] = [
   {
     "id": "identity-host-security",
     "title": "Identity & host security",
-    "summary": "Understand users, groups, file permissions, and inherited access. Practice read-only comparisons on your own files before considering changes to an operating system or organization.",
+    "summary": "Identity security concerns who a user or program is, while access controls decide what that identity is allowed to do. Host security applies those ideas to a computer, its files, and its services so that the right people have the access they need.",
     "tools": [
       {
         "id": "identity-windows-acl",
@@ -678,7 +678,7 @@ export const RESOURCE_SPECIALTIES: ResourceGuide[] = [
   {
     "id": "mobile-wireless",
     "title": "Mobile, wireless & IoT",
-    "summary": "Inspect application packages and already-captured protocol evidence. Learn where static analysis stops, what encryption conceals, and why a permission or packet is only one part of a security claim.",
+    "summary": "Phones, wireless networks, and connected devices combine software, hardware, and communication in one system. Understanding their security means looking at what an app contains, what a device can access, and what its network activity can actually tell you.",
     "tools": [
       {
         "id": "mobile-apk-analysis",
