@@ -41,10 +41,10 @@ function PixelIcon({ rows }: { rows: string[] }) {
   return <svg className="pixel-icon" width="36" height="36" viewBox="0 0 9 9" aria-hidden="true" shapeRendering="crispEdges"><path d={d} /></svg>;
 }
 
-const FAQ: [string, string][] = [
+const FAQ: [string, ReactNode][] = [
   ["What is a CTF?", "Capture the flag is a security game. Each challenge hides a short secret string, the flag, inside something: a file, a web page, a program. Your job is to find it. On dfCTF every flag looks like dfCTF{...}."],
   ["Do I need experience?", "No. Every category has easy starters, and each solve unlocks a walkthrough that explains the intended approach."],
-  ["What tools do I need?", "A laptop, a terminal, and a text editor. Some challenges are easier with free tools like Wireshark or CyberChef, and the description says when."],
+  ["What tools do I need?", <>A laptop, a terminal, and a text editor. Some challenges are easier with free tools like Wireshark or CyberChef, and the description says when. Start with <Link href="/resources">Tutorials & Resources</Link> for tool guides and beginner references.</>],
   ["Is this legal?", "Yes. Every target is fictional and built for practice. You download files and work on your own machine; you never attack a real system."],
   ["How do points work?", "Each challenge has a point value. Your first correct flag earns it once. Wrong answers never cost points."],
   ["Who makes the challenges?", "DFC Developers and community authors. A second person solves every challenge before it is published."],
@@ -178,7 +178,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
     ["Flags captured this week", weekSolves ?? unknown],
     ["Leading this week", data ? leader ? <span className="flex min-w-0 items-center gap-2.5"><Identicon name={leader} size={24} /><span className="truncate">{leader}</span></span> : "Nobody yet" : unknown],
   ];
-  const faqItem = ([q, a]: [string, string], i: number) => <div key={q} className="faq-item" data-open={faq === i || undefined}>
+  const faqItem = ([q, a]: [string, ReactNode], i: number) => <div key={q} className="faq-item" data-open={faq === i || undefined}>
     <h3><button type="button" aria-expanded={faq === i} aria-controls={`faq-${i}`} onClick={() => setFaq(faq === i ? -1 : i)}>{q}<span className="mono" aria-hidden="true">{faq === i ? "[-]" : "[+]"}</span></button></h3>
     <div className="faq-answer" id={`faq-${i}`} role="region" aria-label={q}><div><p>{a}</p></div></div>
   </div>;
@@ -188,7 +188,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
     <header className="sticky top-0 z-30 border-b border-line bg-bg">
       <div className={`${FRAME} ${PAD} flex h-16 items-center gap-6`}>
         <a className="brand-link" href={signedIn ? "/?view=home" : "/"} aria-label="dfCTF home"><Wordmark /></a>
-        <nav aria-label="Sections" className="mx-auto hidden items-center gap-1 lg:flex">{[["#leaderboard", "Leaderboard"], ["#this-week", "This week"], ["#categories", "Categories"], ["/rules", "Rules"], ["#faq", "FAQ"]].map(([href, label]) => <Link key={href} href={href} className="rounded-xs px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-fg">{label}</Link>)}</nav>
+        <nav aria-label="Sections" className="mx-auto hidden items-center gap-1 lg:flex">{[["#leaderboard", "Leaderboard"], ["#this-week", "This week"], ["#categories", "Categories"], ["/resources", "Resources"], ["/rules", "Rules"], ["#faq", "FAQ"]].map(([href, label]) => <Link key={href} href={href} className="rounded-xs px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-fg">{label}</Link>)}</nav>
         <div className="ml-auto flex items-center gap-2 lg:ml-0">{signedIn ? null : <button className="button button-ghost max-sm:hidden" onClick={signIn}>Sign in</button>}<button className="button button-primary" onClick={createAccount}>{start}</button></div>
       </div>
     </header>
@@ -335,7 +335,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
       <Marks />
       <div className="grid content-start justify-items-start gap-3.5"><Wordmark /><p className="max-w-[22rem] text-[15px] text-muted">The capture-the-flag platform built by DFC Developers.</p><p className="text-[13px] text-faint">Flags look like <code className="text-accent-ink">dfCTF{"{...}"}</code></p></div>
       <nav aria-label="Footer" className="grid grid-cols-2 gap-8 sm:grid-cols-3">
-        {([["Play", [["#try", "Try one now"], ["#how", "How it works"], ["#this-week", "This week"], ["#leaderboard", "Leaderboard"]]], ["Learn", [["#categories", "Categories"], ["/rules", "Rules / Mechanics"], ["#fair-play", "Fair play"], ["#faq", "FAQ"]]]] as const).map(([title, links]) => <div key={title} className="grid content-start justify-items-start gap-1"><h2 className="mb-2 text-[13px] font-semibold text-fg">{title}</h2>{links.map(([href, label]) => <Link key={href} href={href} className="inline-flex min-h-8 items-center text-sm text-muted transition-colors hover:text-fg">{label}</Link>)}</div>)}
+        {([["Play", [["#try", "Try one now"], ["#how", "How it works"], ["#this-week", "This week"], ["#leaderboard", "Leaderboard"]]], ["Learn", [["#categories", "Categories"], ["/resources", "Resources"], ["/rules", "Rules / Mechanics"], ["#fair-play", "Fair play"], ["#faq", "FAQ"]]]] as const).map(([title, links]) => <div key={title} className="grid content-start justify-items-start gap-1"><h2 className="mb-2 text-[13px] font-semibold text-fg">{title}</h2>{links.map(([href, label]) => <Link key={href} href={href} className="inline-flex min-h-8 items-center text-sm text-muted transition-colors hover:text-fg">{label}</Link>)}</div>)}
         <div className="grid content-start justify-items-start gap-1"><h2 className="mb-2 text-[13px] font-semibold text-fg">Account</h2>{signedIn ? <><button className="link-button min-h-8" onClick={createAccount}>Open challenges</button><button className="link-button min-h-8" onClick={signIn}>Leaderboard</button></> : <><button className="link-button min-h-8" onClick={signIn}>Sign in</button><button className="link-button min-h-8" onClick={createAccount}>Create account</button></>}</div>
       </nav>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-6 text-[13px] text-faint lg:col-span-2"><span>© {new Date().getFullYear()} DFC Developers</span><span>All challenge content is fictional. Only test systems you have permission to attack.</span><a className="link-button sm:ml-auto" href="#landing-main">Back to top</a></div>
