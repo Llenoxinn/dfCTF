@@ -36,7 +36,7 @@ test("resources are public and offer expandable tool tutorials with official ref
   await expect(page.getByRole("heading", { name: "Tutorials & Resources", exact: true })).toBeVisible();
   await expect(page).toHaveTitle(/Tutorials & Resources/);
   const main = page.getByRole("main");
-  await expect(main.getByRole("heading", { name: "Start with a small toolkit", exact: true })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "Start with the big picture", exact: true })).toBeVisible();
   await expect(main.getByRole("heading", { name: "Practice with permission", exact: true })).toBeVisible();
   await expect(main.getByRole("link", { name: "Rules / Mechanics", exact: true })).toHaveAttribute("href", "/rules");
   const index = page.getByRole("navigation", { name: "Resource sections", exact: true });
@@ -47,12 +47,18 @@ test("resources are public and offer expandable tool tutorials with official ref
     await expect(index.getByRole("link", { name: title, exact: true })).toHaveAttribute("href", `#${id}`);
     await expect(main.getByRole("heading", { name: title, exact: true })).toBeVisible();
   }
-  for (const id of ["cyberchef", "wireshark", "ghidra", "openssl"]) {
+  await expect(main.locator(".resource-tool[open]")).toHaveCount(0);
+  await expect(main.locator(".resource-exercise[open]")).toHaveCount(0);
+  await expect(main.locator("pre:visible")).toHaveCount(0);
+  for (const id of ["powershell", "wireshark", "ghidra", "openssl"]) {
     await expect(main.locator(`#${id} > summary`)).toBeVisible();
   }
-  const tutorial = main.locator("details.resource-tool").filter({ has: page.locator("summary").filter({ hasText: "CyberChef" }) });
-  if (await tutorial.getAttribute("open") === null) await tutorial.locator("summary").click();
+  await main.locator("#general-skills-deeper > summary").click();
+  const tutorial = main.locator("#cyberchef");
+  await tutorial.locator(":scope > summary").click();
   await expect(tutorial).toHaveAttribute("open", "");
+  await expect(tutorial.locator("ol")).toBeHidden();
+  await tutorial.locator(".resource-exercise > summary").click();
   await expect(tutorial.locator("ol")).toBeVisible();
   await expect(tutorial.getByRole("link").first()).toHaveAttribute("href", /^https:\/\//);
   const externalLinks = await main.locator('a[href^="https://"]').evaluateAll(links => links.map(link => ({
@@ -61,6 +67,39 @@ test("resources are public and offer expandable tool tutorials with official ref
   expect(externalLinks.length).toBeGreaterThan(8);
   expect(externalLinks.every(link => link.target !== "_blank" || link.rel?.split(" ").includes("noopener"))).toBe(true);
   expect(apiRequests).toEqual([]);
+});
+
+test("every area introduces its basics before tools and makes exercises an explicit next step", async ({ page }) => {
+  await page.goto("/resources");
+  for (const guide of RESOURCE_GUIDES) {
+    const section = page.locator(`#${guide.id}`);
+    const basics = section.locator(".resource-area-notes");
+    const tool = section.locator(":scope > .resource-tools > details").first();
+    await expect(tool).toHaveAttribute("id", guide.tools[0].id);
+    await expect(section.getByRole("list", { name: `${guide.title} tool recommendations` }).getByRole("listitem")).toHaveCount(guide.tools.length - 1 + guide.deeper.length);
+    const toolToggle = tool.locator(":scope > summary");
+    const exercise = tool.locator(".resource-exercise");
+    const exerciseToggle = exercise.locator(":scope > summary");
+    const steps = exercise.locator("ol");
+    await expect(basics.getByRole("definition")).toHaveCount(guide.concepts.length);
+    await expect(basics.getByRole("definition").first()).toBeVisible();
+    expect(await basics.evaluate(element => !!(element.compareDocumentPosition(element.parentElement!.querySelector(".resource-tools")!) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+    await expect(tool.locator(".resource-tool-copy")).toBeHidden();
+    await toolToggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(tool.locator(".resource-tool-copy > p")).toBeVisible();
+    await expect(steps).toBeHidden();
+    await exerciseToggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(steps).toBeVisible();
+    await exerciseToggle.focus();
+    await page.keyboard.press("Space");
+    await expect(steps).toBeHidden();
+    await expect(tool.locator(".resource-tool-copy > p")).toBeVisible();
+    await toolToggle.focus();
+    await page.keyboard.press("Enter");
+  }
+  await expect(page.locator(".resource-exercise[open]")).toHaveCount(0);
 });
 
 test("every area offers keyboard-controlled deeper guides without opening the other disclosures", async ({ page }) => {
@@ -76,13 +115,13 @@ test("every area offers keyboard-controlled deeper guides without opening the ot
     const firstTool = tools.first();
     const toolToggle = firstTool.locator(":scope > summary");
     const workflow = firstTool.locator(".resource-tool-copy");
-    await expect(tools).toHaveCount(guide.deeper.length);
+    await expect(tools).toHaveCount(guide.tools.length - 1 + guide.deeper.length);
     await expect(toolToggle).toBeHidden();
     await toggle.focus();
     await page.keyboard.press("Enter");
     await expect(deeper).toHaveAttribute("open", "");
-    await expect(deeper.getByRole("definition")).toHaveCount(guide.concepts.length);
-    await expect(deeper.getByRole("definition").first()).toBeVisible();
+    await expect(section.getByRole("definition")).toHaveCount(guide.concepts.length);
+    await expect(section.getByRole("definition").first()).toBeVisible();
     await expect(toolToggle).toBeVisible();
     await expect(workflow).toBeHidden();
     await toolToggle.focus();
@@ -92,7 +131,7 @@ test("every area offers keyboard-controlled deeper guides without opening the ot
     await page.keyboard.press("Enter");
     await expect(workflow).toBeHidden();
     await expect(firstTool).toHaveAttribute("open", "");
-    await expect(section.locator(":scope > .resource-tools > details").first()).toHaveAttribute("open", "");
+    await expect(section.locator(":scope > .resource-tools > details").first()).not.toHaveAttribute("open", "");
     await page.keyboard.press("Enter");
     await expect(workflow).toBeVisible();
     await toolToggle.focus();

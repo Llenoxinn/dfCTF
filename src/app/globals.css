@@ -540,15 +540,15 @@ a.card:active { transform: scale(.98); }
 .resource-number { color: var(--faint); font-size: .8125rem; padding-top: 4px; }
 .resource-tools { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
 .resource-tool + .resource-tool { border-top: 1px solid var(--line); }
-.resource-tool summary { list-style: none; padding: 22px 24px; cursor: pointer; background: var(--surface); }
-.resource-tool summary::-webkit-details-marker { display: none; }
-.resource-tool summary:focus-visible { outline-offset: -3px; }
-.resource-tool summary h3 { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; font-size: 1.125rem; }
+.resource-tool > summary { list-style: none; padding: 22px 24px; cursor: pointer; background: var(--surface); }
+.resource-tool > summary::-webkit-details-marker { display: none; }
+.resource-tool > summary:focus-visible { outline-offset: -3px; }
+.resource-tool > summary h4 { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; font-size: 1.125rem; }
 .resource-platform { grid-column: 1; font-family: var(--font-body); color: var(--muted); font-size: .8125rem; font-weight: 400; letter-spacing: 0; line-height: 1.5; }
 .resource-disclosure { grid-column: 2; grid-row: 1 / 3; color: var(--faint); font-size: .8125rem; }
-.resource-disclosure span:last-child, .resource-tool[open] .resource-disclosure span:first-child { display: none; }
-.resource-tool[open] .resource-disclosure span:last-child { display: inline; }
-.resource-tool[open] summary { border-bottom: 1px solid var(--line); }
+.resource-disclosure span:last-child, .resource-tool[open] > summary .resource-disclosure span:first-child { display: none; }
+.resource-tool[open] > summary .resource-disclosure span:last-child { display: inline; }
+.resource-tool[open] > summary { border-bottom: 1px solid var(--line); }
 .resource-tool-copy { min-width: 0; padding: 24px; overflow-wrap: anywhere; }
 .resource-deep-dive { margin-top: 16px; border: 1px solid var(--line-strong); border-radius: var(--r); }
 .resource-deep-dive > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; padding: 20px 24px; cursor: pointer; list-style: none; }
@@ -560,12 +560,19 @@ a.card:active { transform: scale(.98); }
 .resource-deep-dive[open] > summary .resource-disclosure span:first-child { display: none; }
 .resource-deep-dive[open] > summary .resource-disclosure span:last-child { display: inline; }
 .resource-deep-content { min-width: 0; padding: 16px; }
-.resource-area-notes { padding: 8px; margin-bottom: 20px; }
+.resource-area-notes { margin: 28px 0; }
 .resource-area-notes h3 { font-size: 1.125rem; margin-bottom: 16px; }
 .resource-area-notes dl { display: grid; gap: 16px; }
 .resource-area-notes dt { font-weight: 600; margin-bottom: 4px; }
 .resource-area-notes dd { color: var(--muted); line-height: 1.7; overflow-wrap: anywhere; }
-.resource-tool-copy h4 { font-size: .875rem; font-weight: 600; margin-bottom: 10px; }
+.resource-tools-title { font-size: 1.125rem; margin: 28px 0 12px; }
+.resource-recommendations { list-style: none; margin: 16px 0 24px; display: grid; gap: 16px; }
+.resource-recommendations li { padding-left: 16px; border-left: 2px solid var(--line); }
+.resource-recommendations p { color: var(--muted); font-size: .875rem; margin: 6px 0 0; }
+.resource-exercise-copy h5 { font-size: .875rem; font-weight: 600; margin-bottom: 10px; }
+.resource-exercise, .resources-setup { margin-top: 20px; border-top: 1px solid var(--line); }
+.resource-exercise > summary, .resources-setup > summary { padding: 16px 0; cursor: pointer; font-weight: 600; }
+.resource-exercise-copy, .resources-setup-copy { padding-top: 4px; }
 .resource-tool-copy ol { margin: 16px 0 24px; }
 .resource-example { min-width: 0; margin: 24px 0; border: 1px solid var(--line); border-radius: var(--r); }
 .resource-example figcaption { padding: 10px 14px; background: var(--surface); color: var(--muted); font-size: .8125rem; border-bottom: 1px solid var(--line); }
@@ -590,7 +597,7 @@ a.card:active { transform: scale(.98); }
   .resources-main { padding: 36px 16px 56px; }
   .resources-heading { margin-bottom: 32px; }
   .resources-heading > p { font-size: 1rem; }
-  .resource-tool summary, .resource-tool-copy, .resource-deep-dive > summary { padding: 18px 16px; }
+  .resource-tool > summary, .resource-tool-copy, .resource-deep-dive > summary { padding: 18px 16px; }
   .resource-deep-content { padding: 8px; }
   .resources-platform-note, .resources-scope { padding: 18px 16px; }
   .resources-copy > section, .resource-tool { scroll-margin-top: 128px; }
