@@ -258,6 +258,12 @@ function Library({ challenges, progress, board, query, setQuery, searchInput, op
   const [levels, setLevels] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<"board" | "list">("board");
   const [sort, setSort] = useState<"points" | "solves" | "newest">("points");
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const category = params.get("category"), difficulty = params.get("difficulty");
+    if (CATEGORIES.some(value => value === category)) setCat(category!);
+    if (DIFFICULTIES.some(value => value === difficulty)) setLevels(new Set([difficulty!]));
+  }, []);
   const toggle = (set: Set<string>, value: string, update: (s: Set<string>) => void) => { const next = new Set(set); if (next.has(value)) next.delete(value); else next.add(value); update(next); };
   const filtered = useMemo(() => challenges.filter(c => (!query || `${c.title} ${c.summary} ${c.tags.join(" ")} ${c.category}`.toLowerCase().includes(query.toLowerCase())) && (!cat || c.category === cat) && (!levels.size || levels.has(c.difficulty)) && (!status || (status === "solved" ? c.solved : !c.solved)))
     .sort((a, b) => sort === "points" ? a.xp - b.xp : sort === "solves" ? b.solveCount - a.solveCount : 0), [challenges, query, cat, levels, status, sort]);
