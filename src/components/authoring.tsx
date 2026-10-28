@@ -54,7 +54,7 @@ export default function Authoring({ bootstrap, goSettings, registerLeaveGuard }:
   return <>
     <div className="page-head"><div><h1>Authoring</h1><p>Write challenges, review other people’s, and publish them to the board.</p></div>{canCreate ? <div className="head-actions"><button className="button button-secondary" onClick={addRules} disabled={busy}>Rules challenge</button><button className="button button-primary" onClick={() => setSelected("new")} disabled={busy}><Icon name="plus" size={16} />New challenge</button></div> : null}</div>
     {error ? <Notice type="error">{error}</Notice> : null}
-    {busy ? <Loading label="Loading challenges" /> : items.length ? <>
+    {busy ? <Loading label="Loading challenges" backdrop /> : items.length ? <>
       <div className="filter-tabs" role="group" aria-label="Show challenges by status">
         {(["", ...Object.keys(STATUS_LABEL)] as (ChallengeStatus | "")[]).map(status => <button type="button" key={status || "all"} aria-pressed={filter === status} onClick={() => setFilter(status)}>{status ? STATUS_LABEL[status] : "All"}<span className="count">{status ? n(status) : items.length}</span></button>)}
       </div>

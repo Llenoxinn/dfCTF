@@ -157,6 +157,11 @@ textarea { resize: vertical; min-height: 88px; }
 .notice-error { border-color: var(--danger); } .notice-error svg { color: var(--danger); }
 .notice-success { border-color: var(--accent); } .notice-success svg { color: var(--accent-text); }
 .loading { display: flex; align-items: center; gap: 14px; color: var(--muted); padding: 32px 0; font-size: .8125rem; }
+/* A view that is still loading: the loader centered in a panel over the boot screen's ASCII light field, glowing up
+   from the bottom edge so the loader itself sits in the quiet part. */
+.loading-stage { position: relative; display: grid; place-items: center; min-height: min(62vh, 560px); overflow: hidden; isolation: isolate; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg); }
+.loading-ascii { position: absolute; inset: 0; z-index: -1; }
+.loading-stage > .loading { padding: 0 16px; }
 /* Loaders are pixels, like the meters: a lit cell runs the 3x3 ring (buttons), or a light sweeps a meter (content). */
 .pixel-spin { display: inline-grid; grid-template-columns: repeat(3, 3px); grid-template-rows: repeat(3, 3px); gap: 1px; flex: none; }
 .pixel-spin i { background: currentColor; border-radius: .5px; opacity: .18; animation: pixel-trail 720ms linear infinite; }
