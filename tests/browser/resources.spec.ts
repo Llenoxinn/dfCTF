@@ -49,14 +49,14 @@ test("the public library introduces learning before topics and makes paths disco
     await expect(lane.getByRole("list", { name: `${path.title} topic sequence`, exact: true }).getByRole("link")).toHaveCount(path.topics.length);
     const first = lane.locator(".learning-map-node").first();
     await expect(first).toHaveAttribute("href", `/resources/${path.topics[0]}?path=${path.id}`);
-    await expect(first).toContainText("Next suggested");
+    await expect(lane.getByRole("link", { name: `Start path: ${path.title}`, exact: true })).toHaveAttribute("href", `/resources/${path.topics[0]}?path=${path.id}`);
   }
   await expect(page.getByRole("heading", { name: "Practice with permission" })).toBeVisible();
   await expect(page.getByRole("main").getByRole("link", { name: "Rules / Mechanics", exact: true })).toHaveAttribute("href", "/rules");
   await expect(page.locator("pre, .resource-exercise")).toHaveCount(0);
   for (const guide of RESOURCE_GUIDES) await expect(page.getByRole("region", { name: "Find your next topic" }).getByRole("link", { name: guide.title, exact: true })).toHaveAttribute("href", `/resources/${guide.id}`);
   const card = page.locator(".resource-topic-card").first();
-  await expect(card.locator(".resource-link-arrow")).toHaveCount(2);
+  await expect(card.locator(".resource-link-arrow")).toHaveCount(1);
   await expect(card.locator(".resource-link-arrow").first()).toBeVisible();
   const bookmark = card.getByRole("button", { name: "Bookmark General skills", exact: true });
   await expect(bookmark).toHaveText("");
@@ -136,25 +136,25 @@ test("topic and tool bookmarks, completed topics, and nested disclosures survive
   await page.getByRole("navigation", { name: "Learning breadcrumbs" }).getByRole("link", { name: "All resources", exact: true }).click();
   const saved = page.getByRole("region", { name: "Your learning" });
   await expect(saved.getByRole("link", { name: "General skills", exact: true })).toHaveAttribute("href", "/resources/general-skills");
-  await expect(saved.getByRole("link", { name: "CyberChef · General skills", exact: true })).toHaveAttribute("href", "/resources/general-skills#cyberchef");
+  await expect(saved.getByRole("link", { name: "CyberChef in General skills", exact: true })).toHaveAttribute("href", "/resources/general-skills#cyberchef");
   await expect(saved).toContainText("1 of 15 topics marked read");
   const foundation = page.getByRole("article", { name: "Beginner foundations", exact: true });
-  await expect(foundation.locator(".learning-map-node").first()).toContainText("Marked read");
-  await expect(foundation.locator(".learning-map-node").nth(1)).toContainText("Next suggested");
-  await saved.getByRole("link", { name: "CyberChef · General skills", exact: true }).click();
+  await expect(foundation.locator(".learning-map-node").first()).toContainText("Read");
+  await expect(foundation.locator(".learning-map-node").nth(1)).toContainText("Up next");
+  await saved.getByRole("link", { name: "CyberChef in General skills", exact: true }).click();
   await expect(cyberchef.locator(".resource-tool-copy")).toBeVisible();
   await expect(cyberchef.locator(":scope > summary")).toBeInViewport();
   await page.getByRole("button", { name: "Marked read", exact: true }).click();
   await page.getByRole("navigation", { name: "Learning breadcrumbs" }).getByRole("link", { name: "All resources", exact: true }).click();
-  await saved.getByRole("button", { name: "Remove bookmark: CyberChef · General skills", exact: true }).click();
+  await saved.getByRole("button", { name: "Remove bookmark: CyberChef in General skills", exact: true }).click();
   await page.reload();
-  await expect(saved.getByRole("link", { name: "CyberChef · General skills", exact: true })).toHaveCount(0);
+  await expect(saved.getByRole("link", { name: "CyberChef in General skills", exact: true })).toHaveCount(0);
   await expect(saved).toContainText("0 of 15 topics marked read");
 });
 
 test("resource link hovers and bookmark pops preserve saved state between tabs and respect reduced motion", async ({ page, context }) => {
   await page.goto("/resources");
-  const link = page.locator(".resource-topic-card h3 a").first();
+  const link = page.locator(".resource-topic-card h4 a").first();
   const arrow = link.locator(".resource-link-arrow");
   const arrowWidth = await arrow.evaluate(element => element.getBoundingClientRect().width);
   await link.hover();
