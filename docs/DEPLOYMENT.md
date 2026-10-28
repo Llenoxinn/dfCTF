@@ -59,6 +59,23 @@ Migrations must succeed before the app is started. For an existing file-only dat
 
 The Docker image runs as `node`, retains the source and CLI dependencies needed for migrations and administrative bootstrap, and binds port 3000 inside its container. Compose publishes that port only to the host's loopback interface. Place a TLS reverse proxy on the host in front of `127.0.0.1:3000`, preserve the public host, and set the forwarded protocol to HTTPS. Set a request body limit that accommodates the documented artifact limit, plus multipart overhead, while rejecting oversized uploads. Prevent unauthenticated access to any development services.
 
+Production authentication reads only `X-Real-IP` for its rate limits and session IPs. The proxy must **overwrite** this header with the actual client address, never copy a client-supplied value or append a forwarded chain. Missing, malformed, or multiple addresses are rejected by HTTP authentication endpoints, including OAuth callbacks and the MFA wrappers. Development keeps the local Next.js forwarded-IP behavior.
+
+For a host running Nginx directly in front of the application, put this location inside your configured HTTPS server block:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    client_max_body_size 11m;
+}
+```
+
+Keep the application port private; only the trusted ingress may reach it. HTTP headers cannot establish the sender's identity. This example assumes clients connect directly to Nginx. If a CDN or load balancer sits in front, configure real-IP processing for that provider's exact trusted proxy addresses first, so `$remote_addr` is the client rather than a shared proxy address. Never trust arbitrary incoming forwarded headers. See [Nginx header replacement](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_set_header) and [trusted real-IP processing](https://nginx.org/en/docs/http/ngx_http_realip_module.html).
+
 The Compose database has no public host port. Its health check gates app startup. The `postgres-data` and `artifact-data` named volumes survive normal container replacement. Do not run `docker compose down --volumes` against a deployment you need to keep.
 
 ## Bootstrap the first administrator
@@ -82,6 +99,7 @@ Administrative shell access is privileged access to the application's database. 
 Run `npm run check` on the exact revision you intend to deploy. Then complete these checks against staging with its real deployment configuration:
 
 - Registration, verification email, sign-in, password reset, and sign-out work through the public HTTPS origin.
+- The ingress overwrites spoofed `X-Real-IP` and `X-Forwarded-For` values: repeated failed sign-ins from one client are throttled even when those request headers change, while another client has its own budget. Verify IPv4 and IPv6 where available, and confirm the application origin cannot be reached externally except through the trusted ingress.
 - Every configured external provider completes its callback and returns to the same account correctly. Test this with real test-provider credentials; mocked or local credential tests do not establish it.
 - A new player can register without prior approval. Unverified email cannot reach protected pages, APIs, or artifacts. Suspend an active account and check that its next protected request fails; restoring access must preserve email-verification requirements.
 - A learner chooses a codename, solves a challenge, leaves, returns, and sees one completion and the same XP.
