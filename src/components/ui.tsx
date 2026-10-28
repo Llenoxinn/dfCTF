@@ -3,6 +3,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { applyTheme, effectiveTheme, type Theme } from "@/lib/theme";
 import { identiconPath, meterCells } from "@/lib/pixel";
+import AsciiField from "./ascii-field";
 
 export function Icon({ name, size = 20, className = "" }: { name: string; size?: number; className?: string }) {
   const paths: Record<string, ReactNode> = {
@@ -141,9 +142,11 @@ export function Notice({ children, type = "info" }: { children: ReactNode; type?
   return <div className={`notice notice-${type}`} role={type === "error" ? "alert" : "status"}><Icon name={type === "success" ? "check" : type === "error" ? "alert" : "info"} size={17} /><div>{children}</div></div>;
 }
 
-/** A pixel meter with a light sweeping through it, the same cells the progress meters use. */
-export function Loading({ label = "Loading" }: { label?: string }) {
-  return <div className="loading" role="status"><span className="pixel-scan" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} />)}</span><span className="mono">{label}</span><span className="sr-only">. Please wait.</span></div>;
+/** A pixel meter with a light sweeping through it, the same cells the progress meters use. With `backdrop` it stands in
+ *  for a whole view: centered in a panel over the ASCII light field the boot screen uses. */
+export function Loading({ label = "Loading", backdrop = false }: { label?: string; backdrop?: boolean }) {
+  const loader = <div className="loading" role="status"><span className="pixel-scan" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} />)}</span><span className="mono">{label}</span><span className="sr-only">. Please wait.</span></div>;
+  return backdrop ? <div className="loading-stage"><AsciiField className="loading-ascii" ox={0.5} oy={1.08} rx={0.75} ry={0.8} fadeFrom={-1} fadeTo={0} />{loader}</div> : loader;
 }
 
 /** A native modal dialog: the page behind goes inert, Escape and the backdrop close it, and focus returns to whatever opened it. */

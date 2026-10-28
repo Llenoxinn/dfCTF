@@ -65,6 +65,9 @@ export const GLOSSARY: Record<string, string> = {
   container: "A way to package and run a process with operating-system isolation. Containers share the host kernel and are not equivalent to separate virtual machines.",
 };
 
+/** A topic page's sections in reading order; each section's id is `${topic}-${id}`. */
+export const READING_SECTIONS = [["overview", "Introduction"], ["basics", "The basics"], ["first-steps", "Your first steps"], ["tools", "Tools to explore"], ["depth", "Go deeper"], ["recap", "Key takeaways"], ["practice", "Optional practice"]] as const;
+
 export const LEARNING_STORAGE_KEY = "dfctf:learning:v1";
 export type LearningProgress = {
   bookmarks: string[];

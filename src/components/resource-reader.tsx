@@ -3,21 +3,23 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import type { ResourceGuide, ResourceTool } from "@/lib/resources";
-import { TOPIC_INFO } from "@/lib/resource-learning";
+import { READING_SECTIONS, TOPIC_INFO } from "@/lib/resource-learning";
 import { LESSON_PLANS } from "@/lib/resource-lesson-plan";
 import { Icon } from "./ui";
 import GlossaryText from "./resource-glossary";
 import { LearningProgressNotice, useResourceProgress } from "./resource-progress";
-import LineSidebar from "./line-sidebar";
+import LineSidebar, { PAGE_INDEX } from "./line-sidebar";
+
+const Disclosure = () => <span className="resource-disclosure mono" aria-hidden="true"><span>[+]</span><span>[-]</span></span>;
 
 function ToolGuide({ tool, open, bookmarks, bookmark }: { tool: ResourceTool; open: string[]; bookmarks: string[]; bookmark: (toolId: string) => void }) {
   return <details className="resource-tool" id={tool.id} open={open.includes(tool.id)}>
-    <summary><h4><span>{tool.name}</span><span className="resource-platform">{tool.platform}</span><span className="resource-disclosure mono" aria-hidden="true"><span>[+]</span><span>[-]</span></span></h4></summary>
+    <summary><h4><span>{tool.name}</span><span className="resource-platform">{tool.platform}</span><Disclosure /></h4></summary>
     <div className="resource-tool-copy">
       <button type="button" className="text-button resource-bookmark-tool" aria-label={`Bookmark ${tool.name}`} aria-pressed={bookmarks.includes(tool.id)} onClick={() => bookmark(tool.id)}>{bookmarks.includes(tool.id) ? "Tool bookmarked" : "Bookmark this tool"}</button>
       <p><GlossaryText text={tool.when} /></p>
       <details className="resource-exercise" id={`${tool.id}-exercise`} open={open.includes(`${tool.id}-exercise`)}>
-        <summary>Try a guided exercise</summary>
+        <summary>Try a guided exercise<Disclosure /></summary>
         <div className="resource-exercise-copy">
           <ol>{tool.steps.map(step => <li key={step}><GlossaryText text={step} /></li>)}</ol>
           {tool.example ? <figure className="resource-example"><figcaption>{tool.example.label}</figcaption><pre tabIndex={0} aria-label={tool.example.label}><code>{tool.example.code}</code></pre></figure> : null}
@@ -94,23 +96,21 @@ export default function ResourceReader({ guide, previous, next, path, prerequisi
   const practiceHref = `/?${new URLSearchParams({ view: "practice", category: topicInfo.category, difficulty: "Easy" })}`;
 
   return <div ref={reader} className="resource-reader">
-    <nav aria-label="Learning breadcrumbs" className="resource-breadcrumbs"><Link href="/resources">All resources</Link><span aria-hidden="true">/</span><span>{guide.title}</span></nav>
+    <nav aria-label="Learning breadcrumbs" className="resource-breadcrumbs"><Link href="/resources">All resources</Link><span aria-hidden="true">/</span>{path ? <><Link href={`/resources#learning-path-${path.id}`}>{path.title}</Link><span aria-hidden="true">/</span></> : null}<span>{guide.title}{path ? <span className="fine">, topic {path.position} of {path.total}</span> : null}</span></nav>
     <section id={sectionId("overview")} className="resources-heading" data-reading-section>
-      <span className="label-dot">{path ? `${path.title} · Topic ${path.position} of ${path.total}` : `Start at your own pace · ${topicInfo.level}`}</span>
       <h1>{guide.title}</h1><p><GlossaryText text={guide.summary} /></p>
       <p className="resource-reader-intro">Read the introduction and basics first. Open tools and optional exercises whenever you feel ready. Underlined terms explain themselves when clicked.</p>
     </section>
-    <section className="resource-learning-plan" aria-labelledby="learning-goals-title">
-      <div><h2 id="learning-goals-title">What you’ll learn</h2><ul>{lesson.goals.map(goal => <li key={goal}>{goal}</li>)}</ul></div>
-      <div><h3>Before you start</h3><p>These topics can help you feel prepared. You can explore them in any order.</p>{prerequisites.length ? <ul>{prerequisites.map(topic => <li key={topic.id}><Link className="resource-topic-link" href={`/resources/${topic.id}`}>{topic.title}<span className="resource-link-arrow" aria-hidden="true">↗</span></Link></li>)}</ul> : <p>No previous topics needed.</p>}</div>
+    <section className={`resource-learning-plan${prerequisites.length ? "" : " is-single"}`} aria-labelledby="learning-goals-title">
+      <div><h2 id="learning-goals-title">What you’ll learn</h2><ul>{lesson.goals.map(goal => <li key={goal}>{goal}</li>)}</ul>{prerequisites.length ? null : <p className="resource-plan-note">Starting level: {topicInfo.level.toLowerCase()}. No previous topics needed.</p>}</div>
+      {prerequisites.length ? <div><h3>Before you start</h3><p>Starting level: {topicInfo.level.toLowerCase()}. These topics can help you feel prepared, in any order.</p><ul>{prerequisites.map(topic => <li key={topic.id}><Link className="resource-topic-link" href={`/resources/${topic.id}`}>{topic.title}<span className="resource-link-arrow" aria-hidden="true">→</span></Link></li>)}</ul></div> : null}
     </section>
     <div className="resource-reader-actions">
       <button type="button" className="button button-secondary" disabled={!ready} aria-pressed={progress.bookmarks.includes(guide.id)} onClick={() => bookmark()}>{progress.bookmarks.includes(guide.id) ? "Topic bookmarked" : "Bookmark topic"}</button>
-      <button type="button" className="button button-secondary" disabled={!ready} aria-pressed={progress.completed.includes(guide.id)} onClick={() => setProgress(current => ({ ...current, completed: current.completed.includes(guide.id) ? current.completed.filter(id => id !== guide.id) : [...current.completed, guide.id] }))}>{progress.completed.includes(guide.id) ? "Marked read" : "Mark topic read"}</button>
       <LearningProgressNotice />
     </div>
     <div className="resources-layout">
-      <LineSidebar className="resources-index" label="Topic sections" items={[["overview", "Introduction"], ["basics", "The basics"], ["first-steps", "Your first steps"], ["tools", "Tools to explore"], ["depth", "Go deeper"], ["recap", "Key takeaways"], ["practice", "Optional practice"]].map(([id, label]) => ({ label, href: `#${sectionId(id)}` }))} spy markerLength={24} maxShift={10} fontSize={.875} />
+      <LineSidebar className="resources-index" label="Topic sections" items={READING_SECTIONS.map(([id, label]) => ({ label, href: `#${sectionId(id)}` }))} spy {...PAGE_INDEX} />
       <div className="resources-copy">
         <section id={sectionId("basics")} data-reading-section tabIndex={-1}>
           <h2>Start with the basics</h2><dl className="resource-area-notes" aria-label={`${guide.title} core concepts`}>{guide.concepts.map(concept => <div key={concept.title}><dt>{concept.title}</dt><dd><GlossaryText text={concept.detail} /></dd></div>)}</dl>
@@ -118,7 +118,7 @@ export default function ResourceReader({ guide, previous, next, path, prerequisi
         <section id={sectionId("first-steps")} data-reading-section tabIndex={-1}>
           <h2>Your first steps</h2><p>Start with one approachable tool. Read what it does before deciding whether to try its exercise.</p>
           <div className="resource-tools"><ToolGuide tool={guide.tools[0]} {...toolProps} /></div>
-          <details className="resources-setup" id={sectionId("setup")} open={open.includes(sectionId("setup"))}><summary>Before your first exercise</summary><div className="resources-setup-copy"><ol className="resources-path"><li>Make a practice folder and work on copies of supplied or self-created files.</li><li>Check the tool's platform and official installation instructions before running commands.</li><li>Record the original file's hash and keep notes about each change and observation.</li><li>Use an isolated virtual machine for unfamiliar executables. Keep private files and credentials outside the lab.</li></ol><p>PowerShell examples run in PowerShell; Python examples need Python 3. Linux-only examples can use an appropriate lab or <a href="https://learn.microsoft.com/en-us/windows/wsl/install">Microsoft's WSL setup guide</a>.</p></div></details>
+          <details className="resources-setup" id={sectionId("setup")} open={open.includes(sectionId("setup"))}><summary>Before your first exercise<Disclosure /></summary><div className="resources-setup-copy"><ol className="resources-path"><li>Make a practice folder and work on copies of supplied or self-created files.</li><li>Check the tool's platform and official installation instructions before running commands.</li><li>Record the original file's hash and keep notes about each change and observation.</li><li>Use an isolated virtual machine for unfamiliar executables. Keep private files and credentials outside the lab.</li></ol><p>PowerShell examples run in PowerShell; Python examples need Python 3. Linux-only examples can use an appropriate lab or <a href="https://learn.microsoft.com/en-us/windows/wsl/install">Microsoft's WSL setup guide</a>.</p></div></details>
         </section>
         <section id={sectionId("tools")} data-reading-section tabIndex={-1}>
           <h2>Tools to explore next</h2><p>Choose a tool by the question it helps answer. You do not need to install them all.</p>
@@ -127,7 +127,7 @@ export default function ResourceReader({ guide, previous, next, path, prerequisi
         <section id={sectionId("depth")} data-reading-section tabIndex={-1}>
           <h2>Go deeper</h2><p>Explore a more detailed workflow when a question catches your interest. Exercises stay optional.</p>
           <details className="resource-deep-dive" id={sectionId("deeper")} open={open.includes(sectionId("deeper"))}>
-            <summary><span><strong>Further guides in {guide.title}</strong><span className="resource-deep-preview">{furtherTools.length} tools with optional exercises.</span></span><span className="resource-disclosure mono" aria-hidden="true"><span>[+]</span><span>[-]</span></span></summary>
+            <summary><span><strong>Further guides in {guide.title}</strong><span className="resource-deep-preview">{furtherTools.length} tools with optional exercises.</span></span><Disclosure /></summary>
             <div className="resource-deep-content"><div className="resource-tools">{furtherTools.map(tool => <ToolGuide key={tool.id} tool={tool} {...toolProps} />)}</div></div>
           </details>
         </section>
@@ -137,9 +137,13 @@ export default function ResourceReader({ guide, previous, next, path, prerequisi
           <div className="resources-actions"><a className="button button-primary" href={practiceHref}>Browse easy {topicInfo.category} challenges</a><a className="text-button" href="/rules">Rules / Mechanics</a></div>
           <p className="resource-save-note">Use only supplied files and explicitly authorized targets. dfCTF infrastructure is not a practice target. Solve challenges independently; these guides do not provide their answers.</p>
         </section>
+        <div className="resource-finish">
+          <p>{progress.completed.includes(guide.id) ? `${guide.title} is marked read on every learning path that includes it.` : `Done with ${guide.title}? Mark it read and it fills in on your learning paths.`}</p>
+          <button type="button" className="button button-secondary" disabled={!ready} aria-pressed={progress.completed.includes(guide.id)} onClick={() => setProgress(current => ({ ...current, completed: current.completed.includes(guide.id) ? current.completed.filter(id => id !== guide.id) : [...current.completed, guide.id] }))}>{progress.completed.includes(guide.id) ? "Marked read" : "Mark topic read"}</button>
+        </div>
         <nav className="resource-neighbors" aria-label={path ? `${path.title} topic navigation` : "Topic navigation"}>
-          {previous ? <Link href={topicHref(previous)}><span className="fine">Previous topic</span><strong>{previous.title}</strong></Link> : <Link href="/resources">All resources</Link>}
-          {next ? <Link href={topicHref(next)}><span className="fine">Next topic</span><strong>{next.title}</strong></Link> : <Link href="/resources#learning-paths">Explore another learning path</Link>}
+          {previous ? <Link href={topicHref(previous)}><span className="fine">Previous topic</span><strong>{previous.title}</strong></Link> : <Link href="/resources"><span className="fine">Back to</span><strong>All resources</strong></Link>}
+          {next ? <Link href={topicHref(next)}><span className="fine">Next topic</span><strong>{next.title}</strong></Link> : <Link href="/resources#learning-paths"><span className="fine">Finished this path?</span><strong>Choose another learning path</strong></Link>}
         </nav>
       </div>
     </div>
