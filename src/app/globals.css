@@ -600,11 +600,14 @@ a.card:active { transform: scale(.98); }
 .resource-topic-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .resource-topic-card { position: relative; min-width: 0; padding: 24px; border: 1px solid var(--line); background: var(--surface); overflow-wrap: anywhere; }
 .resource-card-bookmark { position: absolute; top: 12px; right: 12px; }
+.resource-card-bookmark svg { transform-origin: center top; }
 .resource-card-bookmark[aria-pressed="true"] { color: var(--accent-text); }
 .resource-card-bookmark[aria-pressed="true"] svg { fill: currentColor; }
 .resource-topic-card > .resource-section-bar:first-of-type { padding-right: 40px; }
-.resource-topic-link { display: inline-flex; align-items: baseline; gap: 8px; }
-.resource-link-arrow { flex: none; color: var(--muted); font-family: var(--font-code); font-size: .875em; }
+.resource-topic-link { display: inline-flex; align-items: baseline; gap: 8px; transition: color 150ms ease; }
+.resource-topic-link:is(:hover, :focus-visible) { color: var(--accent-text); }
+.resource-link-arrow { flex: none; color: var(--muted); font-family: var(--font-code); font-size: .875em; transition: color 150ms ease, transform 150ms ease; }
+.resource-topic-link:is(:hover, :focus-visible) .resource-link-arrow { color: inherit; transform: scale(1.2); }
 .resource-topic-card h3 { font-size: 1.25rem; margin: 12px 0; }
 .resource-topic-card > p { color: var(--muted); line-height: 1.7; margin: 12px 0 20px; }
 .resource-topic-card .resource-tool-preview { font-size: .8125rem; }
@@ -961,6 +964,7 @@ dl.resource-area-notes { display: grid; gap: 20px; }
   .ticker-track { overflow-x: auto; }
   .ticker-run[aria-hidden="true"] { display: none; }
   .button:not(:disabled):active, a.card:active, .theme-card:active, .icon-button:active { transform: none; }
+  .resource-topic-link:is(:hover, :focus-visible) .resource-link-arrow { transform: none; }
   .modal[open] { transform: none; }
   /* Loaders keep a slow, still pulse instead of a running light. */
   .pixel-spin i, .pixel-scan i { animation: none; opacity: .55; }

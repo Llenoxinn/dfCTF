@@ -64,7 +64,13 @@ export default function ResourceLibrary({ guides }: { guides: ResourceCard[] }) 
         const tools = matchingTools(guide, query, platform);
         const saved = progress.bookmarks.includes(guide.id);
         return <article className="resource-topic-card" key={guide.id}>
-          <button type="button" className="icon-button resource-card-bookmark" disabled={!ready} aria-pressed={saved} aria-label={`Bookmark ${guide.title}`} title={saved ? "Remove bookmark" : "Bookmark topic"} onClick={() => bookmark(guide.id)}><Icon name="bookmark" size={18} /></button>
+          <button type="button" className="icon-button resource-card-bookmark" disabled={!ready} aria-pressed={saved} aria-label={`Bookmark ${guide.title}`} title={saved ? "Remove bookmark" : "Bookmark topic"} onClick={event => {
+            bookmark(guide.id);
+            const icon = event.currentTarget.querySelector("svg");
+            icon?.getAnimations().forEach(animation => animation.cancel());
+            if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+            icon?.animate({ transform: ["none", "translateY(-2px) scale(1.18, 1.3)", "scale(.94, .92)", "none"] }, { duration: 360, easing: "ease-out" });
+          }}><Icon name="bookmark" size={18} /></button>
           <div className="resource-section-bar"><span className="fine">Starts at {TOPIC_INFO[guide.id].level.toLowerCase()}</span>{progress.completed.includes(guide.id) ? <span className="fine accent">Marked read</span> : null}</div>
           <h3><Link className="resource-topic-link" href={`/resources/${guide.id}`}>{guide.title}<span className="resource-link-arrow" aria-hidden="true">↗</span></Link></h3>
           <p>{guide.summary}</p>

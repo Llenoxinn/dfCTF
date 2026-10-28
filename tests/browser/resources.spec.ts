@@ -146,16 +146,36 @@ test("topic and tool bookmarks, completed topics, and nested disclosures survive
   await expect(saved).toContainText("0 of 15 topics marked read");
 });
 
-test("bookmarks stay consistent between open tabs in the same browser", async ({ page, context }) => {
+test("resource link hovers and bookmark pops preserve saved state between tabs and respect reduced motion", async ({ page, context }) => {
   await page.goto("/resources");
+  const link = page.locator(".resource-topic-card h3 a").first();
+  const arrow = link.locator(".resource-link-arrow");
+  const arrowWidth = await arrow.evaluate(element => element.getBoundingClientRect().width);
+  await link.hover();
+  await expect(link).toHaveCSS("color", "rgb(255, 210, 63)");
+  await expect.poll(() => arrow.evaluate(element => element.getBoundingClientRect().width)).toBeGreaterThan(arrowWidth * 1.1);
   const second = await context.newPage();
   await second.goto("/resources");
   await expect(second.getByRole("button", { name: "Bookmark General skills", exact: true })).toBeEnabled();
-  await page.getByRole("button", { name: "Bookmark General skills", exact: true }).click();
+  const bookmark = page.getByRole("button", { name: "Bookmark General skills", exact: true });
+  const icon = bookmark.locator("svg");
+  await bookmark.click();
+  expect(await icon.evaluate(element => element.getAnimations().length)).toBe(1);
+  await icon.evaluate(element => Promise.all(element.getAnimations().map(animation => animation.finished)));
+  await expect(icon).toHaveCSS("transform", "none");
+  await expect(icon).toHaveCSS("fill", "rgb(255, 210, 63)");
+  await expect(bookmark).toHaveCSS("color", "rgb(255, 210, 63)");
   await expect(second.getByRole("button", { name: "Bookmark General skills", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(await second.getByRole("button", { name: "Bookmark General skills", exact: true }).locator("svg").evaluate(element => element.getAnimations().length)).toBe(0);
   await second.getByRole("button", { name: "Bookmark OSINT", exact: true }).click();
   await expect(page.getByRole("button", { name: "Bookmark OSINT", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "Bookmark General skills", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await bookmark.click();
+  expect(await icon.evaluate(element => element.getAnimations().filter(animation => (animation.effect as KeyframeEffect).getKeyframes().some(frame => Object.hasOwn(frame, "transform"))).length)).toBe(0);
+  await expect(second.getByRole("button", { name: "Bookmark General skills", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await link.hover();
+  await expect(arrow).toHaveCSS("transform", "none");
   await second.close();
 });
 
