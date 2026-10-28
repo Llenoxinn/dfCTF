@@ -32,7 +32,7 @@ The app and database scripts load `.env.local`. Leave `LOCAL_MAIL=1` for local d
 1. Sign in with the generated learner account, or register with any email address. New accounts must verify their email before accessing challenges; no prior approval is needed.
 2. Choose a public codename when prompted. Provider names and email addresses do not become public codenames automatically.
 3. Open the practice library and filter by category, difficulty, or solve status.
-4. Open a challenge, read the objective, and download its file. File sizes and SHA-256 checksums are shown alongside the download.
+4. Open a challenge, read the objective, and download any files it comes with. Each file shows its size; staff see SHA-256 checksums in Authoring to confirm an upload.
 5. Investigate the fictional artifact and submit a complete `dfCTF{...}` flag. Validation happens on the server. Incorrect attempts do not deduct points; a cooldown appears when the attempt limit is reached.
 6. A first solve records the challenge version, awards its practice XP once, and unlocks the explanation. Each challenge lists every solver in completion order, with the first blood highlighted and timestamps in Philippine time. Sign out and back in to confirm that progress remains.
 

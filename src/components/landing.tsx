@@ -252,8 +252,9 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
           <section aria-labelledby="act-title" className="flex min-w-0 flex-col bg-bg">
             <div className="flex min-h-14 items-center gap-2.5 border-b border-line px-4 sm:px-6"><h3 id="act-title" className="text-base font-semibold">Solves across dfCTF</h3><InfoTip text="Each square is one day across all players, Monday at the top. More lit pixels means more flags captured that day. The outlined column is this week." /></div>
             <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-              <div className="heat-wrap">{data ? <Heatmap days={days} start={data.activity.start} cell={24} gap={3} weekdays label="Solves per day, last 20 weeks" /> : <div className="skeleton heat-skeleton" />}</div>
-              <div className="heat-foot"><span className="faint">20 weeks ago to this week</span><HeatLegend /></div>
+              <div className="heat-wrap">{data ? <Heatmap days={days} start={data.activity.start} cell={24} gap={3} weekdays label="Solves per day, last 20 weeks" /> : <div className="skeleton heat-skeleton" />}
+                <div className="heat-foot"><span className="faint">20 weeks ago to this week</span><HeatLegend /></div>
+              </div>
               {/* Three equal stats: same value size, same label size, tops aligned. */}
               <div className="mt-auto grid grid-cols-3 gap-4 border-t border-line pt-5">
                 <p className="stat content-start gap-1.5"><strong className="text-2xl font-semibold leading-none tracking-[-0.02em] tabular-nums">{totalActivity?.toLocaleString() ?? "—"}</strong><span className="text-[13px]">solves in 20 weeks</span></p>

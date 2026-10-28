@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Leaderboard, SolveEvent } from "@/lib/types";
 import { ditherPath, heatCellPath, heatLevel, relativeLevels } from "@/lib/pixel";
 import { countdownParts } from "@/lib/week";
+import Counter from "./counter";
 import { clock, Identicon } from "./ui";
 
 export function DitherArt({ width, height, cell = 4, density, className = "", label }: { width: number; height: number; cell?: number; density: (x: number, y: number) => number; className?: string; label?: string }) {
@@ -138,24 +139,18 @@ export function RaceChart({ race, hourly, viewer }: { race: Leaderboard["race"];
 }
 
 /** Live countdown to the weekly close: unit cells, then a 7-day meter. Seconds swap without animation. */
-const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-/** One digit on a vertical strip of 0-9 that slides to the new value, so the countdown rolls instead of swapping text. */
-function Roll({ value }: { value: number }) {
-  return <span className="roll"><span className="roll-strip" style={{ transform: `translateY(${-value * 10}%)` }}>{DIGITS.map(d => <span key={d}>{d}</span>)}</span></span>;
-}
-
-/** Time left in the week: four joined cells of rolling digits, then a Monday-to-Sunday meter. Red in the final hour. */
+/** Time left in the week: four joined cells of React Bits counters whose digits roll to each new value (and spin in once
+ *  when first seen), then a Monday-to-Sunday meter. Red in the final hour. */
 export function Countdown({ endsAt }: { endsAt: string }) {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => { setNow(Date.now()); const t = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(t); }, []);
   const end = new Date(endsAt).getTime(), left = now === null ? 0 : end - now;
   const { days, hours, minutes, seconds } = countdownParts(left);
   const weekMs = 7 * 86_400_000, elapsed = now === null ? 0 : Math.min(7, Math.max(0, (weekMs - left) / 86_400_000));
-  const pad = (n: number) => String(n).padStart(2, "0");
   return <div className={`countdown${left > 0 && left < 3_600_000 ? " urgent" : ""}`}>
     <div className="countdown-units" role="timer" aria-label={`${days} days, ${hours} hours, ${minutes} minutes left`}>
       {([[days, "days"], [hours, "hours"], [minutes, "minutes"], [seconds, "seconds"]] as const).map(([v, l]) => <span key={l} className="countdown-unit" data-unit={l}>
-        <b aria-hidden="true">{now === null ? "--" : [...pad(v)].map((d, i) => <Roll key={i} value={Number(d)} />)}</b><small aria-hidden="true">{l}</small>
+        <b aria-hidden="true">{now === null ? "--" : <Counter value={v} minDigits={2} fontSize="inherit" fontWeight="inherit" duration={0.6} bounce={0.15} fade={0.25} />}</b><small aria-hidden="true">{l}</small>
       </span>)}
     </div>
     <div className="week-meter" aria-hidden="true">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => <span key={d} className={i < Math.floor(elapsed) ? "past" : i === Math.floor(elapsed) ? "today" : ""}><i style={i === Math.floor(elapsed) ? { ["--p" as string]: `${(elapsed % 1) * 100}%` } : undefined} />{d}</span>)}</div>
