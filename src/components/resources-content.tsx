@@ -3,7 +3,7 @@ import type { MouseEvent, ReactNode } from "react";
 import { CATEGORIES } from "@/lib/types";
 import { RESOURCE_GUIDES, type ResourceGuide, type ResourceTool } from "@/lib/resources";
 import GuideOpener from "./guide-opener";
-import LineSidebar, { type LineSidebarItem } from "./line-sidebar";
+import LineSidebar, { PAGE_INDEX, type LineSidebarItem } from "./line-sidebar";
 import { Icon } from "./ui";
 
 type Destination = "practice" | "rules";
@@ -71,8 +71,7 @@ export default function ResourcesContent({ openView }: { openView?: OpenView }) 
   return <div className="resources" id="resources-top">
     <div className="page-head"><div><h1>Tutorials &amp; Resources</h1><p>Start with an introduction, learn a basic skill, then discover tools that can take you further. Each area follows the same path, with small exercises you can try when you feel ready.</p></div></div>
     <div className="resources-layout">
-      <LineSidebar className="resources-index" label="Resource sections" items={INDEX} spy
-        fontSize={0.875} itemGap={12} markerLength={24} markerGap={12} maxShift={10} proximityRadius={80} tickScale={0.5} smoothing={100} />
+      <LineSidebar className="resources-index" label="Resource sections" items={INDEX} spy {...PAGE_INDEX} />
       <div className="resources-copy">
         <section className="resources-start" id="getting-started" aria-labelledby="getting-started-title" tabIndex={-1}>
           <h2 id="getting-started-title">Start with the big picture</h2>

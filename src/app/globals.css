@@ -556,9 +556,9 @@ a.card:active { transform: scale(.98); }
 .rules-main { max-width: 1160px; margin: 0 auto; padding: 56px 32px 80px; }
 .rules-main .page-head { margin-bottom: 40px; }
 .rules-main .page-head p { max-width: 65ch; }
-.rules-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; align-items: start; }
-.rules-index { position: sticky; top: 96px; display: grid; gap: 16px; font-size: .875rem; }
-.rules-index a { color: var(--muted); text-underline-offset: 4px; }
+.rules-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 48px; align-items: start; }
+/* The index is a LineSidebar, like Resources: it follows you down the page and lights the section on screen. */
+.rules-index { position: sticky; top: 92px; max-height: calc(100dvh - 116px); overflow: hidden auto; padding-right: 8px; }
 .rules-copy { min-width: 0; max-width: 72ch; }
 .rules-copy section { scroll-margin-top: 96px; padding: 0 0 32px; margin-bottom: 32px; border-bottom: 1px solid var(--line); }
 .rules-copy h2 { font-size: 1.375rem; margin-bottom: 16px; }
@@ -687,7 +687,11 @@ details[open] > summary > .resource-disclosure span:last-child { display: inline
 @media (max-width: 700px) {
   .rules-main { padding: 32px 16px 56px; }
   .rules-layout { grid-template-columns: 1fr; gap: 32px; }
-  .rules-index { position: static; gap: 12px; }
+  /* One column: the index scrolls away with the page as a plain list, without markers. */
+  .rules-index { position: static; max-height: none; overflow: visible; }
+  .rules-index.line-sidebar--markers { padding-left: 0; }
+  .rules-index .line-sidebar__marker, .rules-index .line-sidebar__item::after { display: none; }
+  .rules-index .line-sidebar__list { padding: 0; }
   .first-blood time { width: 100%; margin-left: 48px; }
   .competition-list li { align-items: start; flex-direction: column; gap: 16px; }
   .competition-scoreboard th, .competition-scoreboard td { padding: 12px; }
