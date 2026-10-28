@@ -393,6 +393,9 @@ test("every challenge shows all solvers and a first blood across desktop and mob
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/?view=practice&challenge=solver-case");
+  await expect(page.getByRole("region", { name: "Solvers", exact: true })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Solvers 22", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Solvers 22", exact: true })).toHaveAttribute("aria-selected", "true");
   const solvers = page.getByRole("region", { name: "Solvers", exact: true });
   await expect(solvers.locator(".first-blood")).toContainText("solver_00");
   await expect(solvers.locator(".challenge-solvers li")).toHaveCount(20);
@@ -421,9 +424,16 @@ test("an empty solver list refreshes to the new first blood immediately after a 
     return true;
   });
   await page.goto("/?view=practice&challenge=new-blood");
+  const solversTab = page.getByRole("tab", { name: /^Solvers/ });
+  await solversTab.click();
   await expect(page.getByText("No solves yet. Capture the flag to claim first blood.")).toBeVisible();
+  // Arrow keys move between the two tabs, as the tabs pattern expects.
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.getByRole("tab", { name: "Challenge", exact: true })).toBeFocused();
   await page.getByLabel("Flag", { exact: true }).fill("dfCTF{correct}");
   await page.getByRole("button", { name: "Submit flag", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Flag captured" })).toBeVisible();
+  await solversTab.click();
   const solvers = page.getByRole("region", { name: "Solvers", exact: true });
   await expect(solvers.locator(".first-blood")).toContainText("test_author");
   await expect(solvers.locator(".challenge-solvers li")).toHaveCount(1);

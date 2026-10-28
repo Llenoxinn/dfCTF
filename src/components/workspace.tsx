@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import type { Bootstrap, ChallengeDetail, ChallengeSummary, Leaderboard, Progress, Viewer } from "@/lib/types";
 import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
 import { countdownParts } from "@/lib/week";
@@ -335,6 +335,16 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
   const endpoint = competitionId ? `/api/v1/competitions/${encodeURIComponent(competitionId)}/challenges/${encodeURIComponent(id)}` : `/api/v1/challenges/${encodeURIComponent(id)}`;
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null); const [loadError, setLoadError] = useState(""); const [error, setError] = useState(""); const [flag, setFlag] = useState(""); const [busy, setBusy] = useState(false); const [result, setResult] = useState<SubmitResult | null>(null); const [miss, setMiss] = useState(0);
   const [solverError, setSolverError] = useState(""); const [shownSolvers, setShownSolvers] = useState(20);
+  // Solvers get their own tab so a long list never pushes the flag form and walkthrough out of reach.
+  const [pane, setPane] = useState<"challenge" | "solvers">("challenge");
+  const tabIds = useId();
+  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
+  function tabKeys(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const order = ["challenge", "solvers"] as const, at = order.indexOf(pane), n = order.length;
+    const next = event.key === "ArrowRight" ? (at + 1) % n : event.key === "ArrowLeft" ? (at + n - 1) % n : event.key === "Home" ? 0 : event.key === "End" ? n - 1 : -1;
+    if (next < 0) return;
+    event.preventDefault(); setPane(order[next]); tabs.current[next]?.focus();
+  }
   async function refreshSolvers() {
     try { setChallenge(await api<ChallengeDetail>(endpoint)); setSolverError(""); }
     catch { setSolverError("Could not refresh the solver list. Your saved progress is unchanged."); }
@@ -371,6 +381,10 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
         <div className="challenge-meta muted">{latest.length ? <span className="solver-stack" aria-hidden="true">{latest.map((s,i) => <Identicon key={i} name={s.codename} size={22} />)}</span> : null}
           <span>{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}{latest.length ? <>, latest by <span className="mono">{latest[0].codename}</span></> : ""}. About {challenge.estimatedMinutes} min. By <span className="mono">{challenge.author}</span>, version {challenge.version}.</span></div>
       </header>
+      <div className="modal-tabs" role="tablist" aria-label="Challenge sections" onKeyDown={tabKeys}>
+        {([["challenge", "Challenge", null], ["solvers", "Solvers", challenge.solveCount]] as const).map(([value, label, count], i) => <button key={value} ref={el => { tabs.current[i] = el; }} type="button" role="tab" id={`${tabIds}-${value}-tab`} aria-controls={`${tabIds}-${value}`} aria-selected={pane === value} tabIndex={pane === value ? 0 : -1} className="modal-tab" onClick={() => setPane(value)}>{label}{count !== null ? <>{" "}<span className="mono">{count}</span></> : null}</button>)}
+      </div>
+      <div className="challenge-pane" role="tabpanel" id={`${tabIds}-challenge`} aria-labelledby={`${tabIds}-challenge-tab`} hidden={pane !== "challenge"}>
       <section className="modal-section" aria-label="Description"><Content text={challenge.description} />{challenge.tags.includes("rules") ? <Link className="button button-secondary fit" href="/rules">Read Rules / Mechanics</Link> : null}{challenge.tags.length ? <ul className="tag-list" aria-label="Tags">{challenge.tags.map(t => <li key={t} className="tag">{t}</li>)}</ul> : null}</section>
       <section className="modal-section" aria-labelledby="files-title"><div className="section-head"><h3 id="files-title">Files</h3><span className="spacer" /><span className="mono muted">{challenge.files.length} {challenge.files.length === 1 ? "file" : "files"}</span></div>
         {challenge.files.length ? <ul className="files">{challenge.files.map(file => <li key={file.id}>
@@ -400,12 +414,15 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
       </section>
       {challenge.solved && challenge.solution ? <section className="modal-section unlocked" aria-labelledby="walk-title"><div className="section-head"><h3 id="walk-title">Walkthrough</h3><span className="spacer" /><span className="mono accent" aria-hidden="true">[open]</span></div><Content text={challenge.solution} /></section>
         : <p className="locked"><span className="mono faint" aria-hidden="true">[locked]</span>The walkthrough opens after you capture the flag.</p>}
+      </div>
+      <div className="challenge-pane" role="tabpanel" id={`${tabIds}-solvers`} aria-labelledby={`${tabIds}-solvers-tab`} hidden={pane !== "solvers"}>
       <section className="modal-section" aria-labelledby="solvers-title">
-        <div className="section-head"><h3 id="solvers-title">Solvers</h3><span className="spacer" /><span className="mono muted">{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}</span><button className="text-button" onClick={refreshSolvers}>Refresh</button></div>
+        <div className="section-head"><h3 id="solvers-title" className="sr-only">Solvers</h3><span className="spacer" /><span className="mono muted">{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}</span><button className="text-button" onClick={refreshSolvers}>Refresh</button></div>
         {solverError ? <Notice type="error">{solverError}</Notice> : null}
         {firstBlood ? <div className="first-blood"><Identicon name={firstBlood.codename} size={36} /><div><strong>First blood</strong><span className="mono">{firstBlood.codename}</span></div><time dateTime={firstBlood.solvedAt}>{solveTime(firstBlood.solvedAt)}</time></div> : null}
         {solvers.length ? <><p className="fine">Earliest solves first. Times are in Philippine time (UTC+8).</p><ol className="challenge-solvers">{solvers.slice(0,shownSolvers).map((s,i) => <li key={`${s.codename}:${i}`}><span className="mono faint">{i+1}</span><Identicon name={s.codename} /><strong className="mono solver-name">{s.codename}</strong>{s.firstBlood ? <span className="tag tag-accent">first blood</span> : null}<time dateTime={s.solvedAt}>{solveTime(s.solvedAt)}</time></li>)}</ol>{shownSolvers < solvers.length ? <button className="button button-secondary fit" onClick={() => setShownSolvers(n => n+20)}>Show more solvers</button> : null}</> : <p className="muted">No solves yet. Capture the flag to claim first blood.</p>}
       </section>
+      </div>
     </div>}
   </Modal>;
 }

@@ -1,11 +1,14 @@
 import { RULE_SECTIONS, RULES_CHALLENGE_TITLE } from "@/lib/rules";
+import LineSidebar, { PAGE_INDEX, type LineSidebarItem } from "./line-sidebar";
 
-/** The rules text, shared by the public /rules page and the Rules tab inside the app. No hooks, so it renders on either side. */
+const INDEX: LineSidebarItem[] = RULE_SECTIONS.map(section => ({ label: section.title, href: `#${section.id}` }));
+
+/** The rules text, shared by the public /rules page and the Rules tab inside the app. No hooks; only the index runs in the browser. */
 export default function RulesContent() {
   return <>
     <div className="page-head"><div><h1>Rules / Mechanics</h1><p>Read the rules before your first flag. Keep the competition fair, the platform safe, and the work your own.</p></div></div>
     <div className="rules-layout">
-      <nav className="rules-index" aria-label="Rules sections">{RULE_SECTIONS.map(section => <a href={`#${section.id}`} key={section.id}>{section.title}</a>)}</nav>
+      <LineSidebar className="rules-index" label="Rules sections" items={INDEX} spy {...PAGE_INDEX} />
       <article className="rules-copy">
         {RULE_SECTIONS.map(section => <section key={section.id} id={section.id} aria-labelledby={`${section.id}-title`}>
           <h2 id={`${section.id}-title`}>{section.title}</h2>

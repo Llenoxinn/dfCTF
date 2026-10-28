@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import type { Bootstrap, Community } from "@/lib/types";
 import AsciiField from "./ascii-field";
+import DecryptedText from "./decrypted-text";
 import { api, Icon, Loading, Notice, Spinner, Wordmark } from "./ui";
 
 export type AuthMode = "signin" | "signup" | "forgot" | "reset" | "mfa";
@@ -81,7 +82,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
     <aside className="auth-brand" aria-label="About dfCTF">
       <AsciiField className="auth-ascii" ox={0.6} oy={1.05} rx={0.7} ry={0.6} fadeFrom={-1} fadeTo={0} />
       <div className="auth-brand-top">{brand}</div>
-      <div className="auth-pitch"><h1>Every challenge<br />hides a flag.</h1><p>Find it, submit it, and climb the leaderboard. Wrong answers never cost points.</p>
+      <div className="auth-pitch"><h1><DecryptedText text={"Read between\nthe bytes."} animateOn="view" sequential revealDirection="start" speed={45} characters="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&*+=?@$<>/" scrambleColor="var(--accent-text)" /></h1><p>Every file keeps a secret. Seven categories to crack, a fresh featured challenge each week, and a walkthrough waiting behind every solve. A wrong guess costs nothing but a second look.</p>
         {weekly ? <span className="live-chip"><i aria-hidden="true" />This week<span className="mono muted">{weekly.title}, {weekly.xp} pts</span></span> : null}</div>
     </aside>
     <main className="auth-main" id="main-content">
