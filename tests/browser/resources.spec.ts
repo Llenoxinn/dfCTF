@@ -224,3 +224,23 @@ test("signed-in navigation opens the public resources page", async ({ page }) =>
   await resources.click();
   await expect(page.getByRole("heading", { name: "Tutorials & Resources", exact: true })).toBeVisible();
 });
+
+test("signed-in Resources navigation respects the native warning for an unsaved draft", async ({ page }) => {
+  await mockHome(page, true);
+  await page.goto("/?view=authoring");
+  await page.getByRole("button", { name: "New challenge", exact: true }).click();
+  const title = page.getByPlaceholder("Night shift");
+  await title.fill("Keep this unsaved resource-navigation draft");
+  const resources = page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "Resources", exact: true });
+  await expect(resources).toHaveAttribute("href", "/resources");
+  const prompts: string[] = []; let accept = false;
+  page.on("dialog", async dialog => { prompts.push(dialog.type()); await (accept ? dialog.accept() : dialog.dismiss()); });
+  await resources.click();
+  await expect(title).toHaveValue("Keep this unsaved resource-navigation draft");
+  await expect(page).toHaveURL(/view=authoring/);
+  expect(prompts).toEqual(["beforeunload"]);
+  accept = true;
+  await resources.click();
+  await expect(page.getByRole("heading", { name: "Tutorials & Resources", exact: true })).toBeVisible();
+  expect(prompts).toEqual(["beforeunload", "beforeunload"]);
+});

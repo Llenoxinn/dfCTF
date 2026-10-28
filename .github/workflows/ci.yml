@@ -45,6 +45,11 @@ jobs:
         run: npx vitest run tests/competitions.test.ts
         env:
           TEST_DATABASE_URL: postgres://dfctf_test:dfctf_ci_test@127.0.0.1:5432/dfctf_test
+      - name: PostgreSQL draft artifact removal tests
+        run: npx vitest run tests/artifacts.test.ts
+        env:
+          TEST_DATABASE_URL: postgres://dfctf_test:dfctf_ci_test@127.0.0.1:5432/dfctf_test
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      - run: npm run test:integration

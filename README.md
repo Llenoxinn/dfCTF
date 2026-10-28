@@ -32,6 +32,7 @@ The app and database scripts load `.env.local`. Leave `LOCAL_MAIL=1` for local d
 1. Sign in with the generated learner account, or register with any email address. New accounts must verify their email before accessing challenges; no prior approval is needed.
 2. Choose a public codename when prompted. Provider names and email addresses do not become public codenames automatically.
 3. Open the practice library and filter by category, difficulty, or solve status.
+   Press `/` outside an editable field to focus the visible library search. Press Escape in search to clear it.
 4. Open a challenge, read the objective, and download any files it comes with. Each file shows its size; staff see SHA-256 checksums in Authoring to confirm an upload.
 5. Investigate the fictional artifact and submit a complete `dfCTF{...}` flag. Validation happens on the server. Incorrect attempts do not deduct points; a cooldown appears when the attempt limit is reached.
 6. A first solve records the challenge version, awards its practice XP once, and unlocks the explanation. Each challenge lists every solver in completion order, with the first blood highlighted and timestamps in Philippine time. Sign out and back in to confirm that progress remains.
@@ -51,6 +52,8 @@ Use the generated owner account for local administration. Privileged author, rev
 Authors create and edit their own drafts, add an intended solution and flag, and upload files when the challenge needs them. Challenges without files, such as many OSINT puzzles, can go through review too. A draft enters review before publication. A different eligible reviewer checks the content and submits the correct flag to approve publication. Participants can see and download only published content. Administrators manage access in Settings; the server checks permissions for each operation. The CLI grants administrator or reviewer access, while a general staff-role management interface remains future work.
 
 If review finds a problem, the author or an administrator can choose **Return to draft**, correct and save the challenge, then send it for independent review again. Published versions stay locked. Staff who already enrolled an authenticator can use a saved backup code in Settings to verify a new or expired session; each code works once.
+
+The editor asks before discarding unsaved challenge edits when you leave, navigate, or reload. Draft authors and administrators can remove an uploaded file from an unlocked draft, then upload its replacement. Removal takes effect immediately and preserves other unsaved edits. Files in review or published versions stay locked; return a review to draft before changing its files.
 
 Artifact uploads accept `.txt`, `.csv`, `.json`, `.log`, `.pcap`, `.zip`, `.png`, `.jpg`, `.jpeg`, and `.pdf` files, up to 10 MiB per file. Private file contents are stored in the database and served through an authenticated download endpoint; the local artifact directory holds backup copies and supports older file-only records. They are never extracted or executed by the application. Extension and signature checks are implemented; malware scanning is not integrated.
 
@@ -121,6 +124,7 @@ Provider configuration is included, but a real social sign-in round trip require
 | `npm run typecheck` | TypeScript validation |
 | `npm test` | Automated tests |
 | `npm run test:browser` | Browser regression tests against the production build (Edge on Windows; Playwright Chromium elsewhere) |
+| `npm run test:integration` | Real local player flow with isolated app, database, files, and mailbox on port 3200 |
 | `npm run build` | Build the production application |
 | `npm start` | Run a previously built application |
 | `npm run check` | Type checking, tests, and production build |
@@ -128,6 +132,8 @@ Provider configuration is included, but a real social sign-in round trip require
 CI installs the locked dependencies and runs type checking, tests, the production build, and browser regressions in Chromium. Deployment credentials are not required to compile the application; production runtime configuration is checked when server services are used. Never use bypass values to run a production service.
 
 Run `npm run build` before `npm run test:browser`. The browser suite starts a separate server on `127.0.0.1:3100` and uses mocked accounts and uploads; it does not modify the application database. Windows uses the installed Microsoft Edge browser; other systems need Playwright's Chromium browser.
+
+`npm run test:integration` starts its own temporary development app and fictional challenge on `127.0.0.1:3200`. It exercises real registration, local verification/reset emails, downloads, concurrent scoring, and returning progress, then removes its temporary data. It uses Edge on Windows or Playwright Chromium elsewhere and can run beside the normal local app. See [local validation and remaining staging checks](docs/LOCAL_VALIDATION.md).
 
 ## Deploy and review scope
 

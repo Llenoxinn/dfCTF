@@ -30,7 +30,7 @@ function updated(value?: string) {
   return d.toDateString() === yesterday.toDateString() ? "Yesterday" : formatDate(value);
 }
 
-export default function Authoring({ bootstrap, goSettings }: { bootstrap: Bootstrap; goSettings: () => void }) {
+export default function Authoring({ bootstrap, goSettings, registerLeaveGuard }: { bootstrap: Bootstrap; goSettings: () => void; registerLeaveGuard: (guard: (() => boolean) | null) => void }) {
   const [items, setItems] = useState<ChallengeSummary[]>([]); const [busy, setBusy] = useState(true); const [error, setError] = useState(""); const [selected, setSelected] = useState<string | null>(null); const [filter, setFilter] = useState<ChallengeStatus | "">("");
   const load = useCallback(async () => { setBusy(true); try { setItems(await api("/api/v1/staff/challenges")); setError(""); } catch (err) { setError(err instanceof Error ? err.message : "Could not load the authoring workspace."); } finally { setBusy(false); } }, []);
   useEffect(() => { if (bootstrap.staffVerified) void load(); }, [bootstrap.staffVerified, load]);
@@ -46,7 +46,7 @@ export default function Authoring({ bootstrap, goSettings }: { bootstrap: Bootst
     <div className="page-head"><div><h1>Authoring</h1><p>Write challenges, review other people’s, and publish them to the board.</p></div></div>
     <div className="panel staff-gate"><span className="mono accent">[locked]</span><div><h2>Verify this session first</h2><p className="muted">Staff tools need an authenticator app and a verification in the current session. It takes about a minute the first time.</p><button className="button button-primary" onClick={goSettings}>Go to staff verification</button></div></div>
   </>;
-  if (selected !== null) return <ChallengeEditor id={selected} role={bootstrap.user!.role} viewerId={bootstrap.user!.id} close={() => { setSelected(null); void load(); }} />;
+  if (selected !== null) return <ChallengeEditor id={selected} role={bootstrap.user!.role} viewerId={bootstrap.user!.id} registerLeaveGuard={registerLeaveGuard} close={() => { setSelected(null); void load(); }} />;
 
   const shown = filter ? items.filter(i => i.status === filter) : items;
   const n = (s: ChallengeStatus) => items.filter(i => i.status === s).length;
@@ -72,7 +72,7 @@ export default function Authoring({ bootstrap, goSettings }: { bootstrap: Bootst
   </>;
 }
 
-function ChallengeEditor({ id, role, viewerId, close }: { id: string; role: string; viewerId: string; close: () => void }) {
+function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id: string; role: string; viewerId: string; close: () => void; registerLeaveGuard: (guard: (() => boolean) | null) => void }) {
   const [currentId, setCurrentId] = useState(id);
   const [detail, setDetail] = useState<StaffDetail | null>(null);
   const [form, setForm] = useState<EditorData>(blank);
@@ -87,8 +87,27 @@ function ChallengeEditor({ id, role, viewerId, close }: { id: string; role: stri
   const editable = !detail || detail.status === "draft" && (role === "admin" || role === "author" && detail.authorId === viewerId);
   const canReview = role === "reviewer" || role === "admin";
   const canWithdraw = detail?.status === "review" && (role === "admin" || role === "author" && detail.authorId === viewerId);
-  const dirty = !detail || files.length > 0 || !!form.flag || form.title !== detail.title || form.description !== detail.description || form.solution !== detail.solution || form.category !== detail.category || form.difficulty !== detail.difficulty || form.xp !== detail.xp || form.estimatedMinutes !== detail.estimatedMinutes || form.flagFormat !== detail.flagFormat || form.tags !== detail.tags.join(", ") || form.visibility !== (detail.visibility ?? "practice");
+  const dirty = files.length > 0 || (detail ? !!form.flag || form.title !== detail.title || form.description !== detail.description || form.solution !== (detail.solution ?? "") || form.category !== detail.category || form.difficulty !== detail.difficulty || form.xp !== detail.xp || form.estimatedMinutes !== detail.estimatedMinutes || form.flagFormat !== detail.flagFormat || form.tags !== detail.tags.join(", ") || form.visibility !== (detail.visibility ?? "practice") : Object.entries(blank).some(([key, value]) => form[key as keyof EditorData] !== value));
+  const confirmLeave = useCallback(() => !busy && (!editable || !dirty || window.confirm("Discard unsaved changes? Your draft edits will be lost.")), [busy, editable, dirty]);
+  useEffect(() => { registerLeaveGuard(confirmLeave); return () => registerLeaveGuard(null); }, [confirmLeave, registerLeaveGuard]);
+  useEffect(() => {
+    if (!editable || loading || (!dirty && !busy)) return;
+    function warn(event: BeforeUnloadEvent) { event.preventDefault(); event.returnValue = ""; }
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [editable, loading, dirty, busy]);
   function field<K extends keyof EditorData>(key: K, value: EditorData[K]) { setForm(f => ({ ...f, [key]: value })); }
+
+  async function removeFile(file: StaffDetail["files"][number]) {
+    if (busy || !editable || !window.confirm(`Remove ${file.name} from this draft?`)) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await api(`/api/v1/staff/challenges/${encodeURIComponent(currentId)}/files/${encodeURIComponent(file.id)}`, { method: "DELETE" });
+      setDetail(current => current ? { ...current, files: current.files.filter(item => item.id !== file.id) } : current);
+      setMessage(`${file.name} removed from this draft.`);
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not remove this file."); }
+    finally { setBusy(false); }
+  }
 
   async function save(event: FormEvent) {
     event.preventDefault(); if (busy) return; setBusy(true); setError(""); setMessage("");
@@ -128,7 +147,7 @@ function ChallengeEditor({ id, role, viewerId, close }: { id: string; role: stri
   ];
 
   return <>
-    <button className="text-button back-link" onClick={close} disabled={busy}><Icon name="back" size={16} />Back to authoring</button>
+    <button className="text-button back-link" onClick={() => { if (confirmLeave()) close(); }} disabled={busy}><Icon name="back" size={16} />Back to authoring</button>
     <div className="page-head">
       <div><div className="title-row"><h1>{currentId === "new" ? "New challenge" : form.title || "Untitled challenge"}</h1><StatusBadge status={detail?.status ?? "draft"} /></div><p className="muted">{editable ? "A clear description, purposeful files, and a satisfying discovery." : "Read the challenge, solve it yourself, and use the publishing controls."}</p></div>
       {editable && !loading ? <div className="head-actions"><span className="fine">{busy ? "Saving" : detail && !dirty ? "All changes saved" : currentId === "new" ? "Not saved yet" : "Unsaved changes"}</span><button type="submit" form="challenge-editor" className="button button-secondary" disabled={busy}>Save draft</button>{currentId !== "new" ? <button type="button" className="button button-primary" onClick={() => transition("review")} disabled={busy || dirty} title={dirty ? "Save your changes first" : "Send for an independent review"}>Send for review</button> : null}</div> : null}
@@ -142,9 +161,9 @@ function ChallengeEditor({ id, role, viewerId, close }: { id: string; role: stri
           <label className="field"><span>Walkthrough</span><textarea rows={8} value={form.solution} onChange={e => field("solution", e.target.value)} required minLength={20} maxLength={20000} readOnly={!editable || busy} placeholder="The intended approach, and the lesson to take away." /><small>Players see this only after they solve the challenge.</small></label>
         </div></section>
         <section className="panel"><div className="panel-head"><h2>Files</h2><span className="spacer" /><span className="mono muted">{(detail?.files.length ?? 0) + files.length} {((detail?.files.length ?? 0) + files.length) === 1 ? "file" : "files"}</span></div><div className="panel-pad stack">
-          {detail?.files.length ? <ul className="files">{detail.files.map(file => <li key={file.id}><div className="file-info"><span className="mono strong">{file.name}</span><span className="mono faint">{humanSize(file.size)}</span>{file.sha256 ? <span className="checksum mono">sha256 <code>{file.sha256}</code></span> : null}</div><a className="button button-secondary" href={`/api/v1/staff/challenges/${encodeURIComponent(currentId)}/files/${encodeURIComponent(file.id)}`} download><Icon name="download" size={16} />Download</a></li>)}</ul> : null}
-          {editable ? <label className="dropzone"><strong>Drop files here, or browse</strong><span className="muted">TXT, CSV, JSON, LOG, PCAP, ZIP, PNG, JPG, or PDF. Up to 10 MB each. Files are never opened or run by the server.</span><input type="file" disabled={busy} multiple accept=".txt,.csv,.json,.log,.pcap,.zip,.png,.jpg,.jpeg,.pdf" onChange={e => { const chosen = Array.from(e.target.files ?? []); if (chosen.some(f => f.size > 10 * 1024 * 1024)) { setError("Each file must be 10 MB or smaller."); e.target.value = ""; setFiles([]); } else { setFiles(chosen); setError(""); } }} /></label> : null}
-          {files.length ? <ul className="pending" aria-label="Files to upload when you save">{files.map((file, i) => <li key={`${file.name}-${i}`}><span className="mono">{file.name}</span><span className="mono faint">{humanSize(file.size)}</span><em className="muted">uploads on save</em></li>)}</ul> : null}
+          {detail?.files.length ? <ul className="files">{detail.files.map(file => <li key={file.id}><div className="file-info"><span className="mono strong">{file.name}</span><span className="mono faint">{humanSize(file.size)}</span>{file.sha256 ? <span className="checksum mono">sha256 <code>{file.sha256}</code></span> : null}</div><a className="button button-secondary" href={`/api/v1/staff/challenges/${encodeURIComponent(currentId)}/files/${encodeURIComponent(file.id)}`} download><Icon name="download" size={16} />Download</a>{editable ? <button className="button button-secondary" type="button" aria-label={`Remove ${file.name}`} disabled={busy} onClick={() => void removeFile(file)}>Remove</button> : null}</li>)}</ul> : null}
+          {editable ? <label className="dropzone"><strong>Drop files here, or browse</strong><span className="muted">TXT, CSV, JSON, LOG, PCAP, ZIP, PNG, JPG, or PDF. Up to 10 MB each. Files are never opened or run by the server.</span><input type="file" disabled={busy} multiple accept=".txt,.csv,.json,.log,.pcap,.zip,.png,.jpg,.jpeg,.pdf" onChange={e => { const chosen = Array.from(e.target.files ?? []); if (chosen.some(f => f.size > 10 * 1024 * 1024)) { setError("Each file must be 10 MB or smaller."); setFiles([]); } else { setFiles(chosen); setError(""); } e.target.value = ""; }} /></label> : null}
+          {files.length ? <ul className="pending" aria-label="Files to upload when you save">{files.map((file, i) => <li key={`${file.name}-${i}`}><span className="mono">{file.name}</span><span className="mono faint">{humanSize(file.size)}</span><em className="muted">uploads on save</em><button className="text-button" type="button" aria-label={`Remove pending ${file.name}`} disabled={busy} onClick={() => setFiles(current => current.filter((_, index) => index !== i))}>Remove</button></li>)}</ul> : null}
         </div></section>
       </div>
       <aside className="editor-side">
