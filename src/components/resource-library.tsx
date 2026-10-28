@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LEARNING_PATHS, TOPIC_INFO, matchingTools, type ResourceCard } from "@/lib/resource-learning";
 import { useResourceProgress } from "./resource-progress";
+import { Icon } from "./ui";
 
 export default function ResourceLibrary({ guides }: { guides: ResourceCard[] }) {
   const [query, setQuery] = useState("");
@@ -63,12 +64,13 @@ export default function ResourceLibrary({ guides }: { guides: ResourceCard[] }) 
         const tools = matchingTools(guide, query, platform);
         const saved = progress.bookmarks.includes(guide.id);
         return <article className="resource-topic-card" key={guide.id}>
+          <button type="button" className="icon-button resource-card-bookmark" disabled={!ready} aria-pressed={saved} aria-label={`Bookmark ${guide.title}`} title={saved ? "Remove bookmark" : "Bookmark topic"} onClick={() => bookmark(guide.id)}><Icon name="bookmark" size={18} /></button>
           <div className="resource-section-bar"><span className="fine">Starts at {TOPIC_INFO[guide.id].level.toLowerCase()}</span>{progress.completed.includes(guide.id) ? <span className="fine accent">Marked read</span> : null}</div>
-          <h3><Link href={`/resources/${guide.id}`}>{guide.title}</Link></h3>
+          <h3><Link className="resource-topic-link" href={`/resources/${guide.id}`}>{guide.title}<span className="resource-link-arrow" aria-hidden="true">↗</span></Link></h3>
           <p>{guide.summary}</p>
           <p className="resource-tool-preview">{query || platform ? "Matching tools" : "Explore tools"}: {tools.slice(0, 3).map(tool => tool.name).join(" · ")}{tools.length > 3 ? ` · +${tools.length - 3} more` : ""}</p>
-          <div className="resource-section-bar"><Link className="text-button" href={`/resources/${guide.id}`}>Explore {guide.title}</Link><button type="button" className="text-button" disabled={!ready} aria-pressed={saved} aria-label={`Bookmark ${guide.title}`} onClick={() => bookmark(guide.id)}>{saved ? "Bookmarked" : "Bookmark"}</button></div>
-          {query || platform ? <ul className="resource-matches" aria-label={`${guide.title} matching tools`}>{tools.map(tool => <li key={tool.id}><Link href={`/resources/${guide.id}#${tool.id}`}>{tool.name}</Link><span>{tool.platform}</span></li>)}</ul> : null}
+          <div className="resource-section-bar"><Link className="text-button resource-topic-link" href={`/resources/${guide.id}`}>Explore {guide.title}<span className="resource-link-arrow" aria-hidden="true">↗</span></Link></div>
+          {query || platform ? <ul className="resource-matches" aria-label={`${guide.title} matching tools`}>{tools.map(tool => <li key={tool.id}><Link className="resource-topic-link" href={`/resources/${guide.id}#${tool.id}`}>{tool.name}<span className="resource-link-arrow" aria-hidden="true">↗</span></Link><span>{tool.platform}</span></li>)}</ul> : null}
         </article>;
       })}</div> : <div className="resource-empty"><h3>No topics match yet</h3><p>Try a shorter search or choose another level or platform.</p><button type="button" className="button button-secondary" onClick={clear}>Show all topics</button></div>}
     </section>

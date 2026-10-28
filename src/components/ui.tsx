@@ -12,6 +12,7 @@ export function Icon({ name, size = 20, className = "" }: { name: string; size?:
     download: <path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 19h14" />,
     upload: <path d="M12 15V4m-4.5 4.5L12 4l4.5 4.5M5 19h14" />,
     copy: <><rect x="8.5" y="8.5" width="11" height="11" rx="2" /><path d="M15.5 8.5v-2a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2" /></>,
+    bookmark: <path d="M6 4.5h12v16l-6-4-6 4V4.5Z" />,
     file: <><path d="M14 3.5H6.5v17h11V7l-3.5-3.5Z" /><path d="M14 3.5V7h3.5M9.5 12.5h5m-5 3.5h3.5" /></>,
     back: <path d="M19 12H5m5-5-5 5 5 5" />,
     chevron: <path d="m9 6 6 6-6 6" />,

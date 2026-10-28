@@ -49,6 +49,13 @@ test("the public library introduces learning before topics and makes paths disco
   await expect(page.getByRole("main").getByRole("link", { name: "Rules / Mechanics", exact: true })).toHaveAttribute("href", "/rules");
   await expect(page.locator("pre, .resource-exercise")).toHaveCount(0);
   for (const guide of RESOURCE_GUIDES) await expect(page.getByRole("region", { name: "Find your next topic" }).getByRole("link", { name: guide.title, exact: true })).toHaveAttribute("href", `/resources/${guide.id}`);
+  const card = page.locator(".resource-topic-card").first();
+  await expect(card.locator(".resource-link-arrow")).toHaveCount(2);
+  await expect(card.locator(".resource-link-arrow").first()).toBeVisible();
+  const bookmark = card.getByRole("button", { name: "Bookmark General skills", exact: true });
+  await expect(bookmark).toHaveText("");
+  await expect(bookmark.locator("svg")).toBeVisible();
+  await expect(bookmark).toHaveCSS("position", "absolute");
   expect(apiRequests).toEqual([]);
 });
 
@@ -91,7 +98,7 @@ test("search combines topic and tool words with level and platform and recovers 
   await expect(browse.getByRole("link", { name: "General skills", exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "Platform", exact: true }).selectOption("Windows");
   await expect(browse.locator(".resource-matches").first()).toBeVisible();
-  for (const text of await browse.locator(".resource-matches span").allTextContents()) expect(text.toLowerCase()).toContain("windows");
+  for (const text of await browse.locator(".resource-matches li > span").allTextContents()) expect(text.toLowerCase()).toContain("windows");
   await page.getByRole("button", { name: "Clear filters", exact: true }).click();
   await page.getByRole("combobox", { name: "Starting level", exact: true }).selectOption("Beginner");
   await expect(browse.getByRole("link", { name: "Binary exploitation", exact: true })).toHaveCount(0);
@@ -252,7 +259,10 @@ test("library and expanded topic pages fit mobile and desktop and retain the sti
     await page.goto("/resources");
     await expect(page.getByRole("button", { name: "Bookmark General skills", exact: true })).toBeEnabled();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    if (width === 390 || width === 1440) await page.screenshot({ path: `test-results/resource-library-${width}.png` });
+    if (width === 390 || width === 1440) {
+      await page.screenshot({ path: `test-results/resource-library-${width}.png` });
+      await page.locator(".resource-topic-card").first().screenshot({ path: `test-results/resource-card-${width}.png` });
+    }
     await page.getByRole("link", { name: "Explore learning paths", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Learning paths", exact: true })).toBeInViewport();
     const map = page.locator(".learning-map");
