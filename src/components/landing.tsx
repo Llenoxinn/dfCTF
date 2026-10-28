@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Community } from "@/lib/types";
 import { CATEGORIES } from "@/lib/types";
 import { countdownParts, weekEnd } from "@/lib/week";
@@ -10,6 +10,7 @@ import FaultyTerminal from "./faulty-terminal";
 import GradientASCII from "./gradient-ascii";
 import SiteHeader from "./site-header";
 import { ChallengeCard } from "./cards";
+import Counter from "./counter";
 import { busiestDay, Countdown, DitherArt, Heatmap, HeatLegend, Ticker } from "./viz";
 import { api, clock, DecodeText, Identicon, InfoTip, Meter, Notice, useTheme, Wordmark } from "./ui";
 
@@ -42,10 +43,22 @@ function PixelIcon({ rows }: { rows: string[] }) {
   return <svg className="pixel-icon" width="36" height="36" viewBox="0 0 9 9" aria-hidden="true" shapeRendering="crispEdges"><path d={d} /></svg>;
 }
 
+type Enter = (view: "practice" | "leaderboard" | "rules" | "resources", challenge?: string) => void;
+const EnterContext = createContext<Enter | undefined>(undefined);
+/** Rules and Resources are public pages for visitors and app tabs once signed in, so the app header stays in reach. */
+function PageLink({ to, className, children }: { to: "rules" | "resources"; className?: string; children: ReactNode }) {
+  const enter = useContext(EnterContext);
+  return <Link className={className} href={enter ? `/?view=${to}` : `/${to}`} onClick={enter ? event => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault(); enter(to);
+  } : undefined}>{children}</Link>;
+}
+const pageOf = (href: string) => href === "/rules" ? "rules" : href === "/resources" ? "resources" : null;
+
 const FAQ: [string, ReactNode][] = [
   ["What is a CTF?", "Capture the flag is a security game. Each challenge hides a short secret string, the flag, inside something: a file, a web page, a program. Your job is to find it. On dfCTF every flag looks like dfCTF{...}."],
   ["Do I need experience?", "No. Every category has easy starters, and each solve unlocks a walkthrough that explains the intended approach."],
-  ["What tools do I need?", <>A laptop, a terminal, and a text editor. Some challenges are easier with free tools like Wireshark or CyberChef, and the description says when. Start with <Link className="resource-topic-link" href="/resources">Tutorials & Resources<span className="resource-link-arrow" aria-hidden="true">↗</span></Link> for tool guides and beginner references.</>],
+  ["What tools do I need?", <>A laptop, a terminal, and a text editor. Some challenges are easier with free tools like Wireshark or CyberChef, and the description says when. Start with <PageLink className="resource-topic-link" to="resources">Tutorials & Resources<span className="resource-link-arrow" aria-hidden="true">↗</span></PageLink> for tool guides and beginner references.</>],
   ["Is this legal?", "Yes. Every target is fictional and built for practice. You download files and work on your own machine; you never attack a real system."],
   ["How do points work?", "Each challenge has a point value. Your first correct flag earns it once. Wrong answers never cost points."],
   ["Who makes the challenges?", "DFC Developers and community authors. A second person solves every challenge before it is published."],
@@ -143,7 +156,7 @@ function WeeklyNote({ title, endsAt }: { title: string; endsAt: string }) {
 }
 
 /** The public home page in one framed column. Signed-in players reach it from the wordmark; `enter` then replaces the sign-in actions. */
-export default function Landing({ signIn, createAccount, enter }: { signIn: () => void; createAccount: () => void; enter?: (view: "practice" | "leaderboard", challenge?: string) => void }) {
+export default function Landing({ signIn, createAccount, enter }: { signIn: () => void; createAccount: () => void; enter?: Enter }) {
   const [data, setData] = useState<Community | null>(null);
   const [faq, setFaq] = useState(0);
   const [error, setError] = useState("");
@@ -176,10 +189,12 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
   const busiest = data ? busiestDay(days, data.activity.start) : null;
   const leader = data?.top[0]?.codename;
   const unknown = error ? "—" : "…";
+  // Live numbers roll up into place once loaded, at the size of the text around them.
+  const roll = (value: number, suffix?: string) => <Counter value={value} suffix={suffix} fontSize="inherit" fontWeight="inherit" />;
   const stats: [string, ReactNode][] = [
-    ["Challenges published", data ? data.totals.challenges : unknown],
-    ["Categories with challenges", data ? `${covered} of ${CATEGORIES.length}` : unknown],
-    ["Flags captured this week", weekSolves ?? unknown],
+    ["Challenges published", data ? roll(data.totals.challenges) : unknown],
+    ["Categories with challenges", data ? roll(covered ?? 0, ` of ${CATEGORIES.length}`) : unknown],
+    ["Flags captured this week", weekSolves === undefined ? unknown : roll(weekSolves)],
     ["Leading this week", data ? leader ? <span className="flex min-w-0 items-center gap-2.5"><Identicon name={leader} size={24} /><span className="truncate">{leader}</span></span> : "Nobody yet" : unknown],
   ];
   const faqItem = ([q, a]: [string, ReactNode], i: number) => <div key={q} className="faq-item" data-open={faq === i || undefined}>
@@ -187,9 +202,9 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
     <div className="faq-answer" id={`faq-${i}`} role="region" aria-label={q}><div><p>{a}</p></div></div>
   </div>;
 
-  return <div className="landing min-h-screen bg-bg text-fg min-[1520px]:bg-[radial-gradient(circle_at_1px_1px,var(--line)_1px,transparent_0)] min-[1520px]:bg-size-[20px_20px]">
+  return <EnterContext.Provider value={enter}><div className="landing min-h-screen bg-bg text-fg min-[1520px]:bg-[radial-gradient(circle_at_1px_1px,var(--line)_1px,transparent_0)] min-[1520px]:bg-size-[20px_20px]">
     <a className="skip-link" href="#landing-main">Skip to content</a>
-    <SiteHeader home signedIn={signedIn} signIn={signIn} createAccount={createAccount} />
+    <SiteHeader home signedIn={signedIn} signIn={signIn} createAccount={createAccount} openPage={enter} />
 
     <main id="landing-main" className={`${FRAME} bg-bg`}>
       {error ? <div className={`${PAD} border-b border-line py-4`}><Notice type="error">{error} <button className="text-button" onClick={load} disabled={busy}>Try again</button></Notice></div> : null}
@@ -255,8 +270,8 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
               </div>
               {/* Three equal stats: same value size, same label size, tops aligned. */}
               <div className="mt-auto grid grid-cols-3 gap-4 border-t border-line pt-5">
-                <p className="stat content-start gap-1.5"><strong className="text-2xl font-semibold leading-none tracking-[-0.02em] tabular-nums">{totalActivity?.toLocaleString() ?? "—"}</strong><span className="text-[13px]">solves in 20 weeks</span></p>
-                <p className="grid content-start gap-1.5"><span className="text-2xl font-semibold leading-none tracking-[-0.02em] tabular-nums">{weekSolves ?? "—"}</span><span className="text-[13px] text-muted">solves this week</span></p>
+                <p className="stat content-start gap-1.5"><strong className="text-2xl font-semibold leading-none tracking-[-0.02em] tabular-nums">{totalActivity === undefined ? "—" : roll(totalActivity)}</strong><span className="text-[13px]">solves in 20 weeks</span></p>
+                <p className="grid content-start gap-1.5"><span className="text-2xl font-semibold leading-none tracking-[-0.02em] tabular-nums">{weekSolves === undefined ? "—" : roll(weekSolves)}</span><span className="text-[13px] text-muted">solves this week</span></p>
                 <p className="grid content-start gap-1.5"><span className="text-2xl font-semibold leading-none tracking-[-0.02em]">{busiest ? busiest.label : "—"}</span><span className="text-[13px] text-muted">{busiest ? `busiest day, ${busiest.count} ${busiest.count === 1 ? "solve" : "solves"}` : "busiest day"}</span></p>
               </div>
             </div>
@@ -316,7 +331,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
       <section id="faq" aria-labelledby="faq-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead id="faq-title" title="Before your first flag.">Questions people ask before they start. <Link href="/rules" className="text-fg underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-current">Rules / Mechanics</Link> covers the rest.</SectionHead>
+        <SectionHead id="faq-title" title="Before your first flag.">Questions people ask before they start. <PageLink to="rules" className="text-fg underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-current">Rules / Mechanics</PageLink> covers the rest.</SectionHead>
         <div className={`${PAD} grid gap-x-12 border-t border-line pb-10 pt-2 lg:grid-cols-2`}>
           <div>{FAQ.slice(0, 3).map((item, i) => faqItem(item, i))}</div>
           <div className="max-lg:border-t max-lg:border-line">{FAQ.slice(3).map((item, i) => faqItem(item, i + 3))}</div>
@@ -334,10 +349,13 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
       <Marks />
       <div className="grid content-start justify-items-start gap-3.5"><Wordmark /><p className="max-w-[22rem] text-[15px] text-muted">The capture-the-flag platform built by DFC Developers.</p><p className="text-[13px] text-faint">Flags look like <code className="text-accent-ink">dfCTF{"{...}"}</code></p></div>
       <nav aria-label="Footer" className="grid grid-cols-2 gap-8 sm:grid-cols-3">
-        {([["Play", [["#try", "Try one now"], ["#how", "How it works"], ["#this-week", "This week"], ["#leaderboard", "Leaderboard"]]], ["Learn", [["#categories", "Categories"], ["/resources", "Resources"], ["/rules", "Rules / Mechanics"], ["#fair-play", "Fair play"], ["#faq", "FAQ"]]]] as const).map(([title, links]) => <div key={title} className="grid content-start justify-items-start gap-1"><h2 className="mb-2 text-[13px] font-semibold text-fg">{title}</h2>{links.map(([href, label]) => <Link key={href} href={href} className="inline-flex min-h-8 items-center text-sm text-muted transition-colors hover:text-fg">{label}</Link>)}</div>)}
+        {([["Play", [["#try", "Try one now"], ["#how", "How it works"], ["#this-week", "This week"], ["#leaderboard", "Leaderboard"]]], ["Learn", [["#categories", "Categories"], ["/resources", "Resources"], ["/rules", "Rules / Mechanics"], ["#fair-play", "Fair play"], ["#faq", "FAQ"]]]] as const).map(([title, links]) => <div key={title} className="grid content-start justify-items-start gap-1"><h2 className="mb-2 text-[13px] font-semibold text-fg">{title}</h2>{links.map(([href, label]) => {
+          const className = "inline-flex min-h-8 items-center text-sm text-muted transition-colors hover:text-fg", page = pageOf(href);
+          return page ? <PageLink key={href} to={page} className={className}>{label}</PageLink> : <Link key={href} href={href} className={className}>{label}</Link>;
+        })}</div>)}
         <div className="grid content-start justify-items-start gap-1"><h2 className="mb-2 text-[13px] font-semibold text-fg">Account</h2>{signedIn ? <><button className="link-button min-h-8" onClick={createAccount}>Open challenges</button><button className="link-button min-h-8" onClick={signIn}>Leaderboard</button></> : <><button className="link-button min-h-8" onClick={signIn}>Sign in</button><button className="link-button min-h-8" onClick={createAccount}>Create account</button></>}</div>
       </nav>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-6 text-[13px] text-faint lg:col-span-2"><span>© {new Date().getFullYear()} DFC Developers</span><span>All challenge content is fictional. Only test systems you have permission to attack.</span><a className="link-button sm:ml-auto" href="#landing-main">Back to top</a></div>
     </footer>
-  </div>;
+  </div></EnterContext.Provider>;
 }

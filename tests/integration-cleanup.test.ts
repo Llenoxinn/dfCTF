@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { randomBytes } from "node:crypto";
 import { lstat, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import IntegrationCleanup from "../scripts/integration-reporter";
 
-const temporaryRoot = process.platform === "win32" && path.parse(tmpdir()).root !== path.parse(process.cwd()).root ? path.dirname(process.cwd()) : tmpdir();
+const temporaryRoot = path.dirname(process.cwd());
 const directories: string[] = [];
 
 async function fixture() {

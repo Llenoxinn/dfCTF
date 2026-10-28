@@ -2,8 +2,19 @@ import { describe, expect, it } from "vitest";
 import { RESOURCE_GUIDES } from "@/lib/resources";
 import { CATEGORIES } from "@/lib/types";
 import { GLOSSARY, LEARNING_PATHS, TOPIC_INFO, matchingTools, parseLearningProgress } from "@/lib/resource-learning";
+import { LESSON_PLANS } from "@/lib/resource-lesson-plan";
 
 describe("learning library", () => {
+  it("gives every topic clear goals, a recap, and known prerequisites without cycles", () => {
+    expect(Object.keys(LESSON_PLANS).sort()).toEqual(RESOURCE_GUIDES.map(guide => guide.id).sort());
+    function visit(id: string, ancestors: string[] = []) {
+      expect(ancestors).not.toContain(id);
+      const lesson = LESSON_PLANS[id]; expect(lesson).toBeDefined();
+      expect(lesson.goals).toHaveLength(3); expect(lesson.recap.length).toBeGreaterThanOrEqual(2);
+      for (const prerequisite of lesson.prerequisites) visit(prerequisite, [...ancestors, id]);
+    }
+    for (const id of Object.keys(LESSON_PLANS)) visit(id);
+  });
   it("gives every real topic a starting level, practice category, and a place in a learning path", () => {
     const ids = RESOURCE_GUIDES.map(guide => guide.id);
     expect(Object.keys(TOPIC_INFO).sort()).toEqual([...ids].sort());

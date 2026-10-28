@@ -1,12 +1,11 @@
 import { lstat, readFile, rm, unlink } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Reporter } from "@playwright/test/reporter";
 
 export default class IntegrationCleanup implements Reporter {
   async onExit() {
     const directory = path.resolve(process.env.DFCTF_INTEGRATION_DIR ?? "");
-    const temporaryRoot = process.platform === "win32" && path.parse(tmpdir()).root !== path.parse(process.cwd()).root ? path.dirname(process.cwd()) : tmpdir();
+    const temporaryRoot = path.dirname(process.cwd());
     if (path.dirname(directory) !== path.resolve(temporaryRoot) || !/^dfctf-integration-[A-Za-z0-9]+$/.test(path.basename(directory))) {
       throw new Error("Refusing to remove a directory outside the integration-test temporary root.");
     }

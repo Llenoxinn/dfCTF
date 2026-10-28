@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import type { ResourceGuide, ResourceTool } from "@/lib/resources";
 import { TOPIC_INFO } from "@/lib/resource-learning";
+import { LESSON_PLANS } from "@/lib/resource-lesson-plan";
 import { Icon } from "./ui";
 import GlossaryText from "./resource-glossary";
-import { useResourceProgress } from "./resource-progress";
+import { LearningProgressNotice, useResourceProgress } from "./resource-progress";
+import LineSidebar from "./line-sidebar";
 
 function ToolGuide({ tool, open, bookmarks, bookmark }: { tool: ResourceTool; open: string[]; bookmarks: string[]; bookmark: (toolId: string) => void }) {
   return <details className="resource-tool" id={tool.id} open={open.includes(tool.id)}>
@@ -31,12 +33,13 @@ function ToolGuide({ tool, open, bookmarks, bookmark }: { tool: ResourceTool; op
 type Neighbor = { id: string; title: string };
 type Path = { id: string; title: string; position: number; total: number };
 
-export default function ResourceReader({ guide, previous, next, path }: { guide: ResourceGuide; previous?: Neighbor; next?: Neighbor; path?: Path }) {
-  const { progress, setProgress, ready, canSave } = useResourceProgress();
+export default function ResourceReader({ guide, previous, next, path, prerequisites }: { guide: ResourceGuide; previous?: Neighbor; next?: Neighbor; path?: Path; prerequisites: Neighbor[] }) {
+  const { progress, setProgress, ready } = useResourceProgress();
   const reader = useRef<HTMLDivElement>(null);
   const open = progress.open[guide.id] ?? [];
   const furtherTools = [...guide.tools.slice(1), ...guide.deeper];
   const topicInfo = TOPIC_INFO[guide.id];
+  const lesson = LESSON_PLANS[guide.id];
   const sectionId = (part: string) => `${guide.id}-${part}`;
   const bookmark = (toolId?: string) => {
     const key = toolId ? `${guide.id}/${toolId}` : guide.id;
@@ -97,13 +100,17 @@ export default function ResourceReader({ guide, previous, next, path }: { guide:
       <h1>{guide.title}</h1><p><GlossaryText text={guide.summary} /></p>
       <p className="resource-reader-intro">Read the introduction and basics first. Open tools and optional exercises whenever you feel ready. Underlined terms explain themselves when clicked.</p>
     </section>
+    <section className="resource-learning-plan" aria-labelledby="learning-goals-title">
+      <div><h2 id="learning-goals-title">What you’ll learn</h2><ul>{lesson.goals.map(goal => <li key={goal}>{goal}</li>)}</ul></div>
+      <div><h3>Before you start</h3><p>These topics can help you feel prepared. You can explore them in any order.</p>{prerequisites.length ? <ul>{prerequisites.map(topic => <li key={topic.id}><Link className="resource-topic-link" href={`/resources/${topic.id}`}>{topic.title}<span className="resource-link-arrow" aria-hidden="true">↗</span></Link></li>)}</ul> : <p>No previous topics needed.</p>}</div>
+    </section>
     <div className="resource-reader-actions">
       <button type="button" className="button button-secondary" disabled={!ready} aria-pressed={progress.bookmarks.includes(guide.id)} onClick={() => bookmark()}>{progress.bookmarks.includes(guide.id) ? "Topic bookmarked" : "Bookmark topic"}</button>
       <button type="button" className="button button-secondary" disabled={!ready} aria-pressed={progress.completed.includes(guide.id)} onClick={() => setProgress(current => ({ ...current, completed: current.completed.includes(guide.id) ? current.completed.filter(id => id !== guide.id) : [...current.completed, guide.id] }))}>{progress.completed.includes(guide.id) ? "Marked read" : "Mark topic read"}</button>
-      <span className="fine" role="status">{canSave ? "Saved in this browser. Reading progress is your own checklist." : "Browser storage is unavailable; changes will not survive a reload."}</span>
+      <LearningProgressNotice />
     </div>
     <div className="resources-layout">
-      <nav className="resources-index" aria-label="Topic sections"><span className="fine">On this page</span>{[["overview", "Introduction"], ["basics", "The basics"], ["first-steps", "Your first steps"], ["tools", "Tools to explore"], ["depth", "Go deeper"], ["practice", "Optional practice"]].map(([id, title]) => <a href={`#${sectionId(id)}`} key={id}>{title}</a>)}</nav>
+      <LineSidebar className="resources-index" label="Topic sections" items={[["overview", "Introduction"], ["basics", "The basics"], ["first-steps", "Your first steps"], ["tools", "Tools to explore"], ["depth", "Go deeper"], ["recap", "Key takeaways"], ["practice", "Optional practice"]].map(([id, label]) => ({ label, href: `#${sectionId(id)}` }))} spy markerLength={24} maxShift={10} fontSize={.875} />
       <div className="resources-copy">
         <section id={sectionId("basics")} data-reading-section tabIndex={-1}>
           <h2>Start with the basics</h2><dl className="resource-area-notes" aria-label={`${guide.title} core concepts`}>{guide.concepts.map(concept => <div key={concept.title}><dt>{concept.title}</dt><dd><GlossaryText text={concept.detail} /></dd></div>)}</dl>
@@ -124,6 +131,7 @@ export default function ResourceReader({ guide, previous, next, path }: { guide:
             <div className="resource-deep-content"><div className="resource-tools">{furtherTools.map(tool => <ToolGuide key={tool.id} tool={tool} {...toolProps} />)}</div></div>
           </details>
         </section>
+        <section id={sectionId("recap")} data-reading-section tabIndex={-1}><h2>Key takeaways</h2><ul className="resource-recap">{lesson.recap.map(item => <li key={item}><GlossaryText text={item} /></li>)}</ul></section>
         <section className="resources-scope" id={sectionId("practice")} data-reading-section tabIndex={-1}>
           <h2>Optional practice</h2><p>{topicInfo.practice}</p><p>When you feel ready, browse easy challenges in <strong>{topicInfo.category}</strong>. These are category recommendations; the available challenges may cover different skills. Sign in to solve challenges, or keep using the exercises above without an account.</p>
           <div className="resources-actions"><a className="button button-primary" href={practiceHref}>Browse easy {topicInfo.category} challenges</a><a className="text-button" href="/rules">Rules / Mechanics</a></div>

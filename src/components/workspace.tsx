@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import type { Bootstrap, ChallengeDetail, ChallengeSummary, Leaderboard, Progress, Viewer } from "@/lib/types";
 import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
@@ -12,15 +13,21 @@ import AccountSecurity from "./account-security";
 import Competitions, { type CompetitionRoute } from "./competitions";
 import Landing from "./landing";
 import RulesContent from "./rules-content";
+import { LearningProgressProvider } from "./resource-progress";
+import { Content } from "./content";
 import { ChallengeCard, type CardState } from "./cards";
 import { Heatmap, Radar, RaceChart, SolveGrid } from "./viz";
 import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Modal, Notice, Pips, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
 
-type View = "home" | "practice" | "leaderboard" | "progress" | "competitions" | "authoring" | "rules" | "settings";
+// The guides are long, so their text loads only when the Resources tab opens.
+const ResourcesContent = dynamic(() => import("./resources-content"), { loading: () => <Loading label="Opening the guides" /> });
+
+type View = "home" | "practice" | "leaderboard" | "progress" | "competitions" | "authoring" | "rules" | "resources" | "settings";
 // Settings lives in the profile menu; home is the landing page behind the wordmark.
 const TABS: { id: View; label: string; staff?: boolean }[] = [
   { id: "practice", label: "Challenges" }, { id: "leaderboard", label: "Leaderboard" }, { id: "progress", label: "Progress" },
   { id: "competitions", label: "Competitions" }, { id: "authoring", label: "Authoring", staff: true }, { id: "rules", label: "Rules" },
+  { id: "resources", label: "Resources" },
 ];
 const VIEWS: View[] = ["home", ...TABS.map(t => t.id), "settings"];
 
@@ -185,7 +192,7 @@ export default function Workspace() {
         const current = activeView === v.id && (!weekly || selected !== weekly.id);
         const tab = <a key={v.id} className="tab" href={hrefFor(v.id)} aria-current={current ? "page" : undefined} onClick={e => inPlace(e, () => navigate(v.id))}><span>{v.label}</span></a>;
         return v.id === "leaderboard" && weekly ? [tab, <a key="week" className="tab" href={hrefFor("practice", weekly.id)} aria-current={selected === weekly.id ? "page" : undefined} onClick={e => inPlace(e, () => navigate("practice", weekly.id))}><span>This week</span></a>] : [tab];
-      })}{/* Full navigation preserves the browser's unsaved-draft warning. */}<a className="tab" href="/resources"><span>Resources</span></a></nav>
+      })}</nav>
       <span className="spacer" />
       {board?.weekEndsAt ? <WeekChip endsAt={board.weekEndsAt} onOpen={e => inPlace(e, () => navigate("leaderboard"))} /> : null}
       <ProfileMenu codename={codename} points={progress?.totalXp ?? 0} rank={board?.viewer?.rank} onSettings={() => navigate("settings")} onSignOut={signOut} />
@@ -196,6 +203,7 @@ export default function Workspace() {
       {activeView === "settings" ? <Settings bootstrap={bootstrap} refresh={refresh} signOut={signOut} board={board} progress={progress} />
         : activeView === "authoring" ? <Authoring bootstrap={bootstrap} goSettings={() => navigate("settings")} registerLeaveGuard={registerLeaveGuard} />
         : activeView === "rules" ? <RulesContent />
+        : activeView === "resources" ? <LearningProgressProvider key={bootstrap.user.id} userId={bootstrap.user.id}><ResourcesContent /></LearningProgressProvider>
         : activeView === "competitions" ? <Competitions bootstrap={bootstrap} route={competitionRoute} open={openCompetition} goSettings={() => navigate("settings")} renderChallenge={(eventId,id,back,onSolved) => <ChallengeView key={`${eventId}:${id}`} id={id} competitionId={eventId} back={back} onSolved={onSolved} />} />
         : dataBusy && !progress ? <Loading label="Loading the board" />
         : activeView === "leaderboard" ? <LeaderboardView initial={board} progress={progress} viewer={codename} />
@@ -404,13 +412,6 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
 
 function solveTime(value: string) {
   return new Date(value).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-}
-
-export function Content({ text }: { text: string }) {
-  return <div className="prose">{text.split(/\n\s*\n/).map((paragraph, i) => paragraph.startsWith("### ") ? <h4 key={i}>{paragraph.slice(4)}</h4> : paragraph.startsWith("## ") ? <h3 key={i}>{paragraph.slice(3)}</h3> : paragraph.startsWith("# ") ? <h3 key={i}>{paragraph.slice(2)}</h3> : paragraph.startsWith("```") ? <pre key={i}>{paragraph.replace(/^```[^\n]*\n?/, "").replace(/```$/, "")}</pre> : <p key={i}>{inlineCode(paragraph)}</p>)}</div>;
-}
-function inlineCode(text: string) {
-  return text.split(/(`[^`]+`)/).map((part, i) => part.length > 2 && part.startsWith("`") && part.endsWith("`") ? <code key={i}>{part.slice(1, -1)}</code> : part);
 }
 
 function StandingsTable({ standings, viewer, max }: { standings: Leaderboard["standings"]; viewer: Leaderboard["viewer"]; max: number }) {

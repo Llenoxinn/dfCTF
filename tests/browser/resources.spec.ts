@@ -1,8 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import { RESOURCE_GUIDES } from "../../src/lib/resources";
-import { LEARNING_PATHS } from "../../src/lib/resource-learning";
+import { LEARNING_PATHS, parseLearningProgress } from "../../src/lib/resource-learning";
+import { applyLearningPatch } from "../../src/lib/learning-progress";
 
 async function mockHome(page: Page, signedIn = false, featured = false) {
+  let learning = parseLearningProgress(null);
   await page.route("**/api/**", async route => {
     const url = new URL(route.request().url());
     let response: unknown;
@@ -19,6 +21,10 @@ async function mockHome(page: Page, signedIn = false, featured = false) {
     };
     else if (url.pathname === "/api/v1/challenges" || url.pathname === "/api/v1/staff/challenges") response = [];
     else if (url.pathname === "/api/v1/progress") response = { totalXp: 0, solvedCount: 0, attemptedCount: 0, categories: [], recentSolves: [] };
+    else if (url.pathname === "/api/v1/learning/progress") {
+      if (route.request().method() === "PATCH") learning = applyLearningPatch(learning, route.request().postDataJSON());
+      response = { userId: "test-author", progress: learning };
+    }
     else if (url.pathname === "/api/v1/leaderboard") response = {
       range: "week", weekEndsAt: new Date(Date.now() + 86_400_000).toISOString(), players: 0, standings: [], viewer: null,
       race: { players: [], snapshots: [] }, hourly: { start: new Date().toISOString(), counts: [], firstBlood: [] }, challenges: [], mine: { days: [] },
@@ -66,8 +72,8 @@ test("every topic starts with an introduction and basics before tools, depth, an
     await expect(page.getByRole("heading", { level: 1, name: guide.title, exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Bookmark topic", exact: true })).toBeEnabled();
     const main = page.getByRole("main");
-    await expect(main.getByRole("heading", { level: 2 })).toHaveText(["Start with the basics", "Your first steps", "Tools to explore next", "Go deeper", "Optional practice"]);
-    await expect(page.getByRole("navigation", { name: "Topic sections" }).getByRole("link")).toHaveCount(6);
+    await expect(main.getByRole("heading", { level: 2 })).toHaveText(["What you’ll learn", "Start with the basics", "Your first steps", "Tools to explore next", "Go deeper", "Key takeaways", "Optional practice"]);
+    await expect(page.getByRole("navigation", { name: "Topic sections" }).getByRole("link")).toHaveCount(7);
     await expect(page.locator(".resource-area-notes dt")).toHaveCount(guide.concepts.length);
     await expect(page.locator("details.resource-tool[open], details.resource-exercise[open], details.resource-deep-dive[open]")).toHaveCount(0);
     await expect(page.locator("pre:visible")).toHaveCount(0);
@@ -308,6 +314,8 @@ test("library and expanded topic pages fit mobile and desktop and retain the sti
     expect(await page.locator("pre").evaluateAll(items => items.some(item => item.getBoundingClientRect().right > innerWidth))).toBe(false);
     await page.getByRole("navigation", { name: "Topic sections" }).getByRole("link", { name: "The basics", exact: true }).click();
     await expect(page.locator("#audio-recovery-basics")).toBeInViewport();
+    await expect.poll(async () => page.locator("#audio-recovery-basics").evaluate(item => item.getBoundingClientRect().top)).toBeLessThan(200);
+    await expect(page.getByRole("navigation", { name: "Topic sections" }).getByRole("link", { name: "The basics", exact: true })).toHaveAttribute("aria-current", "location");
     const headerBottom = await page.getByRole("banner").evaluate(item => item.getBoundingClientRect().bottom);
     await expect.poll(async () => page.locator("#audio-recovery-basics").evaluate(item => item.getBoundingClientRect().top)).toBeGreaterThanOrEqual(headerBottom);
     if (width === 390 || width === 1440) await page.screenshot({ path: `test-results/resource-topic-${width}.png` });
@@ -352,7 +360,7 @@ test("landing navigation, footer, and tools FAQ link to the library", async ({ p
   await expect(page.getByRole("heading", { name: "Tutorials & Resources", exact: true })).toBeVisible();
 });
 
-test("signed-in Resources navigation preserves the native warning for unsaved drafts", async ({ page }) => {
+test("signed-in Resources navigation stays in the app and preserves the discard warning for unsaved drafts", async ({ page }) => {
   await mockHome(page, true);
   await page.goto("/?view=authoring");
   await page.getByRole("button", { name: "New challenge", exact: true }).click();
@@ -364,9 +372,47 @@ test("signed-in Resources navigation preserves the native warning for unsaved dr
   await resources.click();
   await expect(title).toHaveValue("Keep this unsaved resource-navigation draft");
   await expect(page).toHaveURL(/view=authoring/);
-  expect(prompts).toEqual(["beforeunload"]);
+  expect(prompts).toEqual(["confirm"]);
   accept = true;
   await resources.click();
   await expect(page.getByRole("heading", { name: "Tutorials & Resources", exact: true })).toBeVisible();
-  expect(prompts).toEqual(["beforeunload", "beforeunload"]);
+  expect(prompts).toEqual(["confirm", "confirm"]);
+  await expect(page).toHaveURL(/view=resources/);
+  await expect(page.getByRole("navigation", { name: "Main", exact: true })).toBeVisible();
+});
+
+test("account sync retries offline changes and imports guest progress only when requested", async ({ page }) => {
+  await mockHome(page, true);
+  let failed = true, expired = false, remote = parseLearningProgress(null);
+  await page.route("**/api/v1/learning/progress", async route => {
+    expect(route.request().headers()["x-dfctf-account"]).toBe("test-author");
+    if (expired) return route.fulfill({ status: 401, json: { error: { message: "Sign in to continue." } } });
+    if (failed) return route.fulfill({ status: 503, json: { error: { message: "Account sync is unavailable." } } });
+    if (route.request().method() === "PATCH") remote = applyLearningPatch(remote, route.request().postDataJSON());
+    await route.fulfill({ json: { userId: "test-author", progress: remote } });
+  });
+  await page.goto("/resources");
+  await page.evaluate(() => localStorage.setItem("dfctf:learning:v1", JSON.stringify({ version: 1, bookmarks: ["osint"], completed: [], open: {}, last: null })));
+  await page.goto("/?view=resources");
+  const general = page.getByRole("button", { name: "Bookmark General skills", exact: true });
+  await expect(page.getByRole("status")).toContainText("Account sync is unavailable");
+  await expect(page.getByRole("button", { name: "Bookmark OSINT", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await general.click();
+  await page.reload();
+  await expect(general).toHaveAttribute("aria-pressed", "true");
+  failed = false;
+  await page.getByRole("button", { name: "Retry account sync", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Saved to your account");
+  expect(remote.bookmarks).toEqual(["general-skills"]);
+  await page.getByRole("button", { name: "Add this browser’s progress to my account", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Saved to your account");
+  expect(remote.bookmarks).toEqual(["general-skills", "osint"]);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Bookmark OSINT", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Add this browser’s progress to my account", exact: true })).toHaveCount(0);
+  expired = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByRole("status")).toContainText("Sign in to continue");
+  await expect(page.getByRole("button", { name: "Bookmark General skills", exact: true })).toBeDisabled();
+  await expect(page.getByRole("region", { name: "Your learning" })).toHaveCount(0);
 });

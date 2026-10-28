@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import type { Bootstrap, Category, ChallengeDetail, ChallengeStatus, ChallengeSummary, Difficulty as Level } from "@/lib/types";
 import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
 import { api, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, Loading, Notice, Pips } from "./ui";
+import DescriptionEditor from "./description-editor";
 
 type EditorData = {
   title: string; category: Category; difficulty: Level; description: string;
@@ -157,7 +158,7 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
       <div className="editor-main">
         <section className="panel"><div className="panel-head"><h2>The challenge</h2></div><div className="panel-pad stack">
           <label className="field"><span className="label-row">Title<small className="mono">{form.title.length}/80</small></span><input value={form.title} onChange={e => field("title", e.target.value)} required minLength={3} maxLength={80} readOnly={!editable || busy} placeholder="Night shift" /></label>
-          <label className="field"><span>Description</span><textarea rows={10} value={form.description} onChange={e => field("description", e.target.value)} required minLength={20} maxLength={20000} readOnly={!editable || busy} placeholder="Set the scene, state the objective, and say which files to use." /><small>The first sentence doubles as the one-line summary in the challenge list. Blank lines separate paragraphs. Lines starting with ## become headings. `backticks` mark commands.</small></label>
+          <DescriptionEditor value={form.description} onChange={value => field("description", value)} readOnly={!editable || busy} />
           <label className="field"><span>Walkthrough</span><textarea rows={8} value={form.solution} onChange={e => field("solution", e.target.value)} required minLength={20} maxLength={20000} readOnly={!editable || busy} placeholder="The intended approach, and the lesson to take away." /><small>Players see this only after they solve the challenge.</small></label>
         </div></section>
         <section className="panel"><div className="panel-head"><h2>Files</h2><span className="spacer" /><span className="mono muted">{(detail?.files.length ?? 0) + files.length} {((detail?.files.length ?? 0) + files.length) === 1 ? "file" : "files"}</span></div><div className="panel-pad stack">

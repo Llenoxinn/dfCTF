@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import ResourceReader from "@/components/resource-reader";
 import { RESOURCE_GUIDES } from "@/lib/resources";
 import { LEARNING_PATHS } from "@/lib/resource-learning";
+import { LESSON_PLANS } from "@/lib/resource-lesson-plan";
 
 type Props = { params: Promise<{ topic: string }>; searchParams: Promise<{ path?: string | string[] }> };
 
@@ -21,5 +22,6 @@ export default async function TopicPage({ params, searchParams }: Props) {
   const sequence = path ? path.topics.map(id => RESOURCE_GUIDES.find(guide => guide.id === id)!) : RESOURCE_GUIDES;
   const position = sequence.findIndex(guide => guide.id === topic);
   const neighbor = (index: number) => sequence[index] ? { id: sequence[index].id, title: sequence[index].title } : undefined;
-  return <ResourceReader key={guide.id} guide={guide} previous={neighbor(position - 1)} next={neighbor(position + 1)} path={path ? { id: path.id, title: path.title, position: position + 1, total: sequence.length } : undefined} />;
+  const prerequisites = LESSON_PLANS[topic].prerequisites.map(id => { const prerequisite = RESOURCE_GUIDES.find(guide => guide.id === id)!; return { id, title: prerequisite.title }; });
+  return <ResourceReader key={guide.id} guide={guide} prerequisites={prerequisites} previous={neighbor(position - 1)} next={neighbor(position + 1)} path={path ? { id: path.id, title: path.title, position: position + 1, total: sequence.length } : undefined} />;
 }

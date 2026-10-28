@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LEARNING_PATHS, TOPIC_INFO, matchingTools, type ResourceCard } from "@/lib/resource-learning";
-import { useResourceProgress } from "./resource-progress";
+import { LearningProgressNotice, useResourceProgress } from "./resource-progress";
 import { Icon } from "./ui";
 
 export default function ResourceLibrary({ guides }: { guides: ResourceCard[] }) {
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState("");
   const [platform, setPlatform] = useState("");
-  const { progress, setProgress, ready, canSave } = useResourceProgress();
+  const { progress, setProgress, ready } = useResourceProgress();
   useEffect(() => {
     const redirectLegacyLink = () => {
       const hash = window.location.hash.slice(1);
@@ -50,7 +50,7 @@ export default function ResourceLibrary({ guides }: { guides: ResourceCard[] }) 
         return <li key={key}><Link href={`/resources/${topic.id}${tool ? `#${tool.id}` : ""}`}>{label}</Link><button type="button" className="text-button" onClick={() => bookmark(key)} aria-label={`Remove bookmark: ${label}`}>Remove</button></li>;
       })}</ul></> : null}
     </section> : null}
-    <p className="resource-save-note" role="status">{canSave ? "Your reading place, open guides, bookmarks, and topics marked read are saved in this browser. They do not sync between devices." : "Browser storage is unavailable. You can keep reading, but your place and bookmarks will not survive a reload."}</p>
+    <LearningProgressNotice />
 
     <section aria-labelledby="browse-topics-title" className="resource-browse">
       <h2 id="browse-topics-title">Find your next topic</h2>

@@ -40,7 +40,8 @@ test("failed landing data shows an error and retry restores real standings and a
   await expect(main.getByRole("alert")).toHaveCount(0);
   // The leader also appears in the live stats strip; this checks the standings list itself.
   await expect(page.locator(".standings").getByText("fresh_solver", { exact: true })).toBeVisible();
-  await expect(activity.locator(".stat strong")).toHaveText("3");
+  // Loaded numbers roll in with the Counter; its screen-reader label carries the value.
+  await expect(activity.locator(".stat strong .counter__sr")).toHaveText("3");
   expect(requests).toBe(2);
 });
 
@@ -55,7 +56,7 @@ test("loading data is distinct from a successfully loaded empty leaderboard", as
   release();
   await expect(page.getByText("No points yet this week.", { exact: false })).toBeVisible();
   await expect(page.getByText("No solves yet. Be the first.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Solves across dfCTF", exact: true }).locator(".stat strong")).toHaveText("0");
+  await expect(page.getByRole("region", { name: "Solves across dfCTF", exact: true }).locator(".stat strong .counter__sr")).toHaveText("0");
 });
 
 test("the closing cursor effect follows foreground text and buttons without blocking selection or clicks", async ({ page }) => {

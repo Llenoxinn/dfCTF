@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { cp, readdir, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createStore } from "../src/server/db";
@@ -14,7 +13,7 @@ import type { Viewer } from "../src/lib/types";
 
 const source = process.cwd();
 const directory = path.resolve(process.env.DFCTF_INTEGRATION_DIR ?? "");
-const temporaryRoot = process.platform === "win32" && path.parse(tmpdir()).root !== path.parse(source).root ? path.dirname(source) : tmpdir();
+const temporaryRoot = path.dirname(source);
 if (path.dirname(directory) !== path.resolve(temporaryRoot) || !/^dfctf-integration-[A-Za-z0-9]+$/.test(path.basename(directory))) {
   throw new Error("Integration server requires its own dfctf-integration-* temporary directory.");
 }
@@ -36,13 +35,14 @@ const store = await createStore();
 try {
   await store.migrate();
   const auth = createAuth(store.db), password = `synthetic-fixture-${randomUUID()}`;
-  async function fixtureAccount(role: "author" | "reviewer"): Promise<Viewer> {
-    const email = `fixture-${role}@example.test`, codename = `fixture_${role}`;
+  async function fixtureAccount(role: "author" | "reviewer" | "participant", label = role as string): Promise<Viewer> {
+    const email = `fixture-${label}@example.test`, codename = `fixture_${label}`;
     const registered = await auth.api.signUpEmail({ body: { email, password, name: "Synthetic integration fixture" } });
     await store.db.update(user).set({ role, codename, codenameKey: codename, emailVerified: true }).where(eq(user.id, registered.user.id));
     return { id: registered.user.id, email, codename, emailVerified: true, role, twoFactorEnabled: false };
   }
   const author = await fixtureAccount("author"), reviewer = await fixtureAccount("reviewer");
+  const learner = await fixtureAccount("participant", "learner"), otherLearner = await fixtureAccount("participant", "other_learner");
   const flag = "dfCTF{synthetic_integration_fixture}";
   const content = "This is synthetic integration-test evidence.\n";
   const draft = await createChallenge(store.db, author, challengeInput.parse({
@@ -54,12 +54,12 @@ try {
   const file = await saveArtifact(store.db, author, draft.id, "fixture.txt", Buffer.from(content));
   await editChallenge(store.db, author, draft.id, { status: "review" });
   await publishChallenge(store.db, reviewer, draft.id, flag);
-  await writeFile(path.join(directory, "fixture.json"), JSON.stringify({ challengeId: draft.id, file, flag, content, staff: { author: author.email, reviewer: reviewer.email, password } }), { mode: 0o600 });
+  await writeFile(path.join(directory, "fixture.json"), JSON.stringify({ challengeId: draft.id, file, flag, content, staff: { author: author.email, reviewer: reviewer.email, password }, learners: { learner: learner.email, otherLearner: otherLearner.email, password } }), { mode: 0o600 });
 } finally {
   await store.close();
 }
 
-const child = spawn(process.execPath, [path.join(source, "node_modules", "next", "dist", "bin", "next"), "dev", "--webpack", "--hostname", "127.0.0.1", "--port", "3200"], { cwd: directory, env: process.env, stdio: "inherit" });
+const child = spawn(process.execPath, [path.join(source, "node_modules", "next", "dist", "bin", "next"), "dev", "--turbopack", "--hostname", "127.0.0.1", "--port", "3200"], { cwd: directory, env: process.env, stdio: "inherit" });
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => child.kill(signal));
 child.on("error", error => { console.error(error.message); process.exitCode = 1; });
 child.on("exit", code => process.exit(code ?? 0));

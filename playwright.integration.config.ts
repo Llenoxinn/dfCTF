@@ -1,10 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { defineConfig } from "@playwright/test";
 
-const temporaryRoot = process.platform === "win32" && path.parse(tmpdir()).root !== path.parse(process.cwd()).root ? path.dirname(process.cwd()) : tmpdir();
+const temporaryRoot = path.dirname(process.cwd());
 const directory = process.env.DFCTF_INTEGRATION_DIR ?? mkdtempSync(path.join(temporaryRoot, "dfctf-integration-"));
 process.env.DFCTF_INTEGRATION_DIR = directory;
 const ownershipToken = process.env.DFCTF_INTEGRATION_TOKEN ?? randomBytes(32).toString("hex");
@@ -31,6 +30,7 @@ export default defineConfig({
     env: {
       DFCTF_INTEGRATION_DIR: directory,
       DFCTF_INTEGRATION_TOKEN: ownershipToken,
+      DFCTF_INTEGRATION_ROOT: temporaryRoot,
       NODE_ENV: "development",
       APP_URL: "http://127.0.0.1:3200",
       DATABASE_URL: "", DATABASE_MIGRATION_URL: "", TEST_DATABASE_URL: "",
