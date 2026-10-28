@@ -10,7 +10,7 @@ export default function RulesPage() {
     <a className="skip-link" href="#rules-content">Skip to content</a>
     <header className="site-nav rules-nav">
       <Link className="brand-link" href="/?view=home" aria-label="dfCTF home"><Wordmark /></Link>
-      <Link className="button button-secondary" href="/?view=practice">Open challenges</Link>
+      <div className="head-actions"><Link className="text-button" href="/resources">Resources</Link><Link className="button button-secondary" href="/?view=practice">Open challenges</Link></div>
     </header>
     <main id="rules-content" className="rules-main"><RulesContent /></main>
   </div>;

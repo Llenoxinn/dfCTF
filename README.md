@@ -38,6 +38,8 @@ The app and database scripts load `.env.local`. Leave `LOCAL_MAIL=1` for local d
 
 Open **Rules / Mechanics** from the public site or the signed-in Rules tab. The rules prohibit LLM-assisted solving, attacks or abuse of the platform, answer sharing, and plagiarized challenges. Three field notes form the flag for **Read the fine print**. Re-run `npm run seed` with the local app stopped to add it to an existing development database. On a deployment, staff can choose **Authoring → Rules challenge** to create its draft and briefing file, then use the usual independent review and publication flow.
 
+Open **Resources** from the navigation or the tools FAQ for the public [Tutorials & Resources page](http://127.0.0.1:3000/resources). Starter workflows and optional **Go deeper** sections cover 15 areas, from OSINT and audio recovery to scripting, cloud security, incident response, and DDoS defense. Each guide includes platform requirements, practical steps, expected observations, common mistakes, and official documentation. Content lives in `src/lib/resources.ts` and `src/lib/resource-specialties.ts`; use original examples and verify official references when adding or updating a guide. These guides teach tools without providing answers to dfCTF challenges.
+
 The library covers General skills, OSINT, Steganography, Forensics, Web exploitation, Binary exploitation, and Miscellaneous. MVP web and binary exercises use downloadable material; they do not launch vulnerable services or execute uploaded content.
 
 ## Try the staff flow

@@ -142,7 +142,7 @@ export default function Workspace() {
         const current = activeView === v.id && (!weekly || selected !== weekly.id);
         const tab = <a key={v.id} className="tab" href={hrefFor(v.id)} aria-current={current ? "page" : undefined} onClick={e => inPlace(e, () => navigate(v.id))}><span>{v.label}</span></a>;
         return v.id === "leaderboard" && weekly ? [tab, <a key="week" className="tab" href={hrefFor("practice", weekly.id)} aria-current={selected === weekly.id ? "page" : undefined} onClick={e => inPlace(e, () => navigate("practice", weekly.id))}><span>This week</span></a>] : [tab];
-      })}</nav>
+      })}<Link className="tab" href="/resources"><span>Resources</span></Link></nav>
       <span className="spacer" />
       {board?.weekEndsAt ? <WeekChip endsAt={board.weekEndsAt} onOpen={e => inPlace(e, () => navigate("leaderboard"))} /> : null}
       <ProfileMenu codename={codename} points={progress?.totalXp ?? 0} rank={board?.viewer?.rank} onSettings={() => navigate("settings")} onSignOut={signOut} />
