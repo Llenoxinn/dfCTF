@@ -3,6 +3,7 @@ import { checkOrigin,readBody,readJson,route } from "@/server/http";
 import { api } from "@/components/ui";
 import { validateRuntimeConfig } from "@/server/config";
 import { z } from "zod";
+import { DrizzleQueryError } from "drizzle-orm";
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();vi.restoreAllMocks();});
 describe("request and deployment boundaries",()=>{
   it("sends bodyless application mutations through the origin guard without weakening it",async()=>{
@@ -29,7 +30,7 @@ describe("request and deployment boundaries",()=>{
   });
   it("logs why a server error happened without the failed query's parameters",async()=>{
     const log=vi.spyOn(console,"error").mockImplementation(()=>{});
-    const failing=route(()=>{throw new Error("Failed query: select\nparams: player@example.test",{cause:new Error("connect ECONNREFUSED 127.0.0.1:5432")});});
+    const failing=route(()=>{throw new DrizzleQueryError("select * from auth_user where email = $1",["player@example.test"],new Error("connect ECONNREFUSED 127.0.0.1:5432"));});
     const response=await failing(new Request("http://localhost/api/v1/progress"),{});
     expect(response.status).toBe(500);expect(JSON.stringify(await response.json())).not.toContain("ECONNREFUSED");
     expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({status:500,reason:"connect ECONNREFUSED 127.0.0.1:5432"});expect(log.mock.calls[0][0]).not.toContain("player@example.test");

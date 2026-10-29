@@ -4,6 +4,7 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { nextCookies } from "better-auth/next-js";
 import { twoFactor } from "better-auth/plugins";
 import { hash, verify } from "@node-rs/argon2";
+import { isIP } from "node:net";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { getDb, type Database } from "./db";
 import * as authSchema from "./auth-schema";
@@ -66,6 +67,8 @@ export function createAuth(db: Database) {
     baseURL: appURL,
     secret: localSecret("auth"),
     trustedOrigins: process.env.NODE_ENV === "production" ? [appURL] : [appURL, "http://localhost:3000", "http://127.0.0.1:3000"],
+    // Production ingress overwrites this header with the client's address.
+    advanced: { ipAddress: { ipAddressHeaders: [process.env.NODE_ENV === "production" ? "x-real-ip" : "x-forwarded-for"] } },
     database: drizzleAdapter(db, { provider: "pg", schema: authSchema }),
     emailAndPassword: {
       enabled: true,
@@ -110,6 +113,13 @@ export function createAuth(db: Database) {
     verification: { storeIdentifier: "hashed" },
     hooks: {
       before: createAuthMiddleware(async (context) => {
+        if (process.env.NODE_ENV === "production" && context.request) {
+          const ip = context.request.headers.get("x-real-ip") || "";
+          // Scoped IPv6 is accepted by Node but not by Better Auth's IP parser.
+          if (!isIP(ip) || ip.includes("%")) throw new APIError("FORBIDDEN", {
+            code: "TRUSTED_PROXY_REQUIRED", message: "Authentication requires a valid client IP from the trusted reverse proxy.",
+          });
+        }
         if (protectedAuthPaths.has(context.path) || context.path.startsWith("/two-factor/")) {
           const active = await getSessionFromCtx(context, { disableCookieCache: true });
           if (active) {
