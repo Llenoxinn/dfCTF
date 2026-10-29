@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:browser": "playwright test",
     "test:integration": "playwright test --config playwright.integration.config.ts",
+    "test:recovery": "tsx scripts/rehearse-restore.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:backfill-artifacts": "tsx scripts/backfill-artifacts.ts",

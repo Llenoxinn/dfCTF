@@ -1,0 +1,5 @@
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Set-Cookie: training_evidence=ZGZDVEZ7ZW5jb2RpbmdfaXNfbm90X2VuY3J5cHRpb25fZTkzZGIxNzR9; Path=/
+
+Fictional training response.

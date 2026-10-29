@@ -1,0 +1,47 @@
+[
+  {
+    "title": "First contact",
+    "category": "General skills",
+    "difficulty": "Easy",
+    "xp": 50,
+    "estimatedMinutes": 5,
+    "tags": ["onboarding", "files", "terminal"],
+    "flagFormat": "dfCTF{...}",
+    "directory": "first-contact",
+    "artifact": "field-note.txt",
+    "flag": "dfCTF{curiosity_opens_doors_a7d4c82e}",
+    "solution": "Open field-note.txt in a text editor or run cat field-note.txt. The last line contains the complete flag. Copy it including the dfCTF{...} wrapper. Inspect the supplied evidence before trying complicated tools.",
+    "source": "scripts/seed.ts: First contact",
+    "humanReview": "pending"
+  },
+  {
+    "title": "The midnight request",
+    "category": "Forensics",
+    "difficulty": "Easy",
+    "xp": 50,
+    "estimatedMinutes": 15,
+    "tags": ["logs", "url-encoding", "investigation"],
+    "flagFormat": "dfCTF{...}",
+    "directory": "midnight-request",
+    "artifact": "access.log",
+    "flag": "dfCTF{follow_the_request_d2a791bc}",
+    "solution": "Find the /training/export request in access.log. URL-decode its evidence query parameter; %7B and %7D become braces. The resulting value is the complete flag. Keep original logs intact and investigate a copy.",
+    "source": "scripts/seed.ts: The midnight request",
+    "humanReview": "pending"
+  },
+  {
+    "title": "Cookie crumbs",
+    "category": "Web exploitation",
+    "difficulty": "Easy",
+    "xp": 50,
+    "estimatedMinutes": 15,
+    "tags": ["http", "cookies", "base64"],
+    "flagFormat": "dfCTF{...}",
+    "directory": "cookie-crumbs",
+    "artifact": "response.txt",
+    "flag": "dfCTF{encoding_is_not_encryption_e93db174}",
+    "solution": "Read the Set-Cookie header in response.txt, extract the training_evidence value before the semicolon, and Base64-decode it. The resulting text is the complete flag. Base64 changes representation; it provides no confidentiality or integrity.",
+    "source": "scripts/seed.ts: Cookie crumbs",
+    "humanReview": "pending"
+  }
+]
