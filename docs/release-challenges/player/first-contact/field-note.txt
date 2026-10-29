@@ -1,0 +1,5 @@
+dfCTF / Training field note
+Case 001: Orientation
+All targets are fictional. Read the evidence carefully.
+
+Recovered evidence: dfCTF{curiosity_opens_doors_a7d4c82e}
