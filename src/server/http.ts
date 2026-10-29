@@ -41,7 +41,9 @@ export function route(handler:(request:Request, context:any)=>Promise<Response>|
       if(error instanceof HttpError) {({status,code,message,details}=error);}
       else if(error instanceof ZodError) {status=422;code="VALIDATION_FAILED";message="Check the highlighted fields.";details=error.flatten();}
       else if(error && typeof error === "object" && "code" in error && error.code === "23505") {status=409;code="CONFLICT";message="That value is already in use.";}
-      console.error(JSON.stringify({level:status>=500?"error":"warn",requestId,route:new URL(request.url).pathname,status,duration:Date.now()-started,errorType:error instanceof Error?error.name:"Unknown"}));
+      // Prefer the driver's cause: Drizzle's own message embeds query parameters such as emails.
+      const reason=status>=500&&error instanceof Error?(error.cause instanceof Error?error.cause.message:error.message).slice(0,300):undefined;
+      console.error(JSON.stringify({level:status>=500?"error":"warn",requestId,route:new URL(request.url).pathname,status,duration:Date.now()-started,errorType:error instanceof Error?error.name:"Unknown",reason}));
       const response=json({error:{code,message,details,requestId}},status);
       response.headers.set("X-Request-Id",requestId);
       if(status===429 && details && typeof details ==="object" && "retryAfter" in details) response.headers.set("Retry-After",String(details.retryAfter));
