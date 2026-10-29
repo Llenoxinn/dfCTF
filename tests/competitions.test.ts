@@ -94,11 +94,13 @@ describe("competition isolation and scoring",()=>{
     await setCompetitionStatus(store.db,admin,e.id,"archived");
     await expect(downloadArtifact(store.db,player,c.id,c.file.id,false,e.id)).rejects.toMatchObject({status:404});
   });
-  it("rate limits incorrect event guesses without granting points",async()=>{
+  it("rate limits incorrect event guesses without granting points, then lifts the cooldown",async()=>{
     const {e,c}=await event();await joinCompetition(store.db,other,e.id);vi.setSystemTime(start);
     for(let i=0;i<10;i++)expect(await submitCompetitionFlag(store.db,other,e.id,c.id,"dfCTF{wrong}")).toMatchObject({status:"incorrect",xp:0});
     await expect(submitCompetitionFlag(store.db,other,e.id,c.id,flag)).rejects.toMatchObject({status:429});
     expect((await getCompetition(store.db,other,e.id)).standings).toEqual([]);
+    vi.setSystemTime(new Date(start.getTime()+61_000));
+    expect(await submitCompetitionFlag(store.db,other,e.id,c.id,"dfCTF{wrong}")).toMatchObject({status:"incorrect",xp:0});
   });
   it("requires admin hosting, reviewed private challenges, exclusive event assignment, and immutable published settings",async()=>{
     await expect(saveCompetition(store.db,player,eventInput())).rejects.toMatchObject({status:403});
