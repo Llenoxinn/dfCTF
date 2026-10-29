@@ -129,6 +129,8 @@ test("topic and tool bookmarks, completed topics, and nested disclosures survive
   await cyberchef.getByRole("button", { name: "Bookmark CyberChef", exact: true }).click();
   await cyberchef.locator(".resource-exercise > summary").click();
   await expect(cyberchef.locator("pre")).toBeVisible();
+  // Disclosures save on the native toggle event, which fires after the click; reloading first loses it.
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("dfctf:learning:v1"))).toContain("cyberchef-exercise");
   await page.reload();
   await expect(page.getByRole("button", { name: "Topic bookmarked", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "Marked read", exact: true })).toHaveAttribute("aria-pressed", "true");
