@@ -57,7 +57,7 @@ docker compose --env-file .env.production logs --tail 100 app
 
 Migrations must succeed before the app is started. For an existing file-only dataset, run `npm run db:backfill-artifacts` in the app container after migrations, with the original artifact directory mounted. It copies missing contents into PostgreSQL, verifies checksums, and retains local copies; missing or changed source files roll back the backfill. Run a single migration process; do not run schema changes concurrently with another deployment. Review generated SQL before shipping it. Back up PostgreSQL and artifacts before a schema or content migration.
 
-The Docker image runs as `node`, retains the source and CLI dependencies needed for migrations and administrative bootstrap, and binds port 3000 inside its container. Compose publishes that port only to the host's loopback interface. Place a TLS reverse proxy on the host in front of `127.0.0.1:3000`, preserve the public host, and set the forwarded protocol to HTTPS. Set a request body limit that accommodates the documented artifact limit, plus multipart overhead, while rejecting oversized uploads. Prevent unauthenticated access to any development services.
+The Docker image runs as `node`, retains the source and CLI dependencies needed for migrations and administrative bootstrap, and binds port 3000 inside its container. Compose publishes that port only to the host's loopback interface. Place a TLS reverse proxy on the host in front of `127.0.0.1:3000`, preserve the public host, and set the forwarded protocol to HTTPS. The proxy must also replace `X-Forwarded-For` with the single client address (nginx: `proxy_set_header X-Forwarded-For $remote_addr;`; Caddy does this by default). Sign-in, verification, and password reset limits are counted per client address; without it, every player shares one limit and the fourth sign-in within 10 seconds fails. Set a request body limit that accommodates the documented artifact limit, plus multipart overhead, while rejecting oversized uploads. Prevent unauthenticated access to any development services.
 
 The Compose database has no public host port. Its health check gates app startup. The `postgres-data` and `artifact-data` named volumes survive normal container replacement. Do not run `docker compose down --volumes` against a deployment you need to keep.
 
@@ -82,6 +82,7 @@ Administrative shell access is privileged access to the application's database. 
 Run `npm run check` on the exact revision you intend to deploy. Then complete these checks against staging with its real deployment configuration:
 
 - Registration, verification email, sign-in, password reset, and sign-out work through the public HTTPS origin.
+- Four accounts on different networks sign in within 10 seconds without a "Too many requests" error, and the app log has no "could not determine a client IP" warning.
 - Every configured external provider completes its callback and returns to the same account correctly. Test this with real test-provider credentials; mocked or local credential tests do not establish it.
 - A new player can register without prior approval. Unverified email cannot reach protected pages, APIs, or artifacts. Suspend an active account and check that its next protected request fails; restoring access must preserve email-verification requirements.
 - A learner chooses a codename, solves a challenge, leaves, returns, and sees one completion and the same XP.
@@ -123,6 +124,7 @@ Rolling back the image does not reverse schema changes. Use backward-compatible 
 | Symptom | Check |
 | --- | --- |
 | Local PGlite lock or unexpected database errors | Stop other app/CLI processes using `.data/postgres`; use PostgreSQL for multiple processes |
+| Many players get "Too many requests" when signing in at once | The proxy replaces `X-Forwarded-For` with the client address; see [Build, migrate, and start](#build-migrate-and-start) |
 | OAuth returns to the wrong host | `APP_URL`, browser origin, exact provider callback, proxy host and forwarded HTTPS headers |
 | Google/GitHub button is absent | Both client ID and secret for that provider must be set; restart after changing them |
 | Verification email does not arrive locally | `LOCAL_MAIL=1` and the files in `.data/mail` |
