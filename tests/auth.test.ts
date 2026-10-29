@@ -1,14 +1,15 @@
 import { createHmac, randomUUID } from "node:crypto";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createStore } from "@/server/db";
-import { createAuth, headersAfterAuth, isEmailAllowed, type Auth } from "@/server/auth";
+import { createAuth, headersAfterAuth, invokeAuth, isEmailAllowed, type Auth } from "@/server/auth";
 import { getViewer, hasStaffVerification, markStaffVerified, requireAccess } from "@/server/access";
 import { account, allowlist, rateLimit, session, staffVerification, user, verification } from "@/server/schema";
 import { POST as setupMfa } from "@/app/api/v1/auth/mfa/setup/route";
 import { POST as verifyMfa } from "@/app/api/v1/auth/mfa/verify/route";
 import { GET as listAllowlist, POST as addAllowlist } from "@/app/api/v1/staff/allowlist/route";
 import { GET as bootstrap } from "@/app/api/v1/auth/bootstrap/route";
+import { GET as authGet, POST as authPost } from "@/app/api/auth/[...all]/route";
 import { DELETE as revokeAccess } from "@/app/api/v1/staff/allowlist/[id]/route";
 import { GET as listHostedCompetitions,POST as createHostedCompetition } from "@/app/api/v1/staff/competitions/route";
 
@@ -76,6 +77,82 @@ afterAll(async () => {
   await store?.close();
 });
 beforeEach(async () => { await store.db.delete(rateLimit); });
+
+describe("production authentication proxy boundary", () => {
+  const origin = "https://ctf.example.test";
+  const credentials = { email: "unknown-proxy-test@example.test", password };
+  let productionAuth: Auth;
+  beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("APP_URL", origin);
+    productionAuth = createAuth(store.db);
+    globals.dfctfAuth = Promise.resolve(productionAuth);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    globals.dfctfAuth = Promise.resolve(auth);
+  });
+
+  it.each([undefined, "not-an-ip", "198.51.100.1, 203.0.113.1", "fe80::1%eth0"])("rejects untrusted client IP %s through native and wrapped HTTP auth", async (ip) => {
+    const headers = new Headers({ origin, "content-type": "application/json", "x-forwarded-for": "198.51.100.1" });
+    if (ip !== undefined) headers.set("x-real-ip", ip);
+    const native = await authPost(new Request(`${origin}/api/auth/sign-in/email`, { method: "POST", headers, body: JSON.stringify(credentials) }));
+    const session = await authGet(new Request(`${origin}/api/auth/get-session`, { headers }));
+    const callback = await authGet(new Request(`${origin}/api/auth/callback/github?state=missing-state&code=missing-code`, { headers }));
+    const wrapped = await invokeAuth(new Request(origin, { headers }), "/sign-in/email", credentials);
+    for (const result of [native, session, callback, wrapped]) {
+      expect(result.status).toBe(403);
+      expect(await result.json()).toMatchObject({ code: "TRUSTED_PROXY_REQUIRED" });
+    }
+  });
+
+  it("keeps a single client budget despite spoofed forwarded IPs and isolates other clients", async () => {
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const headers = new Headers({ origin, "content-type": "application/json", "x-real-ip": "198.51.100.42", "x-forwarded-for": `203.0.113.${attempt + 1}` });
+      const result = await authPost(new Request(`${origin}/api/auth/sign-in/email`, { method: "POST", headers, body: JSON.stringify(credentials) }));
+      statuses.push(result.status);
+    }
+    expect(statuses).toEqual([401, 401, 401, 429]);
+    const headers = new Headers({ origin, "x-real-ip": "198.51.100.43", "x-forwarded-for": "198.51.100.42" });
+    const otherClient = await invokeAuth(new Request(origin, { headers }), "/sign-in/email", credentials);
+    expect(otherClient.status).toBe(401);
+  });
+
+  it.each([
+    ["IPv4-mapped aliases", ["198.51.100.60", "::ffff:198.51.100.60", "::ffff:c633:643c", "198.51.100.60"]],
+    ["IPv6 spellings", ["2001:db8::1", "2001:0db8:0000:0000:0000:0000:0000:0001", "2001:db8::0001", "2001:db8::1"]],
+    ["addresses in one IPv6 /64", ["2001:db8:10:20::1", "2001:db8:10:20::2", "2001:db8:10:20::ffff", "2001:db8:10:20:1111:2222:3333:4444"]],
+  ])("shares one login budget across %s", async (_label, addresses) => {
+    const statuses: number[] = [];
+    for (const ip of addresses) {
+      const headers = new Headers({ origin, "content-type": "application/json", "x-real-ip": ip });
+      const result = await authPost(new Request(`${origin}/api/auth/sign-in/email`, { method: "POST", headers, body: JSON.stringify(credentials) }));
+      statuses.push(result.status);
+    }
+    expect(statuses).toEqual([401, 401, 401, 429]);
+  });
+
+  it("atomically shares the login budget between concurrent native and wrapped requests", async () => {
+    const headers = new Headers({ origin, "content-type": "application/json", "x-real-ip": "198.51.100.61" });
+    const results = await Promise.all(Array.from({ length: 10 }, (_, attempt) => attempt % 2
+      ? invokeAuth(new Request(origin, { headers }), "/sign-in/email", credentials)
+      : authPost(new Request(`${origin}/api/auth/sign-in/email`, { method: "POST", headers, body: JSON.stringify(credentials) }))));
+    expect(results.filter(result => result.status === 401)).toHaveLength(3);
+    expect(results.filter(result => result.status === 429)).toHaveLength(7);
+    for (const result of results.filter(result => result.status === 429)) {
+      expect(Number(result.headers.get("x-retry-after"))).toBeGreaterThan(0);
+      expect(Number(result.headers.get("x-retry-after"))).toBeLessThanOrEqual(10);
+    }
+  });
+
+  it.each(["198.51.100.44", "2001:db8::1", "::ffff:198.51.100.44"])("accepts proxy-stamped %s without an Origin header and preserves internal session lookups", async (ip) => {
+    const result = await authGet(new Request(`${origin}/api/auth/get-session`, { headers: { "x-real-ip": ip } }));
+    expect(result.status).toBe(200);
+    expect(await result.json()).toBeNull();
+    expect(await productionAuth.api.getSession({ headers: new Headers() })).toBeNull();
+  });
+});
 
 describe("open registration and account access", () => {
   it("protects competition hosting with the admin role and current-session MFA",async()=>{
