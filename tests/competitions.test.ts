@@ -71,13 +71,12 @@ describe("competition isolation and scoring",()=>{
     await expect(downloadArtifact(store.db,other,c.id,c.file.id,false,e.id)).rejects.toMatchObject({code:"REGISTRATION_REQUIRED"});
     await expect(competitionChallengeDetail(store.db,player,"another-event",c.id)).rejects.toMatchObject({status:404});
   });
-  it("awards event points once under concurrent solves, preserves idempotency, and leaves practice XP unchanged",async()=>{
+  it("awards event points once under concurrent and repeated solves and leaves practice XP unchanged",async()=>{
     const {e,c}=await event();await joinCompetition(store.db,player,e.id);vi.setSystemTime(start);
-    const [a,b]=await Promise.all([submitCompetitionFlag(store.db,player,e.id,c.id,flag,"event-request-one"),submitCompetitionFlag(store.db,player,e.id,c.id,flag,"event-request-two")]);
-    expect([a,b].map(r=>(r as {status:string}).status).sort()).toEqual(["already_solved","correct"]);
-    expect((a as {xp:number}).xp+(b as {xp:number}).xp).toBe(250);
-    expect(await submitCompetitionFlag(store.db,player,e.id,c.id,flag,"event-request-one")).toEqual(a);
-    await expect(submitCompetitionFlag(store.db,player,e.id,c.id,"dfCTF{different}","event-request-one")).rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});
+    const [a,b]=await Promise.all([submitCompetitionFlag(store.db,player,e.id,c.id,flag),submitCompetitionFlag(store.db,player,e.id,c.id,flag)]);
+    expect([a,b].map(r=>r.status).sort()).toEqual(["already_solved","correct"]);
+    expect(a.xp+b.xp).toBe(250);
+    expect(await submitCompetitionFlag(store.db,player,e.id,c.id,flag)).toMatchObject({status:"already_solved",xp:0});
     expect(await store.db.select().from(competitionSolves).where(eq(competitionSolves.competitionId,e.id))).toHaveLength(1);
     expect((await getProgress(store.db,player.id)).totalXp).toBe(0);
     const detail=await competitionChallengeDetail(store.db,player,e.id,c.id);

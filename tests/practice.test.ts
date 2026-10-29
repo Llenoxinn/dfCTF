@@ -2,7 +2,7 @@ import { beforeAll,afterAll,describe,it,expect } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { createStore } from "@/server/db";
-import { user,challenges,challengeVersions,solves,xpLedger,submissions,requestResults,auditEvents,artifacts,artifactContents } from "@/server/schema";
+import { user,challenges,challengeVersions,solves,xpLedger,auditEvents,artifacts,artifactContents } from "@/server/schema";
 import { createChallenge,editChallenge,publishChallenge,challengeDetail,submitFlag,getProgress,listChallenges,consumeLimit } from "@/server/challenges";
 import { saveArtifact,downloadArtifact } from "@/server/files";
 import { flagDigest,matchesFlag } from "@/server/flags";
@@ -143,7 +143,7 @@ describe("private practice integrity",()=>{
     expect((await store.db.select().from(auditEvents).where(eq(auditEvents.targetId,c.id))).filter(e=>e.action==="challenge.withdraw_review")).toHaveLength(2);
   });
   it("persists a solve once under simultaneous correct requests",async()=>{
-    const c=await ready("Concurrency award");const responses=await Promise.all([submitFlag(store.db,learner,c.id,flag,"concurrent-one"),submitFlag(store.db,learner,c.id,flag,"concurrent-two")]);
+    const c=await ready("Concurrency award");const responses=await Promise.all([submitFlag(store.db,learner,c.id,flag),submitFlag(store.db,learner,c.id,flag)]);
     expect(responses.map(x=>(x as {status:string}).status).sort()).toEqual(["already_solved","correct"]);
     expect(await store.db.select().from(solves).where(eq(solves.challengeId,c.id))).toHaveLength(1);
     const records=await store.db.select().from(xpLedger);expect(records.filter(x=>x.userId===learner.id)).toHaveLength(1);
@@ -156,12 +156,6 @@ describe("private practice integrity",()=>{
     await editChallenge(store.db,author,c.id,{status:"archived"});const after=await getProgress(store.db,learner.id);
     expect(after.solvedCount).toBe(before.solvedCount-1);expect(after.totalXp).toBe(before.totalXp);
     for(const cat of after.categories)expect(cat.solved).toBeLessThanOrEqual(cat.total);
-  });
-  it("replays idempotent requests and rejects reuse with different inputs",async()=>{
-    const c=await ready("Idempotent retry");const first=await submitFlag(store.db,learner,c.id,flag,"same-request-key");
-    const retry=await submitFlag(store.db,learner,c.id,flag,"same-request-key");expect(retry).toEqual(first);
-    expect(await store.db.select().from(submissions).where(eq(submissions.challengeId,c.id))).toHaveLength(1);
-    await expect(submitFlag(store.db,learner,c.id,"dfctf{different}","same-request-key")).rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});
   });
   it("does not award XP twice for variants from the same family",async()=>{
     const a=await ready("Family original"),b=await ready("Family variation");

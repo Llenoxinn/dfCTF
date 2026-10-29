@@ -1,7 +1,7 @@
 import { and, eq, gt, asc, desc, sql, count, sum, inArray } from "drizzle-orm";
-import { randomUUID, createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { Database } from "./db";
-import { challenges, challengeVersions, artifacts, solves, submissions, xpLedger, requestResults, rateLimits, auditEvents, user, competitionChallenges, competitions } from "./schema";
+import { challenges, challengeVersions, artifacts, solves, submissions, xpLedger, rateLimits, auditEvents, user, competitionChallenges, competitions } from "./schema";
 import { flagDigest, matchesFlag } from "./flags";
 import { HttpError } from "./http";
 import { challengeInput, summarize } from "./validation";
@@ -75,21 +75,15 @@ export async function getProgress(db:Database,userId:string):Promise<Progress> {
     categories:CATEGORIES.map(category=>({category,solved:stillPublished.filter(c=>c.category===category).length,total:library.filter(c=>c.category===category).length})),
     recentSolves:completed.slice(0,20).map(c=>({...c,xp:Number(c.xp),category:c.category as Category,solvedAt:c.solvedAt.toISOString()}))};
 }
-export async function submitFlag(db:Database,viewer:Viewer,id:string,flag:string,idempotencyKey?:string) {
+export async function submitFlag(db:Database,viewer:Viewer,id:string,flag:string) {
   if(!viewer.codename) throw new HttpError(409,"CODENAME_REQUIRED","Choose your codename before submitting a flag.");
-  const key=idempotencyKey?`${viewer.id}:${idempotencyKey}`:undefined;
-  const digest=flagDigest(flag);const fingerprint=createHash("sha256").update(`${id}:${digest}`).digest("hex");
-  // Limit outside the solve transaction: rejected guesses remain counted after rollback.
-  if(key) {
-    const [previous]=await db.select().from(requestResults).where(eq(requestResults.key,key));
-    if(previous) {if(previous.fingerprint!==fingerprint) throw new HttpError(409,"IDEMPOTENCY_CONFLICT","Use a new request key for a different submission.");return previous.response;}
-  }
+  const digest=flagDigest(flag);
   const row=await challengeRecord(db,id);
   if(row.challenge.status!=="published"||row.challenge.visibility!=="practice") throw new HttpError(404,"NOT_FOUND","This challenge is unavailable.");
+  // Limit outside the solve transaction: rejected guesses remain counted after rollback.
   await consumeLimit(db,`flag:${viewer.id}:${id}`);
   return db.transaction(async tx=>{
     await tx.select({id:user.id}).from(user).where(eq(user.id,viewer.id)).for("update");
-    if(key) {const [prior]=await tx.select().from(requestResults).where(eq(requestResults.key,key));if(prior){if(prior.fingerprint!==fingerprint)throw new HttpError(409,"IDEMPOTENCY_CONFLICT","Use a new request key for a different submission.");return prior.response;}}
     // Recheck publication inside the transaction so archiving races cannot award a solve.
     await tx.select({id:challenges.id}).from(challenges).where(eq(challenges.id,id)).for("share");
     const fresh=await challengeRecord(tx,id);
@@ -105,9 +99,7 @@ export async function submitFlag(db:Database,viewer:Viewer,id:string,flag:string
       await tx.update(challengeVersions).set({locked:true}).where(eq(challengeVersions.id,fresh.version.id));
     }
     const [totals]=await tx.select({total:sum(xpLedger.amount)}).from(xpLedger).where(eq(xpLedger.userId,viewer.id));
-    const response={status:existing?"already_solved":correct?"correct":"incorrect",xp,totalXp:Number(totals.total||0),...(correct||existing?{solution:fresh.version.solution}:{})};
-    if(key)await tx.insert(requestResults).values({key,userId:viewer.id,operation:`submit:${id}`,fingerprint,response});
-    return response;
+    return {status:existing?"already_solved":correct?"correct":"incorrect",xp,totalXp:Number(totals.total||0),...(correct||existing?{solution:fresh.version.solution}:{})};
   });
 }
 export async function createChallenge(db:Database,viewer:Viewer,input:ChallengeDraft) {

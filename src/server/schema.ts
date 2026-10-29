@@ -58,6 +58,7 @@ export const xpLedger = pgTable("xp_ledger", {
   familyId: text("family_id").notNull(), solveId: text("solve_id").notNull().references(()=>solves.id),
   amount: integer("amount").notNull(), reason: text("reason").notNull().default("first_solve"), createdAt: at("created_at")
 }, t=>[uniqueIndex("xp_once_per_family").on(t.userId,t.familyId)]).enableRLS();
+// shortcut: unused since flag submissions dropped idempotency keys; drop it in a later release so a rollback to the previous image can still write it.
 export const requestResults = pgTable("request_results", {
   key: text("key").primaryKey(), userId: text("user_id").notNull().references(()=>user.id),
   operation: text("operation").notNull(), fingerprint: text("fingerprint").notNull(), response: jsonb("response").notNull(), createdAt: at("created_at")

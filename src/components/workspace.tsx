@@ -354,7 +354,7 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
   async function submit(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError(""); setResult(null);
     try {
-      const response = await api<SubmitResult>(`${endpoint}/submissions`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ flag }) });
+      const response = await api<SubmitResult>(`${endpoint}/submissions`, { method: "POST", body: JSON.stringify({ flag }) });
       setResult(response);
       if (response.status !== "incorrect") { setChallenge(c => c ? { ...c, solved: true, attempted: true, solution: response.solution ?? c.solution } : c); setFlag(""); }
       else { setMiss(m => m + 1); setChallenge(c => c ? { ...c, attempted: true } : c); }
