@@ -61,7 +61,6 @@ export default function Workspace() {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [board, setBoard] = useState<Leaderboard | null>(null);
   const [query, setQuery] = useState("");
-  const [dataBusy, setDataBusy] = useState(false);
   const [dataError, setDataError] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
   const leaveGuard = useRef<(() => boolean) | null>(null);
@@ -108,12 +107,11 @@ export default function Workspace() {
   }, [refresh]);
 
   const loadData = useCallback(async () => {
-    setDataBusy(true); setDataError("");
+    setDataError("");
     try {
       const [items, stats, standings] = await Promise.all([api<ChallengeSummary[]>("/api/v1/challenges"), api<Progress>("/api/v1/progress"), api<Leaderboard>("/api/v1/leaderboard?range=week")]);
       setChallenges(items); setProgress(stats); setBoard(standings);
     } catch (err) { setDataError(err instanceof Error ? err.message : "Could not load your data."); }
-    finally { setDataBusy(false); }
   }, []);
 
   const ready = !!bootstrap?.user && bootstrap.hasAccess && !!bootstrap.user.codename;
@@ -205,7 +203,8 @@ export default function Workspace() {
         : activeView === "rules" ? <RulesContent />
         : activeView === "resources" ? <LearningProgressProvider key={bootstrap.user.id} userId={bootstrap.user.id}><ResourcesContent /></LearningProgressProvider>
         : activeView === "competitions" ? <Competitions bootstrap={bootstrap} route={competitionRoute} open={openCompetition} goSettings={() => navigate("settings")} renderChallenge={(eventId,id,back,onSolved) => <ChallengeView key={`${eventId}:${id}`} id={id} competitionId={eventId} back={back} onSolved={onSolved} />} />
-        : dataBusy && !progress ? <Loading label="Loading the board" backdrop />
+        // Load before the first library render: mounting it empty, then swapping in the loader, drops focus from its search box.
+        : !progress && !dataError ? <Loading label="Loading the board" backdrop />
         : activeView === "leaderboard" ? <LeaderboardView initial={board} progress={progress} viewer={codename} />
         : activeView === "progress" ? <ProgressView progress={progress} board={board} total={challenges.length} open={openChallenge} browse={() => navigate("practice")} />
         : <Library challenges={challenges} progress={progress} board={board} query={query} setQuery={setQuery} searchInput={searchInput} open={openChallenge} />}
@@ -354,7 +353,7 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
   async function submit(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError(""); setResult(null);
     try {
-      const response = await api<SubmitResult>(`${endpoint}/submissions`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify({ flag }) });
+      const response = await api<SubmitResult>(`${endpoint}/submissions`, { method: "POST", body: JSON.stringify({ flag }) });
       setResult(response);
       if (response.status !== "incorrect") { setChallenge(c => c ? { ...c, solved: true, attempted: true, solution: response.solution ?? c.solution } : c); setFlag(""); }
       else { setMiss(m => m + 1); setChallenge(c => c ? { ...c, attempted: true } : c); }

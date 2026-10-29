@@ -1,9 +1,10 @@
 import { describe,it,expect,vi,afterEach } from "vitest";
-import { checkOrigin,readBody,readJson } from "@/server/http";
+import { checkOrigin,readBody,readJson,route } from "@/server/http";
 import { api } from "@/components/ui";
 import { validateRuntimeConfig } from "@/server/config";
 import { z } from "zod";
-afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();});
+import { DrizzleQueryError } from "drizzle-orm";
+afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();vi.restoreAllMocks();});
 describe("request and deployment boundaries",()=>{
   it("sends bodyless application mutations through the origin guard without weakening it",async()=>{
     vi.stubEnv("APP_URL","http://localhost:3000");
@@ -26,6 +27,13 @@ describe("request and deployment boundaries",()=>{
   it("rejects oversized JSON even without Content-Length",async()=>{
     const request=new Request("http://localhost/submit",{method:"POST",body:JSON.stringify({flag:"x".repeat(110_000)})});
     await expect(readJson(request,z.object({flag:z.string()}))).rejects.toMatchObject({status:413});
+  });
+  it("logs why a server error happened without the failed query's parameters",async()=>{
+    const log=vi.spyOn(console,"error").mockImplementation(()=>{});
+    const failing=route(()=>{throw new DrizzleQueryError("select * from auth_user where email = $1",["player@example.test"],new Error("connect ECONNREFUSED 127.0.0.1:5432"));});
+    const response=await failing(new Request("http://localhost/api/v1/progress"),{});
+    expect(response.status).toBe(500);expect(JSON.stringify(await response.json())).not.toContain("ECONNREFUSED");
+    expect(JSON.parse(log.mock.calls[0][0])).toMatchObject({status:500,reason:"connect ECONNREFUSED 127.0.0.1:5432"});expect(log.mock.calls[0][0]).not.toContain("player@example.test");
   });
   it("fails closed on incomplete or insecure production configuration",()=>{
     vi.stubEnv("NODE_ENV","production");for(const name of ["DATABASE_URL","APP_URL","AUTH_SECRET","FLAG_SECRET","SMTP_URL","MAIL_FROM"])vi.stubEnv(name,"");

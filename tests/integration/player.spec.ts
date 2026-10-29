@@ -48,7 +48,7 @@ test("real registration, verification, private download, concurrent scoring and 
   expect((await page.request.get("/api/v1/staff/challenges")).status()).toBe(403);
 
   const submissions = await Promise.all([0, 1].map(index => page.request.post(`/api/v1/challenges/${fixture.challengeId}/submissions`, {
-    data: { flag: fixture.flag }, headers: { "Idempotency-Key": `smoke-request-${index}` },
+    data: { flag: fixture.flag },
   })));
   expect(submissions.every(response => response.ok())).toBe(true);
   const results = await Promise.all(submissions.map(response => response.json()));

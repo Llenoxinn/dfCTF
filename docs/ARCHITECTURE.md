@@ -55,7 +55,7 @@ The server checks timing and registration on each protected request. Browser tim
 
 Practice uses `submissions`, `solves`, and `xp_ledger`. Competitions use `competition_submissions` and `competition_solves`; event points never enter the practice ledger.
 
-Correct submissions run in a database transaction. A per-user row lock serializes simultaneous attempts, and database uniqueness permits one solve per player and event challenge. Publication and challenge state are rechecked under locks. The transaction includes the result cached for an idempotency key, so a retry cannot award another score. Guesses consume a persistent rate budget outside the scoring transaction, including when validation later fails.
+Correct submissions run in a database transaction. A per-user row lock serializes simultaneous attempts, and database uniqueness permits one solve per player and event challenge. Publication and challenge state are rechecked under locks. A repeated correct flag returns `already_solved` and awards nothing. Guesses consume a persistent rate budget outside the scoring transaction, including when validation later fails.
 
 First blood uses the earliest stored solve ordered by timestamp and ID, selecting one winner on timestamp ties. Standings use points descending, then the time the player reached that score. Only public codenames, solve times, and scores reach other players.
 

@@ -1,9 +1,9 @@
-import { randomUUID, createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { and, eq, ne, inArray, count, sum } from "drizzle-orm";
 import { z } from "zod";
 import type { Competition, CompetitionDetail, ChallengeSummary, Category, Difficulty, Viewer } from "@/lib/types";
 import type { Database } from "./db";
-import { competitions, competitionChallenges, competitionRegistrations, competitionSolves, competitionSubmissions, challenges, challengeVersions, user, requestResults } from "./schema";
+import { competitions, competitionChallenges, competitionRegistrations, competitionSolves, competitionSubmissions, challenges, challengeVersions, user } from "./schema";
 import { HttpError } from "./http";
 import { audit, challengeDetail, challengeRecord, consumeLimit } from "./challenges";
 import { requireCompetitionChallenge } from "./competition-access";
@@ -122,11 +122,10 @@ export async function competitionChallengeDetail(db:Database,viewer:Viewer,event
     solvers:rows.map((r,i)=>({codename:r.codename||"Unnamed player",solvedAt:r.solvedAt.toISOString(),firstBlood:i===0})),
     competitionEndsAt:access.event.endsAt.toISOString(),submissionsOpen:new Date()<access.event.endsAt,...(solved?{solution:record.version.solution}:{})};
 }
-export async function submitCompetitionFlag(db:Database,viewer:Viewer,eventId:string,id:string,flag:string,idempotencyKey?:string){
+export async function submitCompetitionFlag(db:Database,viewer:Viewer,eventId:string,id:string,flag:string){
   if(!viewer.codename)throw new HttpError(409,"CODENAME_REQUIRED","Choose a codename before submitting.");
   await requireCompetitionChallenge(db,viewer,id,eventId,true);
-  const digest=flagDigest(flag),fingerprint=createHash("sha256").update(`${id}:${digest}`).digest("hex"),key=idempotencyKey?`competition:${eventId}:${viewer.id}:${idempotencyKey}`:undefined;
-  if(key){const [previous]=await db.select().from(requestResults).where(eq(requestResults.key,key));if(previous){if(previous.fingerprint!==fingerprint)throw new HttpError(409,"IDEMPOTENCY_CONFLICT","Use a new request key for a different flag.");return previous.response;}}
+  const digest=flagDigest(flag);
   await consumeLimit(db,`competition-flag:${eventId}:${viewer.id}:${id}`);
   return db.transaction(async tx=>{
     await tx.select({id:user.id}).from(user).where(eq(user.id,viewer.id)).for("update");
@@ -135,13 +134,11 @@ export async function submitCompetitionFlag(db:Database,viewer:Viewer,eventId:st
     const access=await requireCompetitionChallenge(tx,viewer,id,eventId,true);
     const record=await challengeRecord(tx,id);
     if(record.challenge.status!=="published"||record.challenge.visibility!=="competition")throw new HttpError(404,"NOT_FOUND","This competition challenge is unavailable.");
-    if(key){const [previous]=await tx.select().from(requestResults).where(eq(requestResults.key,key));if(previous){if(previous.fingerprint!==fingerprint)throw new HttpError(409,"IDEMPOTENCY_CONFLICT","Use a new request key for a different flag.");return previous.response;}}
     const [existing]=await tx.select().from(competitionSolves).where(and(eq(competitionSolves.competitionId,eventId),eq(competitionSolves.userId,viewer.id),eq(competitionSolves.challengeId,id)));
     const correct=matchesFlag(flag,record.version.flagHash);
     await tx.insert(competitionSubmissions).values({id:randomUUID(),competitionId:eventId,userId:viewer.id,challengeId:id,digest,correct});
     if(correct&&!existing)await tx.insert(competitionSolves).values({id:randomUUID(),competitionId:eventId,userId:viewer.id,challengeId:id,points:access.points});
     const [total]=await tx.select({points:sum(competitionSolves.points)}).from(competitionSolves).where(and(eq(competitionSolves.competitionId,eventId),eq(competitionSolves.userId,viewer.id)));
-    const response={status:existing?"already_solved":correct?"correct":"incorrect",xp:correct&&!existing?access.points:0,totalXp:Number(total.points||0),...(correct||existing?{solution:record.version.solution}:{})};
-    if(key)await tx.insert(requestResults).values({key,userId:viewer.id,operation:`competition:${eventId}:${id}`,fingerprint,response});return response;
+    return {status:existing?"already_solved":correct?"correct":"incorrect",xp:correct&&!existing?access.points:0,totalXp:Number(total.points||0),...(correct||existing?{solution:record.version.solution}:{})};
   });
 }
