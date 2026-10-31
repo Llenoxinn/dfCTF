@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const config: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["@electric-sql/pglite", "pg", "@node-rs/argon2"],
+  outputFileTracingExcludes: {
+    "/*": ["./.data/**/*", "./.env", "./.env.*", "./test-results/**/*", "./playwright-report/**/*"],
+  },
   experimental: { cpus: 1 },
   ...(process.env.DFCTF_INTEGRATION_ROOT ? { turbopack: { root: process.env.DFCTF_INTEGRATION_ROOT } } : {}),
   async headers() {
