@@ -63,7 +63,7 @@ If review finds a problem, the author or an administrator can choose **Return to
 
 The editor asks before discarding unsaved challenge edits when you leave, navigate, or reload. Draft authors and administrators can remove an uploaded file from an unlocked draft, then upload its replacement. Removal takes effect immediately and preserves other unsaved edits. Files in review or published versions stay locked; return a review to draft before changing its files.
 
-Artifact uploads accept `.txt`, `.csv`, `.json`, `.log`, `.pcap`, `.zip`, `.png`, `.jpg`, `.jpeg`, and `.pdf` files, up to 10 MiB per file. Private file contents are stored in the database and served through an authenticated download endpoint; the local artifact directory holds backup copies and supports older file-only records. They are never extracted or executed by the application. Extension and signature checks are implemented; malware scanning is not integrated.
+Artifact uploads accept `.txt`, `.csv`, `.json`, `.log`, `.pcap`, `.zip`, `.png`, `.jpg`, `.jpeg`, and `.pdf` files, up to 3 MiB per file. Private file contents are stored in the database and served through an authenticated download endpoint. Local development and persistent hosts also keep backup copies; Vercel automatically uses database-only storage. Other hosts can set `ARTIFACT_LOCAL_BACKUP=0` to disable disk copies and legacy disk fallback. Backfill older file-only records before disabling disk storage. Files are never extracted or executed by the application. Extension and signature checks are implemented; malware scanning is not integrated.
 
 ## Host a competition
 

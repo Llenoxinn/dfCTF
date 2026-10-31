@@ -1,15 +1,16 @@
-import { beforeAll,afterAll,describe,it,expect,vi } from "vitest";
+import { beforeAll,afterAll,afterEach,describe,it,expect,vi } from "vitest";
 import { randomUUID } from "node:crypto";
-import { mkdtemp,readFile,unlink,mkdir,rm } from "node:fs/promises";
+import { mkdtemp,readFile,writeFile,unlink,mkdir,rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { eq,sql } from "drizzle-orm";
+import { and,eq,sql } from "drizzle-orm";
 import { createStore } from "@/server/db";
 import { artifacts,artifactContents,auditEvents,challenges,challengeVersions,user } from "@/server/schema";
 import { createChallenge,editChallenge,publishChallenge } from "@/server/challenges";
 import { saveArtifact,removeArtifact,downloadArtifact } from "@/server/files";
 import { challengeInput } from "@/server/validation";
 import type { Viewer } from "@/lib/types";
+import { MAX_ARTIFACT_BYTES } from "@/lib/artifacts";
 
 let store:Awaited<ReturnType<typeof createStore>>,directory:string;
 const author:Viewer={id:randomUUID(),email:"files-author@example.test",codename:"files_author",emailVerified:true,role:"author",twoFactorEnabled:true};
@@ -28,6 +29,33 @@ afterAll(async()=>{
   await store?.close();delete process.env.ARTIFACT_DIR;
   if(directory){expect(path.dirname(directory)).toBe(path.resolve(os.tmpdir()));expect(path.basename(directory)).toMatch(/^dfctf-artifacts-/);await rm(directory,{recursive:true,force:true});}
 });
+afterEach(()=>vi.unstubAllEnvs());
+
+describe("serverless artifacts",()=>{
+  it.each([
+    {vercel:"1",backup:"1"},
+    {vercel:"",backup:"0"},
+  ])("saves, downloads and removes files without a writable backup directory: %j",async({vercel,backup})=>{
+    const blocked=path.join(directory,randomUUID());await writeFile(blocked,"Not a directory");
+    vi.stubEnv("VERCEL",vercel);vi.stubEnv("ARTIFACT_LOCAL_BACKUP",backup);vi.stubEnv("ARTIFACT_DIR",blocked);
+    const c=await draft(),bytes=Buffer.from("Database-only fictional evidence");
+    const file=await saveArtifact(store.db,author,c.id,"evidence.txt",bytes);
+    expect(Buffer.from(await (await downloadArtifact(store.db,author,c.id,file.id,true)).arrayBuffer())).toEqual(bytes);
+    // A legacy record without database bytes cannot rely on an instance's local filesystem.
+    await store.db.delete(artifactContents).where(eq(artifactContents.artifactId,file.id));
+    await expect(downloadArtifact(store.db,author,c.id,file.id,true)).rejects.toMatchObject({status:404});
+    await expect(removeArtifact(store.db,author,c.id,file.id)).resolves.toEqual({removed:true});
+    expect(await readFile(blocked,"utf8")).toBe("Not a directory");
+    expect(await store.db.select().from(artifacts).where(eq(artifacts.id,file.id))).toHaveLength(0);
+  });
+  it("accepts the 3 MiB boundary and rejects larger artifacts",async()=>{
+    const c=await draft();
+    const file=await saveArtifact(store.db,author,c.id,"limit.txt",Buffer.alloc(MAX_ARTIFACT_BYTES,97));
+    expect(file.size).toBe(3*1024*1024);
+    await expect(saveArtifact(store.db,author,c.id,"oversized.txt",Buffer.alloc(MAX_ARTIFACT_BYTES+1,97))).rejects.toMatchObject({code:"INVALID_FILE"});
+    await removeArtifact(store.db,author,c.id,file.id);
+  });
+});
 
 describe("draft artifact removal",()=>{
   it("removes the owner's draft file and private bytes, audits it, and allows review without files",async()=>{
@@ -37,7 +65,7 @@ describe("draft artifact removal",()=>{
     expect(await store.db.select().from(artifactContents).where(eq(artifactContents.artifactId,file.id))).toHaveLength(0);
     await expect(readFile(file.location)).rejects.toMatchObject({code:"ENOENT"});
     await expect(downloadArtifact(store.db,author,c.id,file.id,true)).rejects.toMatchObject({status:404});
-    expect(await store.db.select().from(auditEvents).where(eq(auditEvents.action,"artifact.remove"))).toEqual([expect.objectContaining({actorId:author.id,targetId:c.id,metadata:{fileId:file.id}})]);
+    expect(await store.db.select().from(auditEvents).where(and(eq(auditEvents.action,"artifact.remove"),eq(auditEvents.targetId,c.id)))).toEqual([expect.objectContaining({actorId:author.id,targetId:c.id,metadata:{fileId:file.id}})]);
     await expect(editChallenge(store.db,author,c.id,{status:"review"})).resolves.toMatchObject({status:"review"});
   });
   it("allows an admin but rejects another author, reviewers, and participants",async()=>{

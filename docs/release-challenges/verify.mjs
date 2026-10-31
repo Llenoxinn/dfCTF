@@ -14,7 +14,7 @@ for (const fixture of fixtures) {
   const bytes = await readFile(new URL(fixture.artifact, directory));
   const text = bytes.toString("utf8");
   assert(!/dfctf\{(?!\.\.\.\})[^}]+\}/i.test(description), `${fixture.title}: description reveals an answer`);
-  assert(bytes.length > 0 && bytes.length < 10 * 1024 * 1024 && !bytes.includes(0));
+  assert(bytes.length > 0 && bytes.length <= 3 * 1024 * 1024 && !bytes.includes(0));
   let recovered;
   if (fixture.directory === "first-contact") recovered = text.match(/dfCTF\{[^}]+\}/)?.[0];
   if (fixture.directory === "midnight-request") recovered = decodeURIComponent(text.match(/evidence=([^\s]+)/)?.[1] ?? "");

@@ -8,15 +8,20 @@ import { audit, challengeRecord } from "./challenges";
 import { HttpError } from "./http";
 import type { Viewer } from "@/lib/types";
 import { requireCompetitionChallenge } from "./competition-access";
+import { MAX_ARTIFACT_BYTES, ARTIFACT_SIZE_LABEL } from "@/lib/artifacts";
+
+export { MAX_ARTIFACT_BYTES } from "@/lib/artifacts";
 
 const types=new Set([".txt",".csv",".json",".log",".pcap",".zip",".png",".jpg",".jpeg",".pdf"]);
-export const MAX_ARTIFACT_BYTES=10*1024*1024;
+function artifactBackupsEnabled() {
+  return process.env.VERCEL !== "1" && process.env.ARTIFACT_LOCAL_BACKUP !== "0";
+}
 function artifactPath(key:string) {
   if(!/^[a-f0-9-]{36}$/.test(key))throw new HttpError(404,"NOT_FOUND","File unavailable.");
   return path.join(path.resolve(process.env.ARTIFACT_DIR||".data/artifacts"),key);
 }
 export async function saveArtifact(db:Database,viewer:Viewer,id:string,name:string,bytes:Buffer) {
-  if(bytes.length>MAX_ARTIFACT_BYTES||bytes.length===0)throw new HttpError(422,"INVALID_FILE","Choose a non-empty file up to 10 MB.");
+  if(bytes.length>MAX_ARTIFACT_BYTES||bytes.length===0)throw new HttpError(422,"INVALID_FILE",`Choose a non-empty file up to ${ARTIFACT_SIZE_LABEL}.`);
   const safeName=path.basename(name.replace(/\\/g,"/")).replace(/[\x00-\x1f\x7f]/g,"").slice(0,120);
   const ext=path.extname(safeName).toLowerCase();
   if(!types.has(ext))throw new HttpError(422,"FILE_TYPE","Use a supported downloadable artifact type.");
@@ -28,8 +33,8 @@ export async function saveArtifact(db:Database,viewer:Viewer,id:string,name:stri
   if(ext===".zip"&&!(bytes[0]===80&&bytes[1]===75&&[3,5,7].includes(bytes[2])))throw new HttpError(422,"FILE_TYPE","This file is not a valid ZIP.");
   if([".txt",".csv",".json",".log"].includes(ext)&&bytes.includes(0))throw new HttpError(422,"FILE_TYPE","Text artifacts cannot contain binary data.");
   if(ext===".json"){try{JSON.parse(bytes.toString("utf8"));}catch{throw new HttpError(422,"FILE_TYPE","This file is not valid JSON.");}}
-  const storageKey=randomUUID(),location=artifactPath(storageKey);await mkdir(path.dirname(location),{recursive:true});
-  await writeFile(location,bytes,{flag:"wx"});
+  const storageKey=randomUUID(),location=artifactBackupsEnabled()?artifactPath(storageKey):null;
+  if(location){await mkdir(path.dirname(location),{recursive:true});await writeFile(location,bytes,{flag:"wx"});}
   try {
     return await db.transaction(async tx=>{
       await tx.select().from(challenges).where(eq(challenges.id,id)).for("update");
@@ -42,7 +47,7 @@ export async function saveArtifact(db:Database,viewer:Viewer,id:string,name:stri
       await audit(tx,viewer.id,"artifact.upload",id,{fileId:file.id,size:file.size,sha256:file.sha256});
       return {id:file.id,name:file.name,size:file.size,sha256:file.sha256};
     });
-  } catch(error) {await unlink(location).catch(()=>{});throw error;}
+  } catch(error) {if(location)await unlink(location).catch(()=>{});throw error;}
 }
 export async function removeArtifact(db:Database,viewer:Viewer,id:string,fileId:string) {
   const location=await db.transaction(async tx=>{
@@ -55,10 +60,10 @@ export async function removeArtifact(db:Database,viewer:Viewer,id:string,fileId:
     const location=artifactPath(file.storageKey);
     await tx.delete(artifacts).where(eq(artifacts.id,fileId));
     await audit(tx,viewer.id,"artifact.remove",id,{fileId});
-    return location;
+    return artifactBackupsEnabled()?location:null;
   });
   // Commit first so a failed transaction cannot leave a published file missing.
-  try {await unlink(location);} catch(error) {
+  try {if(location)await unlink(location);} catch(error) {
     if(!(error&&typeof error==="object"&&"code" in error&&error.code==="ENOENT")) {
       // shortcut: failed cleanup leaves an inaccessible orphan; add retries if storage errors recur.
       console.error(JSON.stringify({level:"error",action:"artifact.cleanup",fileId,errorType:error instanceof Error?error.name:"Unknown"}));
@@ -76,7 +81,10 @@ export async function downloadArtifact(db:Database,viewer:Viewer,id:string,fileI
   const [stored]=await db.select({content:artifactContents.content}).from(artifactContents).where(eq(artifactContents.artifactId,file.id));
   let bytes:Buffer;
   if(stored)bytes=stored.content;
-  else {try{bytes=await readFile(artifactPath(file.storageKey));}catch{throw new HttpError(404,"NOT_FOUND","This file is temporarily unavailable.");}}
+  else {
+    if(!artifactBackupsEnabled())throw new HttpError(404,"NOT_FOUND","This file is temporarily unavailable.");
+    try{bytes=await readFile(artifactPath(file.storageKey));}catch{throw new HttpError(404,"NOT_FOUND","This file is temporarily unavailable.");}
+  }
   if(bytes.length!==file.size||createHash("sha256").update(bytes).digest("hex")!==file.sha256)throw new HttpError(404,"NOT_FOUND","This file is temporarily unavailable.");
   return new Response(new Uint8Array(bytes),{headers:{"Content-Type":"application/octet-stream","Content-Disposition":`attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`,"Content-Length":String(bytes.length),"X-Content-Type-Options":"nosniff","Cache-Control":"private, no-store","Content-Security-Policy":"sandbox; default-src 'none'"}});
 }
