@@ -1,6 +1,6 @@
 # Deployment and recovery
 
-The first deployment target is one long-running Node.js application with PostgreSQL and a private artifact backup directory. Embedded PGlite is for a single local development process. New artifact contents live in PostgreSQL; the directory holds local backup copies and provides fallback for legacy file-only records.
+For Vercel staging, use the dedicated [Vercel deployment checklist](VERCEL.md). The Docker procedure below runs one long-running Node.js application with PostgreSQL and a private artifact backup directory. Embedded PGlite is for a single local development process. New artifact contents live in PostgreSQL; persistent hosts can also keep local backup copies and legacy file fallback. Vercel uses database-only artifacts.
 
 Use fictional data on staging. Keep staging and production databases, artifact volumes, email credentials, OAuth applications, and secrets separate.
 

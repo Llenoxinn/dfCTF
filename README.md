@@ -2,7 +2,7 @@
 
 A capture-the-flag (CTF) platform built as a side project. Anyone can register, verify their email, choose a codename, solve challenges, and earn points on the weekly and all-time leaderboards.
 
-The application is a custom Next.js modular monolith with React, Better Auth, Drizzle, and PostgreSQL. Development can use embedded PGlite without installing a database server. PostgreSQL stores account records, challenge data, and private artifact contents; uploaded files also have local backup copies. [Architecture and invariants](docs/ARCHITECTURE.md) describe authentication, event isolation, scoring, and database ownership.
+The application is a custom Next.js modular monolith with React, Better Auth, Drizzle, and PostgreSQL. Development can use embedded PGlite without installing a database server. PostgreSQL stores account records, challenge data, and private artifact contents; persistent hosts can also keep local backup copies. [Architecture and invariants](docs/ARCHITECTURE.md) describe authentication, event isolation, scoring, and database ownership.
 
 See the [side project plan](docs/MVP.md) for current scope, the next small release, and known limitations. [PRODUCT.md](PRODUCT.md) describes the product and its constraints.
 
@@ -134,6 +134,7 @@ Provider configuration is included, but a real social sign-in round trip require
 | `npm run test:browser` | Browser regression tests against the production build (Edge on Windows; Playwright Chromium elsewhere) |
 | `npm run test:integration` | Real local player flow with isolated app, database, files, and mailbox on port 3200 |
 | `npm run build` | Build the production application |
+| `npm run verify:build` | Check an existing build's file manifests for private local data and test output |
 | `npm start` | Run a previously built application |
 | `npm run check` | Type checking, tests, and production build |
 
@@ -145,6 +146,6 @@ Run `npm run build` before `npm run test:browser`. The browser suite starts a se
 
 ## Deploy and review scope
 
-See [deployment and recovery](docs/DEPLOYMENT.md) for Docker, PostgreSQL, TLS, administrator bootstrap, email, backups, and release checks.
+See [Vercel staging](docs/VERCEL.md) for the serverless testing checklist, or [deployment and recovery](docs/DEPLOYMENT.md) for Docker, PostgreSQL, TLS, administrator bootstrap, email, backups, and release checks.
 
 The current release includes practice, individual timed competitions, progress, leaderboards, and the Tutorials & Resources library with its learning paths. Those paths are reading guides, not graded courses. Teams and live targets remain future work. Before sharing a deployment, verify email delivery, access revocation, and backup restoration, and review the [known limitations](docs/MVP.md#production-hardening-gaps). Tests and a successful build do not certify security or validate external services.
