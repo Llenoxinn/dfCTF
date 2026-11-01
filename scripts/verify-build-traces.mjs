@@ -2,15 +2,16 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const root = process.cwd();
+const output = path.join(root, ".next");
 const traces = [];
 async function collect(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const filename = path.join(directory, entry.name);
-    if (entry.isDirectory()) await collect(filename);
-    else if (entry.name.endsWith(".nft.json")) traces.push(filename);
+    if (entry.isDirectory() && (directory !== output || entry.name === "server")) await collect(filename);
+    else if (entry.isFile() && entry.name.endsWith(".nft.json")) traces.push(filename);
   }
 }
-await collect(path.join(root, ".next", "server"));
+await collect(output);
 if (!traces.length) throw new Error("No build manifests found. Build the application before checking its package.");
 
 const forbidden = new Set([".data", "test-results", "playwright-report"]);
