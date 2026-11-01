@@ -2,7 +2,7 @@
 
 A capture-the-flag (CTF) platform built as a side project. Anyone can register, verify their email, choose a codename, solve challenges, and earn points on the weekly and all-time leaderboards.
 
-The application is a custom Next.js modular monolith with React, Better Auth, Drizzle, and PostgreSQL. Development can use embedded PGlite without installing a database server. PostgreSQL stores account records, challenge data, and private artifact contents; uploaded files also have local backup copies. [Architecture and invariants](docs/ARCHITECTURE.md) describe authentication, event isolation, scoring, and database ownership.
+The application is a custom Next.js modular monolith with React, Better Auth, Drizzle, and PostgreSQL. Development can use embedded PGlite without installing a database server. PostgreSQL stores account records, challenge data, and private artifact contents; persistent hosts can also keep local backup copies. [Architecture and invariants](docs/ARCHITECTURE.md) describe authentication, event isolation, scoring, and database ownership.
 
 See the [side project plan](docs/MVP.md) for current scope, the next small release, and known limitations. [PRODUCT.md](PRODUCT.md) describes the product and its constraints.
 
@@ -63,7 +63,7 @@ If review finds a problem, the author or an administrator can choose **Return to
 
 The editor asks before discarding unsaved challenge edits when you leave, navigate, or reload. Draft authors and administrators can remove an uploaded file from an unlocked draft, then upload its replacement. Removal takes effect immediately and preserves other unsaved edits. Files in review or published versions stay locked; return a review to draft before changing its files.
 
-Artifact uploads accept `.txt`, `.csv`, `.json`, `.log`, `.pcap`, `.zip`, `.png`, `.jpg`, `.jpeg`, and `.pdf` files, up to 10 MiB per file. Private file contents are stored in the database and served through an authenticated download endpoint; the local artifact directory holds backup copies and supports older file-only records. They are never extracted or executed by the application. Extension and signature checks are implemented; malware scanning is not integrated.
+Artifact uploads accept `.txt`, `.csv`, `.json`, `.log`, `.pcap`, `.zip`, `.png`, `.jpg`, `.jpeg`, and `.pdf` files, up to 3 MiB per file. Private file contents are stored in the database and served through an authenticated download endpoint. Local development and persistent hosts also keep backup copies; Vercel automatically uses database-only storage. Other hosts can set `ARTIFACT_LOCAL_BACKUP=0` to disable disk copies and legacy disk fallback. Backfill older file-only records before disabling disk storage. Files are never extracted or executed by the application. Extension and signature checks are implemented; malware scanning is not integrated.
 
 ## Host a competition
 
@@ -134,6 +134,7 @@ Provider configuration is included, but a real social sign-in round trip require
 | `npm run test:browser` | Browser regression tests against the production build (Edge on Windows; Playwright Chromium elsewhere) |
 | `npm run test:integration` | Real local player flow with isolated app, database, files, and mailbox on port 3200 |
 | `npm run build` | Build the production application |
+| `npm run verify:build` | Check an existing build's file manifests for private local data and test output |
 | `npm start` | Run a previously built application |
 | `npm run check` | Type checking, tests, and production build |
 
@@ -145,6 +146,6 @@ Run `npm run build` before `npm run test:browser`. The browser suite starts a se
 
 ## Deploy and review scope
 
-See [deployment and recovery](docs/DEPLOYMENT.md) for Docker, PostgreSQL, TLS, administrator bootstrap, email, backups, and release checks.
+See [Vercel staging](docs/VERCEL.md) for the serverless testing checklist, or [deployment and recovery](docs/DEPLOYMENT.md) for Docker, PostgreSQL, TLS, administrator bootstrap, email, backups, and release checks.
 
 The current release includes practice, individual timed competitions, progress, leaderboards, and the Tutorials & Resources library with its learning paths. Those paths are reading guides, not graded courses. Teams and live targets remain future work. Before sharing a deployment, verify email delivery, access revocation, and backup restoration, and review the [known limitations](docs/MVP.md#production-hardening-gaps). Tests and a successful build do not certify security or validate external services.

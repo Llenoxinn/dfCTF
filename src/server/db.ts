@@ -4,6 +4,7 @@ import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
+import { attachDatabasePool } from "@vercel/functions/db-connections";
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
 import * as schema from "./schema";
@@ -15,7 +16,9 @@ const globalStore = globalThis as unknown as {dfctfStore?: Promise<Store>};
 export async function createStore(url?:string, memory = false): Promise<Store> {
   const migrationsFolder = path.join(process.cwd(), "drizzle");
   if (url) {
-    const pool = new Pool({connectionString:url, max:10});
+    const onVercel = process.env.VERCEL === "1";
+    const pool = new Pool({connectionString:url, max:onVercel?3:10, idleTimeoutMillis:5000, connectionTimeoutMillis:10000});
+    if(onVercel)attachDatabasePool(pool);
     const db = drizzle(pool,{schema});
     return {db, close:()=>pool.end(), migrate:()=>migratePg(db,{migrationsFolder})};
   }

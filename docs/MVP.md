@@ -40,7 +40,7 @@ Finish these checks before expanding the product. Success means a player can joi
 
 ## Keep maintenance small
 
-- Use one application, PostgreSQL, and persistent artifact storage for the first shared deployment. PGlite remains a single-process local option.
+- Use one application and PostgreSQL for records and private artifact contents. Vercel uses database-only storage; persistent hosts can keep local backup copies. PGlite remains a single-process local option. Follow the [Vercel staging checklist](VERCEL.md) for the first serverless trial.
 - Keep the existing auth and access checks. The legacy `allowlist` table and routes now track account access and suspensions; a new table or data migration is unnecessary.
 - Promote the initial administrator through the existing server command. Staff-role management UI can wait.
 - Use manual challenge publication. Add scheduling only if maintaining a schedule becomes a real need.

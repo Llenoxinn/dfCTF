@@ -3,9 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": { "node": "24.x" },
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
-    "build": "next build --webpack",
+    "build": "next build --webpack && node scripts/verify-build-traces.mjs --clean && npm run verify:build",
+    "verify:build": "node scripts/verify-build-traces.mjs",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -24,6 +26,7 @@
     "@better-auth/drizzle-adapter": "1.7.11",
     "@electric-sql/pglite": "0.5.10",
     "@node-rs/argon2": "2.2.2",
+    "@vercel/functions": "3.10.5",
     "better-auth": "1.7.11",
     "drizzle-orm": "0.45.4",
     "mdast-util-to-string": "4.0.0",
@@ -55,6 +58,9 @@
     "vitest": "5.0.5"
   },
   "overrides": {
+    "@vercel/cli-config": {
+      "zod": "4.6.7"
+    },
     "@esbuild-kit/core-utils": {
       "esbuild": "0.28.2"
     }

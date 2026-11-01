@@ -102,6 +102,9 @@ test("holds the editor read-only until a slow save, upload, and refresh finish",
   const description = page.getByLabel(/^Description/);
   await description.fill("Updated description that must survive the upload.");
   const picker = page.locator('input[type="file"]');
+  await picker.setInputFiles({ name: "oversized.txt", mimeType: "text/plain", buffer: Buffer.alloc(3 * 1024 * 1024 + 1, 97) });
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Each file must be 3 MiB or smaller.");
+  expect(saved || uploading).toBe(false);
   await picker.setInputFiles({ name: "evidence.txt", mimeType: "text/plain", buffer: Buffer.from("evidence") });
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect.poll(() => saved).toBe(true);

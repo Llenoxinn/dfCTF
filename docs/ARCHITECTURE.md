@@ -1,6 +1,6 @@
 # dfCTF architecture
 
-dfCTF is a modular monolith: one long-running Next.js application and PostgreSQL, with local artifact backup copies. PostgreSQL stores private artifact contents alongside their metadata. Better Auth owns authentication. Practice and competitions share reviewed challenge content and file delivery, with separate solve records and scoring.
+dfCTF is a modular monolith: one Next.js application and PostgreSQL, deployed as Vercel Node.js functions or a persistent Node.js server. PostgreSQL stores private artifact contents alongside their metadata; persistent hosts can also keep local backup copies. Better Auth owns authentication. Practice and competitions share reviewed challenge content and file delivery, with separate solve records and scoring.
 
 ```mermaid
 flowchart LR
@@ -80,4 +80,4 @@ npm run db:migrate
 
 Apply migrations once before starting a replacement app. The Docker deployment procedure is in [DEPLOYMENT.md](DEPLOYMENT.md). For Supabase, prefer its direct connection for migrations, or session mode on an IPv4-only network; obtain the exact URL from its Connect dialog. [Supabase connection modes](https://supabase.com/docs/guides/database/connecting-to-postgres).
 
-Local development may use embedded PGlite with one application process. Production uses PostgreSQL for records and artifact contents, plus local backup copies. Legacy file-only records fall back to the private artifact directory until backfilled with `npm run db:backfill-artifacts`. CI tests the application with PGlite and runs the competition, concurrency, and table-access suite again against a disposable PostgreSQL service. Browser tests exercise the production-rendered UI with controlled API fixtures. External email, OAuth, remote database connectivity, and backup restoration still require deployment checks.
+Local development may use embedded PGlite with one application process. Production uses PostgreSQL for records and artifact contents. Persistent hosts also keep local copies by default; Vercel and hosts with `ARTIFACT_LOCAL_BACKUP=0` use database-only storage. Legacy file-only records must be backfilled with `npm run db:backfill-artifacts` before disk fallback is disabled. CI tests the application with PGlite and runs the competition, concurrency, and table-access suite again against a disposable PostgreSQL service. Browser tests exercise the production-rendered UI with controlled API fixtures. External email, OAuth, remote database connectivity, and backup restoration still require deployment checks.

@@ -37,7 +37,7 @@ The goal is a small CTF platform that is enjoyable to play and practical to main
 - Categories: General skills, OSINT, Steganography, Forensics, Web exploitation, Binary exploitation, Miscellaneous.
 - Difficulty: Easy, Medium, Hard. Challenges have points, estimated time, tags, files, author, version, and solve count.
 - Flags use a server-side keyed digest. Rate limits apply to repeated guesses and authentication requests.
-- Uploads: `.txt`, `.csv`, `.json`, `.log`, `.pcap`, `.zip`, `.png`, `.jpg`, `.jpeg`, `.pdf`; 10 MiB each. Files are served as authenticated downloads and never executed or extracted by the platform.
+- Uploads: `.txt`, `.csv`, `.json`, `.log`, `.pcap`, `.zip`, `.png`, `.jpg`, `.jpeg`, `.pdf`; 3 MiB each. Files are served as authenticated downloads and never executed or extracted by the platform.
 - Sign-in: verified email and password; Google and GitHub when configured. Staff actions also require TOTP or a backup code.
 - Leaderboards, recent solves, first-blood labels, activity charts, and progress are implemented. Data refreshes on loading or the relevant weekly boundary; there is no real-time push service.
 - Weekly standings follow Asia/Manila time. A tagged challenge is featured only during its publication week; the latest publication wins when several qualify.
