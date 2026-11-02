@@ -6,6 +6,8 @@ The application is a custom Next.js modular monolith with React, Better Auth, Dr
 
 See the [side project plan](docs/MVP.md) for current scope, the next small release, and known limitations. [PRODUCT.md](PRODUCT.md) describes the product and its constraints.
 
+To report a bug, suggest a feature, or flag a visual UI problem, follow the [contributing and issue template guide](.github/CONTRIBUTING.md).
+
 ## Run locally
 
 Install Node.js 24 and npm. From this directory in PowerShell:
