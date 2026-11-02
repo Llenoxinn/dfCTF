@@ -1,5 +1,7 @@
 "use client";
 
+import ValidatedForm from "./validated-form";
+
 import { FormEvent, useEffect, useState } from "react";
 import type { Bootstrap, Community } from "@/lib/types";
 import AsciiField from "./ascii-field";
@@ -104,16 +106,16 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
           <button type="button" className="text-button" onClick={() => changeMode("signin")}>Sign in to your account</button>
           <button type="button" className="text-button" onClick={() => changeMode("forgot")}>Reset your password</button>
         </div> : null}</Notice> : null}{error ? <Notice type="error">{error}</Notice> : null}
-        <form onSubmit={submit} className="stack">
+        <ValidatedForm onSubmit={submit} className="stack">
           {mode !== "mfa" && mode !== "reset" ? <label className="field"><span>Email</span><input type="email" name="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" disabled={busy} /></label> : null}
           {mode === "signin" || mode === "signup" || mode === "reset" ? <div className="field">
             <div className="label-row"><label htmlFor="password">{mode === "reset" ? "New password" : "Password"}</label>{mode === "signin" ? <button type="button" className="text-button" onClick={() => changeMode("forgot")}>Forgot password?</button> : null}</div>
             <div className="password-input"><input id="password" type={showPassword ? "text" : "password"} name="password" required minLength={mode === "signin" ? 1 : 15} maxLength={128} autoComplete={mode === "signin" ? "current-password" : "new-password"} value={password} onChange={e => setPassword(e.target.value)} disabled={busy} aria-describedby={mode !== "signin" ? "password-help" : undefined} /><button type="button" className="password-toggle" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}>{showPassword ? "Hide" : "Show"}</button></div>
             {mode !== "signin" ? <small id="password-help">At least 15 characters, up to 128. {password.length ? <span className="mono">{password.length} so far.</span> : null}</small> : null}
           </div> : null}
-          {mode === "mfa" ? <div className="field"><label htmlFor="mfa-code">{backup ? "Backup code" : "Authenticator code"}</label><input id="mfa-code" className={backup ? "mono" : "mono code-input"} autoComplete="one-time-code" inputMode={backup ? "text" : "numeric"} value={code} onChange={e => setCode(e.target.value)} required placeholder={backup ? "One unused backup code" : "000000"} pattern={backup ? undefined : "[0-9]{6}"} maxLength={backup ? 50 : 6} /><button type="button" className="text-button" onClick={() => { setBackup(v => !v); setCode(""); }}>{backup ? "Use your authenticator app instead" : "Use a backup code instead"}</button></div> : null}
+          {mode === "mfa" ? <div className="field"><label htmlFor="mfa-code">{backup ? "Backup code" : "Authenticator code"}</label><input id="mfa-code" className={backup ? "mono" : "mono code-input"} autoComplete="one-time-code" inputMode={backup ? "text" : "numeric"} value={code} onChange={e => setCode(e.target.value)} required placeholder={backup ? "One unused backup code" : "000000"} pattern={backup ? undefined : "[0-9]{6}"} data-validation-message={backup ? undefined : "Enter the 6-digit code from your authenticator app."} maxLength={backup ? 50 : 6} /><button type="button" className="text-button" onClick={() => { setBackup(v => !v); setCode(""); }}>{backup ? "Use your authenticator app instead" : "Use a backup code instead"}</button></div> : null}
           <button className="button button-primary w-full" type="submit" disabled={busy}>{busy ? <><Spinner />Working</> : action}</button>
-        </form>
+        </ValidatedForm>
         {mode === "signin" || mode === "signup" ? <>
           <div className="divider"><span>or continue with</span></div>
           <div className="social" role="group" aria-label="Social sign-in options" aria-describedby={!bootstrap.providers.github || !bootstrap.providers.google ? "social-availability" : undefined}>
