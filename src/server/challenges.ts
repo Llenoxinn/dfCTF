@@ -9,6 +9,7 @@ import { CATEGORIES, type ChallengeSummary, type ChallengeDetail, type Category,
 import { currentWeekly, weekEnd } from "@/lib/week";
 import type { z } from "zod";
 import { requireCompetitionChallenge } from "./competition-access";
+import { canEditChallengeContent, canManageChallengeDraft } from "@/lib/challenge-permissions";
 
 type Executor=Pick<Database,"select"|"insert"|"update"|"delete">;
 export type ChallengeDraft=z.infer<typeof challengeInput>;
@@ -117,7 +118,8 @@ export async function editChallenge(db:Database,viewer:Viewer,id:string,input:Pa
   return db.transaction(async tx=>{
     await tx.select().from(challenges).where(eq(challenges.id,id)).for("update");
     const {challenge:c,version:v}=await challengeRecord(tx,id);
-    if(!["author","admin"].includes(viewer.role)||(viewer.role==="author"&&c.authorId!==viewer.id))throw new HttpError(404,"NOT_FOUND","This draft is unavailable.");
+    const managesDraft=canManageChallengeDraft(viewer,c);
+    if(!managesDraft&&!(viewer.role==="reviewer"&&c.authorId!==viewer.id&&c.status!=="draft"&&!input.status))throw new HttpError(404,"NOT_FOUND","This challenge is unavailable for editing.");
     if(input.status==="archived"&&c.status==="published") {
       const linked=await tx.select({id:competitions.id}).from(competitions).innerJoin(competitionChallenges,eq(competitionChallenges.competitionId,competitions.id))
         .where(and(eq(competitionChallenges.challengeId,id),eq(competitions.status,"published"),gt(competitions.endsAt,new Date()))).limit(1);
@@ -128,9 +130,9 @@ export async function editChallenge(db:Database,viewer:Viewer,id:string,input:Pa
       await tx.update(challenges).set({status:"draft",updatedAt:new Date()}).where(eq(challenges.id,id));
       await audit(tx,viewer.id,"challenge.withdraw_review",id);return {id,status:"draft"};
     }
-    if(c.status!=="draft"||v.locked)throw new HttpError(409,"IMMUTABLE_VERSION","This version is locked. Published content cannot be edited.");
+    if(!canEditChallengeContent(viewer,c)||v.locked)throw new HttpError(409,"IMMUTABLE_VERSION","Only unlocked drafts and independent reviews can be edited. Published content is locked.");
     if(input.status) {
-      if(input.status!=="review")throw new HttpError(422,"INVALID_STATE","Drafts can only be submitted for independent review.");
+      if(c.status!=="draft"||input.status!=="review")throw new HttpError(422,"INVALID_STATE","Drafts can only be submitted for independent review.");
       // Files are optional: OSINT and puzzle challenges can live entirely in the description.
       await tx.update(challenges).set({status:"review",updatedAt:new Date()}).where(eq(challenges.id,id));
       await audit(tx,viewer.id,"challenge.request_review",id);return {id,status:"review"};
@@ -140,7 +142,7 @@ export async function editChallenge(db:Database,viewer:Viewer,id:string,input:Pa
     if(updates.description&&!updates.summary)updates.summary=summarize(updates.description);
     else if(updates.summary==="")delete updates.summary;
     await tx.update(challengeVersions).set({...updates,...(flag?{flagHash:flagDigest(flag)}:{})}).where(eq(challengeVersions.id,v.id));
-    await tx.update(challenges).set({updatedAt:new Date(),...(visibility?{visibility}:{})}).where(eq(challenges.id,id));await audit(tx,viewer.id,"challenge.edit",id);return {id,status:"draft"};
+    await tx.update(challenges).set({updatedAt:new Date(),...(visibility?{visibility}:{})}).where(eq(challenges.id,id));await audit(tx,viewer.id,"challenge.edit",id);return {id,status:c.status};
   });
 }
 export async function publishChallenge(db:Database,viewer:Viewer,id:string,reviewFlag:string) {

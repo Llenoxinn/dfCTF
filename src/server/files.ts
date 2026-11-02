@@ -9,6 +9,7 @@ import { HttpError } from "./http";
 import type { Viewer } from "@/lib/types";
 import { requireCompetitionChallenge } from "./competition-access";
 import { MAX_ARTIFACT_BYTES, ARTIFACT_SIZE_LABEL } from "@/lib/artifacts";
+import { canEditChallengeContent, canManageChallengeDraft } from "@/lib/challenge-permissions";
 
 export { MAX_ARTIFACT_BYTES } from "@/lib/artifacts";
 
@@ -19,6 +20,10 @@ function artifactBackupsEnabled() {
 function artifactPath(key:string) {
   if(!/^[a-f0-9-]{36}$/.test(key))throw new HttpError(404,"NOT_FOUND","File unavailable.");
   return path.join(path.resolve(process.env.ARTIFACT_DIR||".data/artifacts"),key);
+}
+function requireFileEditor(viewer:Viewer,challenge:{authorId:string;status:string},locked:boolean) {
+  if(!canManageChallengeDraft(viewer,challenge)&&!(viewer.role==="reviewer"&&challenge.authorId!==viewer.id&&challenge.status!=="draft"))throw new HttpError(404,"NOT_FOUND","This challenge is unavailable for editing.");
+  if(!canEditChallengeContent(viewer,challenge)||locked)throw new HttpError(409,"IMMUTABLE_VERSION","Files can only be changed in an unlocked draft or independent review.");
 }
 export async function saveArtifact(db:Database,viewer:Viewer,id:string,name:string,bytes:Buffer) {
   if(bytes.length>MAX_ARTIFACT_BYTES||bytes.length===0)throw new HttpError(422,"INVALID_FILE",`Choose a non-empty file up to ${ARTIFACT_SIZE_LABEL}.`);
@@ -39,8 +44,7 @@ export async function saveArtifact(db:Database,viewer:Viewer,id:string,name:stri
     return await db.transaction(async tx=>{
       await tx.select().from(challenges).where(eq(challenges.id,id)).for("update");
       const row=await challengeRecord(tx,id);
-      if(!["author","admin"].includes(viewer.role)||(viewer.role==="author"&&row.challenge.authorId!==viewer.id))throw new HttpError(404,"NOT_FOUND","This draft is unavailable.");
-      if(row.challenge.status!=="draft"||row.version.locked)throw new HttpError(409,"IMMUTABLE_VERSION","Files can only be added to an unlocked draft.");
+      requireFileEditor(viewer,row.challenge,row.version.locked);
       const file={id:randomUUID(),versionId:row.version.id,name:safeName,storageKey,size:bytes.length,sha256:createHash("sha256").update(bytes).digest("hex")};
       await tx.insert(artifacts).values(file);
       await tx.insert(artifactContents).values({artifactId:file.id,content:bytes});
@@ -53,8 +57,7 @@ export async function removeArtifact(db:Database,viewer:Viewer,id:string,fileId:
   const location=await db.transaction(async tx=>{
     await tx.select().from(challenges).where(eq(challenges.id,id)).for("update");
     const row=await challengeRecord(tx,id);
-    if(!["author","admin"].includes(viewer.role)||(viewer.role==="author"&&row.challenge.authorId!==viewer.id))throw new HttpError(404,"NOT_FOUND","This draft is unavailable.");
-    if(row.challenge.status!=="draft"||row.version.locked)throw new HttpError(409,"IMMUTABLE_VERSION","Files can only be removed from an unlocked draft.");
+    requireFileEditor(viewer,row.challenge,row.version.locked);
     const [file]=await tx.select().from(artifacts).where(and(eq(artifacts.id,fileId),eq(artifacts.versionId,row.version.id)));
     if(!file)throw new HttpError(404,"NOT_FOUND","File unavailable.");
     const location=artifactPath(file.storageKey);
