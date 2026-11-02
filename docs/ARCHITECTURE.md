@@ -32,7 +32,7 @@ flowchart LR
 
 `draft → review → published → archived`
 
-An author chooses Practice library or Competition only while drafting. Publication requires a different reviewer and a correct test-solve flag. Published content, flags, files, and availability stay locked. Returning review to draft permits corrections before publication.
+An author chooses Practice library or Competition only while drafting. An independent reviewer or administrator can correct content, flags, files, and availability while the challenge is In review; saving preserves that status. Publication requires a different reviewer from the original author and a correct test-solve flag after saving edits. Published content, flags, files, and availability stay locked. Authors return their own review to draft before making corrections.
 
 Practice APIs reject competition-only content, including direct detail, submission, and download requests. Public practice statistics exclude it. A competition-only challenge belongs to one event, so an already exposed answer cannot be reused for a new event through the hosting form.
 
