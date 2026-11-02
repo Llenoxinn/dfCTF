@@ -1,11 +1,35 @@
 import { describe,it,expect,vi,afterEach } from "vitest";
 import { checkOrigin,readBody,readJson,route } from "@/server/http";
-import { api } from "@/components/ui";
+import { api, ApiError } from "@/components/ui";
+import { challengeInput, challengePatchInput } from "@/server/validation";
 import { validateRuntimeConfig } from "@/server/config";
 import { z } from "zod";
 import { DrizzleQueryError } from "drizzle-orm";
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();vi.restoreAllMocks();});
 describe("request and deployment boundaries",()=>{
+  it.each(["POST", "PATCH"])("preserves field validation details through a real %s route and the API helper", async (method) => {
+    vi.stubEnv("APP_URL", "http://localhost:3000");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const validate = route(async request => {
+      const body = await readJson<unknown>(request, method === "POST" ? challengeInput : challengePatchInput);
+      return Response.json(body);
+    });
+    vi.stubGlobal("fetch", vi.fn(async (input: string, options: RequestInit) => {
+      const headers = new Headers(options.headers); headers.set("origin", "http://localhost:3000");
+      return validate(new Request(new URL(input, "http://localhost:3000"), { ...options, headers }), {});
+    }));
+    const result = await api("/api/v1/staff/challenges", { method, body: JSON.stringify({ title: "  ", flag: "invalid flag" }) }).catch(error => error);
+    expect(result).toBeInstanceOf(ApiError);
+    expect(result).toMatchObject({ status: 422, code: "VALIDATION_FAILED", fieldErrors: {
+      title: ["Enter a title with at least 3 characters."], flag: ["Use dfCTF{your_flag}."],
+    } });
+  });
+  it("keeps status changes separate from content edits and rejects unknown challenge fields", () => {
+    expect(challengePatchInput.safeParse({ status: "review" }).success).toBe(true);
+    expect(challengePatchInput.safeParse({ title: "A corrected title" }).success).toBe(true);
+    expect(challengePatchInput.safeParse({ status: "review", title: "A corrected title" }).success).toBe(false);
+    expect(challengePatchInput.safeParse({ unexpected: "value" }).success).toBe(false);
+  });
   it("sends bodyless application mutations through the origin guard without weakening it",async()=>{
     vi.stubEnv("APP_URL","http://localhost:3000");
     vi.stubGlobal("fetch",vi.fn(async(input:string,options:RequestInit)=>{

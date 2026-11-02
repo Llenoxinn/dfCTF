@@ -134,6 +134,11 @@ textarea { resize: vertical; min-height: 88px; }
 .field { display: grid; gap: 8px; font-size: .8125rem; font-weight: 500; }
 .field > span:first-child, .label-row { font-weight: 500; }
 .field small { font-size: .75rem; font-weight: 400; color: var(--faint); }
+.field .field-error { color: var(--danger); }
+[aria-invalid="true"], [aria-invalid="true"]:focus-visible, .description-editor.is-invalid, .description-editor.is-invalid:focus-within { border-color: var(--danger); }
+.validation-summary { margin: 8px 0 0; padding-left: 20px; }
+.validation-summary li + li { margin-top: 6px; }
+.validation-summary .text-button { text-align: left; text-decoration: underline; text-underline-offset: 3px; }
 .label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .password-input { position: relative; }
 .password-input input { padding-right: 64px; }
