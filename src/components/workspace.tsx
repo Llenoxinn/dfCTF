@@ -369,16 +369,27 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
     <div className="modal-bar">
       {challenge ? <div className="tags"><span className="tag">{challenge.category.toLowerCase()}</span><span className={`tag tag-${level}`}>{level}</span>{isWeekly(challenge) ? <span className="tag tag-accent">this week</span> : null}</div> : null}
       <span className="spacer" />
-      {challenge ? <span className="mono accent strong points">{challenge.xp} pts</span> : null}
       <button type="button" className="icon-button" onClick={back} aria-label={competitionId ? "Close and return to the competition" : "Close challenge"}><Icon name="close" size={18} /></button>
     </div>
     {loadError ? <div className="modal-body"><h2 id="challenge-title" className="sr-only">Challenge unavailable</h2><Empty title="This challenge isn’t available" action={<button className="button button-secondary" onClick={back}>{backLabel}</button>}>{loadError}</Empty></div>
     : !challenge ? <div className="modal-body"><h2 id="challenge-title" className="sr-only">Opening the challenge</h2><Loading label="Opening the challenge" /></div>
     : <div className="modal-body challenge">
       <header className="challenge-head">
-        <h2 id="challenge-title">{challenge.title}</h2>
-        <div className="challenge-meta muted">{latest.length ? <span className="solver-stack" aria-hidden="true">{latest.map((s,i) => <Identicon key={i} name={s.codename} size={22} />)}</span> : null}
-          <span>{challenge.solveCount} {challenge.solveCount === 1 ? "solve" : "solves"}{latest.length ? <>, latest by <span className="mono">{latest[0].codename}</span></> : ""}. About {challenge.estimatedMinutes} min. By <span className="mono">{challenge.author}</span>, version {challenge.version}.</span></div>
+        <div className="challenge-heading">
+          <div className="challenge-title-block">
+            <div className="challenge-eyebrow"><span>Challenge</span><span className="challenge-version mono" aria-label={`Version ${challenge.version}`}>v{challenge.version}</span></div>
+            <h2 id="challenge-title">{challenge.title}</h2>
+            <div className="challenge-author"><Identicon name={challenge.author || "Unknown author"} size={24} /><span>Created by <strong className="mono">{challenge.author || "Unknown author"}</strong></span></div>
+          </div>
+          <div className="challenge-reward" aria-label={`${challenge.xp} points`}><span className="challenge-reward-label">Reward</span><strong className="mono">{challenge.xp}</strong><span className="mono">points</span></div>
+        </div>
+        <div className="challenge-summary">
+          <dl className="challenge-stats" aria-label="Challenge statistics">
+            <div><dt>Solves</dt><dd className="mono">{challenge.solveCount}</dd></div>
+            <div><dt>Est. time</dt><dd className="mono">{challenge.estimatedMinutes}<span> min</span></dd></div>
+          </dl>
+          {latest.length ? <div className="challenge-activity"><span className="solver-stack" aria-hidden="true">{latest.map((s,i) => <Identicon key={i} name={s.codename} size={24} />)}</span><div><span>Latest capture</span><strong className="mono">{latest[0].codename}</strong></div></div> : challenge.solveCount === 0 ? <span className="challenge-unclaimed"><span aria-hidden="true">[ + ]</span>First blood unclaimed</span> : null}
+        </div>
       </header>
       <div className="modal-tabs" role="tablist" aria-label="Challenge sections" onKeyDown={tabKeys}>
         {([["challenge", "Challenge", null], ["solvers", "Solvers", challenge.solveCount]] as const).map(([value, label, count], i) => <button key={value} ref={el => { tabs.current[i] = el; }} type="button" role="tab" id={`${tabIds}-${value}-tab`} aria-controls={`${tabIds}-${value}`} aria-selected={pane === value} tabIndex={pane === value ? 0 : -1} className="modal-tab" onClick={() => setPane(value)}>{label}{count !== null ? <>{" "}<span className="mono">{count}</span></> : null}</button>)}
