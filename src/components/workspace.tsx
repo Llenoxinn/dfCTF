@@ -1,5 +1,7 @@
 "use client";
 
+import ValidatedForm from "./validated-form";
+
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
@@ -412,11 +414,11 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
           <h3 id="submit-title">Submit the flag</h3>
           {challenge.submissionsOpen === false ? <Notice>This competition has ended. Submissions are closed.</Notice> : null}
           <p className="muted">Flags look like <code>{challenge.flagFormat.replace(/^dfctf/i, "dfCTF")}</code>. Paste the whole thing, wrapper included.</p>
-          <form onSubmit={submit} className="flag-row">
+          <ValidatedForm onSubmit={submit} className="flag-row">
             <label className="sr-only" htmlFor="flag-input">Flag</label>
             <input id="flag-input" key={miss} className={`flag-input${result?.status === "incorrect" ? " shake is-wrong" : ""}`} value={flag} onChange={e => setFlag(e.target.value)} placeholder="dfCTF{...}" required maxLength={1000} autoComplete="off" spellCheck={false} autoCapitalize="off" disabled={busy || challenge.submissionsOpen === false} aria-invalid={result?.status === "incorrect" || undefined} aria-describedby={result?.status === "incorrect" ? "flag-verdict" : undefined} />
             <button className="button button-primary" disabled={busy || !flag.trim() || challenge.submissionsOpen === false}>{busy ? <><Spinner />Checking</> : "Submit flag"}</button>
-          </form>
+          </ValidatedForm>
           {result?.status === "incorrect" ? <p id="flag-verdict" className="verdict verdict-wrong mono" role="alert"><span aria-hidden="true">[ ] </span>incorrect. Nothing was deducted; check the files again.</p> : null}
           {error ? <Notice type="error">{error}</Notice> : null}
           <p className="fine">Wrong answers never cost points. After several quick misses you’ll see a short cooldown.</p>
@@ -536,11 +538,11 @@ function Onboarding({ user, refresh }: { user: Viewer; refresh: () => Promise<vo
       <p className="muted">This is the name on the leaderboard. Your email, <strong>{user.email}</strong>, stays private.</p>
       <div className="codename-preview" aria-live="polite"><Identicon name={codename || "your_codename"} size={56} you /><div><strong className="mono">{codename || "your_codename"}</strong><span className="muted">Your avatar is drawn from your codename. Change a letter, get a new one.</span></div></div>
       {error ? <Notice type="error">{error}</Notice> : null}
-      <form className="stack" onSubmit={save}>
+      <ValidatedForm className="stack" onSubmit={save}>
         <label className="field"><span>Codename</span><input className="mono" value={codename} onChange={e => setCodename(e.target.value)} placeholder="packet_fox" minLength={3} maxLength={24} pattern="[A-Za-z0-9_.\-]+" required autoComplete="nickname" spellCheck={false} aria-describedby="codename-help" /><small id="codename-help">3 to 24 characters: letters, numbers, and _ . or -. Some names, like admin, are reserved.</small></label>
         {codename ? <p className={`mono ${valid ? "accent" : "danger"}`}>{valid ? "[x] Looks good" : "[ ] Not valid yet"}</p> : null}
         <button className="button button-primary block" disabled={busy || !valid}>{busy ? "Saving" : "Save codename and start"}</button>
-      </form>
+      </ValidatedForm>
     </div>
   </Screen>;
 }
@@ -573,20 +575,20 @@ function MfaSettings({ bootstrap, refresh }: { bootstrap: Bootstrap; refresh: ()
   async function verify(e: FormEvent) { e.preventDefault(); setBusy(true); setError(""); try { await api("/api/v1/auth/mfa/verify", { method: "POST", body: JSON.stringify({ code, method: backup && !setup ? "backup" : "totp" }) }); setCode(""); setSetup(null); await refresh(); } catch (err) { setError(err instanceof Error ? err.message : "Could not verify code."); } finally { setBusy(false); } }
   const secret = setup ? new URL(setup.totpURI).searchParams.get("secret") ?? "" : "";
   const enrolled = !!bootstrap.user?.twoFactorEnabled;
-  const codeForm = <form className="stack" onSubmit={verify}>
+  const codeForm = <ValidatedForm className="stack" onSubmit={verify}>
     <div className="field"><label htmlFor="mfa-code">{backup && !setup ? "Backup code" : "Authenticator code"}</label><input id="mfa-code" className="mono code-input" value={code} onChange={e => setCode(e.target.value)} inputMode={backup && !setup ? "text" : "numeric"} autoComplete="one-time-code" placeholder={backup && !setup ? "Your saved backup code" : "6 digits"} required minLength={6} maxLength={20} disabled={busy} aria-describedby="mfa-code-help" />
       <small id="mfa-code-help">{backup && !setup ? "Each backup code works once." : "Open your authenticator app and type the 6-digit code shown under dfCTF. It changes every 30 seconds."}</small></div>
     <button className="button button-primary fit" disabled={busy}>{busy ? "Verifying" : "Verify code"}</button>
     {enrolled && !setup ? <button type="button" className="text-button fit" disabled={busy} onClick={() => { setBackup(v => !v); setCode(""); setError(""); }}>{backup ? "Use an authenticator code instead" : "Use a backup code instead"}</button> : null}
-  </form>;
+  </ValidatedForm>;
   return <SettingsSection title="Staff verification" description="Authoring, review, and admin tools ask for a second step: a 6-digit code from an authenticator app on your phone. You enter it once per sign-in, and it lasts up to 12 hours.">
     <ol className="steps-inline" aria-label="Staff verification steps"><li data-done={enrolled || undefined}><span aria-hidden="true">{enrolled ? "[x]" : "[ ]"} </span>Authenticator app linked</li><li data-done={bootstrap.staffVerified || undefined}><span aria-hidden="true">{bootstrap.staffVerified ? "[x]" : "[ ]"} </span>This session verified</li></ol>
     {error ? <Notice type="error">{error}</Notice> : null}
-    {bootstrap.staffVerified ? <Notice type="success">This session is verified. Staff tools are unlocked.</Notice> : !enrolled && !setup ? <form className="stack" onSubmit={start}>
+    {bootstrap.staffVerified ? <Notice type="success">This session is verified. Staff tools are unlocked.</Notice> : !enrolled && !setup ? <ValidatedForm className="stack" onSubmit={start}>
       <p className="muted">You need a free authenticator app on your phone, such as Google Authenticator, Microsoft Authenticator, or 2FAS. dfCTF gives the app a secret key once, and the app turns it into a new 6-digit code every 30 seconds. Nobody sends you the code; you read it from the app.</p>
       <label className="field"><span>Current password</span><input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" /><small>Leave this empty if you sign in with Google, GitHub, or Facebook.</small></label>
       <button className="button button-primary fit" disabled={busy}>{busy ? "Preparing" : "Set up authenticator"}</button>
-    </form> : setup ? <ol className="mfa-steps">
+    </ValidatedForm> : setup ? <ol className="mfa-steps">
       <li><h3>Add dfCTF to your authenticator app</h3>
         <p className="muted">In the app, tap <strong>+</strong>, choose <strong>Enter a setup key</strong> (some apps call it manual entry), name it dfCTF, and paste this key. Time-based is the default.</p>
         <div className="setup-key"><code>{secret.match(/.{1,4}/g)?.join(" ")}</code><CopyButton value={secret} label="Copy the setup key" /></div>
@@ -611,7 +613,7 @@ function Allowlist() {
   const shown = entries.filter(entry => entry.email.toLowerCase().includes(filter.toLowerCase()));
   return <SettingsSection title="Account access" description="Admins only. Anyone can register and verify their email. Revoking access blocks the person’s next request.">
     {error ? <Notice type="error">{error}</Notice> : null}{message ? <Notice type="success">{message}</Notice> : null}
-    <form className="inline-form" onSubmit={add}><label className="field grow"><span className="sr-only">Email address</span><input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="name@example.com" /></label><button className="button button-primary" disabled={busy}><Icon name="plus" size={16} />Restore access</button></form>
+    <ValidatedForm className="inline-form" onSubmit={add}><label className="field grow"><span className="sr-only">Email address</span><input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="name@example.com" /></label><button className="button button-primary" disabled={busy}><Icon name="plus" size={16} />Restore access</button></ValidatedForm>
     <div className="list-head"><span className="mono muted">{entries.length} {entries.length === 1 ? "address" : "addresses"}</span>{entries.length > 6 ? <label className="search-box small"><Icon name="search" size={14} /><span className="sr-only">Filter the access list</span><input type="search" value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter" /></label> : null}</div>
     {shown.length ? <ul className="rows">{shown.map(entry => <li key={entry.id}><span className="mono break">{entry.email}</span>{entry.createdAt ? <span className="muted">Added {formatDate(entry.createdAt)}</span> : null}<span className="spacer" /><button className="text-button danger" disabled={busy} onClick={() => remove(entry)} aria-label={`Revoke access for ${entry.email}`}>Revoke</button></li>)}</ul> : <p className="muted">{entries.length ? "No addresses match that filter." : "No one is on the list yet."}</p>}
   </SettingsSection>;

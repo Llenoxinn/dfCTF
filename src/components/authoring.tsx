@@ -3,17 +3,24 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import type { Bootstrap, Category, ChallengeDetail, ChallengeStatus, ChallengeSummary, Difficulty as Level } from "@/lib/types";
 import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
-import { api, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, Loading, Notice, Pips } from "./ui";
+import { api, ApiError, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, Loading, Notice, Pips } from "./ui";
 import DescriptionEditor from "./description-editor";
 import { MAX_ARTIFACT_BYTES, ARTIFACT_SIZE_LABEL } from "@/lib/artifacts";
 import { canEditChallengeContent } from "@/lib/challenge-permissions";
+import { challengeContentInput } from "@/lib/challenge-validation";
 
 type EditorData = {
   title: string; category: Category; difficulty: Level; description: string;
-  solution: string; flag: string; flagFormat: string; tags: string; xp: number; estimatedMinutes: number;
+  solution: string; flag: string; flagFormat: string; tags: string; xp: number | ""; estimatedMinutes: number | "";
   visibility: "practice" | "competition";
 };
 const blank: EditorData = { title: "", category: "General skills", difficulty: "Easy", description: "", solution: "", flag: "", flagFormat: "dfCTF{...}", tags: "", xp: 100, estimatedMinutes: 20, visibility: "practice" };
+const FIELD_LABELS: Record<keyof EditorData, string> = {
+  title: "Title", description: "Description", solution: "Walkthrough", visibility: "Availability",
+  category: "Category", difficulty: "Difficulty", xp: "Points", estimatedMinutes: "Minutes",
+  tags: "Tags", flagFormat: "Format shown to players", flag: "Correct flag",
+};
+type FieldErrors = Partial<Record<keyof EditorData, string[]>>;
 type StaffDetail = ChallengeDetail & { authorId?: string; canPublish?: boolean };
 const STATUS_LABEL: Record<ChallengeStatus, string> = { draft: "Draft", review: "In review", published: "Live", archived: "Archived" };
 const STATUS_HINT: Record<ChallengeStatus | "", string> = {
@@ -82,6 +89,9 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
   const [loading, setLoading] = useState(id !== "new"); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [message, setMessage] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [testFlag, setTestFlag] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [focusTarget, setFocusTarget] = useState<keyof EditorData | null>(null);
+  const [descriptionFocus, setDescriptionFocus] = useState(0);
   const read = useCallback(async (challengeId: string) => {
     const data = await api<StaffDetail>(`/api/v1/staff/challenges/${encodeURIComponent(challengeId)}`);
     setDetail(data); setForm({ title: data.title, category: data.category, difficulty: data.difficulty, description: data.description, solution: data.solution ?? "", flag: "", flagFormat: data.flagFormat, tags: data.tags.join(", "), xp: data.xp, estimatedMinutes: data.estimatedMinutes, visibility: data.visibility ?? "practice" });
@@ -100,7 +110,31 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [editable, loading, dirty, busy]);
-  function field<K extends keyof EditorData>(key: K, value: EditorData[K]) { setForm(f => ({ ...f, [key]: value })); }
+  useEffect(() => {
+    if (busy || !focusTarget) return;
+    if (focusTarget === "description") setDescriptionFocus(count => count + 1);
+    else {
+      const input = document.getElementById(`challenge-${focusTarget}`);
+      input?.focus(); input?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+    setFocusTarget(null);
+  }, [busy, focusTarget]);
+  function field<K extends keyof EditorData>(key: K, value: EditorData[K]) {
+    setForm(f => ({ ...f, [key]: value }));
+    setFieldErrors(errors => { const next = { ...errors }; delete next[key]; return next; });
+  }
+  function showValidation(errors: Record<string, string[] | undefined>) {
+    const known = Object.fromEntries(Object.keys(FIELD_LABELS).filter(key => errors[key]?.length).map(key => [key, errors[key]])) as FieldErrors;
+    setFieldErrors(known);
+    setFocusTarget(Object.keys(known)[0] as keyof EditorData ?? null);
+    return Object.keys(known).length > 0;
+  }
+  function inputProps(key: keyof EditorData) {
+    return { id: `challenge-${key}`, name: key, "aria-invalid": fieldErrors[key]?.length ? true : undefined, "aria-describedby": fieldErrors[key]?.length ? `challenge-${key}-error` : undefined };
+  }
+  function fieldError(key: keyof EditorData) {
+    return fieldErrors[key]?.length ? <small className="field-error" id={`challenge-${key}-error`}>{fieldErrors[key]!.join(" ")}</small> : null;
+  }
 
   async function removeFile(file: StaffDetail["files"][number]) {
     if (busy || !editable || !window.confirm(`Remove ${file.name} from this ${editingDraft ? "draft" : "challenge"}?`)) return;
@@ -115,16 +149,21 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
   }
 
   async function save(event: FormEvent) {
-    event.preventDefault(); if (busy || !editable) return; setBusy(true); setError(""); setMessage("");
+    event.preventDefault(); if (busy || !editable) return; setError(""); setMessage(""); setFieldErrors({});
+    const payload = { ...form, tags: form.tags.split(",").map(t => t.trim()).filter(Boolean), ...(currentId !== "new" && !form.flag ? { flag: undefined } : {}) };
+    const validation = (currentId === "new" ? challengeContentInput : challengeContentInput.partial()).safeParse(payload);
+    if (!validation.success) { showValidation(validation.error.flatten().fieldErrors); return; }
+    setBusy(true);
     let savedId = currentId, saved = false, uploaded = 0;
     try {
-      const payload = { ...form, tags: form.tags.split(",").map(t => t.trim()).filter(Boolean), ...(currentId !== "new" && !form.flag ? { flag: undefined } : {}) };
       const result = await api<{ id: string }>(currentId === "new" ? "/api/v1/staff/challenges" : `/api/v1/staff/challenges/${encodeURIComponent(currentId)}`, { method: currentId === "new" ? "POST" : "PATCH", body: JSON.stringify(payload) });
       savedId = currentId === "new" ? result.id : currentId; saved = true; setCurrentId(savedId);
       for (const file of files) { const body = new FormData(); body.append("file", file); await api(`/api/v1/staff/challenges/${encodeURIComponent(savedId)}/files`, { method: "POST", body }); uploaded++; }
       setTestFlag("");
       setMessage(detail?.status === "review" ? "Review changes saved. Test-solve the updated challenge before publishing." : "Draft saved. Check the description and files, then send it for review.");
-    } catch (err) { setError(err instanceof Error ? err.message : "Could not save this draft."); }
+    } catch (err) {
+      if (!(err instanceof ApiError && !saved && showValidation(err.fieldErrors))) setError(err instanceof Error ? err.message : "Could not save this draft.");
+    }
     finally {
       // Drop the files that landed so a retry never uploads them twice; re-read only after the draft saved, so failed edits stay in the form.
       setFiles(files.slice(uploaded));
@@ -159,12 +198,15 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
       {editable && !loading ? <div className="head-actions"><span className="fine">{busy ? "Saving" : detail && !dirty ? "All changes saved" : currentId === "new" ? "Not saved yet" : "Unsaved changes"}</span><button type="submit" form="challenge-editor" className="button button-secondary" disabled={busy}>{editingDraft ? "Save draft" : "Save changes"}</button>{editingDraft && currentId !== "new" ? <button type="button" className="button button-primary" onClick={() => transition("review")} disabled={busy || dirty} title={dirty ? "Save your changes first" : "Send for an independent review"}>Send for review</button> : null}</div> : null}
     </div>
     {error ? <Notice type="error">{error}</Notice> : null}{message ? <Notice type="success">{message}</Notice> : null}
-    {loading ? <Loading label="Opening the editor" /> : <form id="challenge-editor" onSubmit={save} className="editor">
+    {Object.keys(fieldErrors).length ? <Notice type="error"><strong>Check these fields before saving:</strong><ul className="validation-summary">
+      {(Object.keys(fieldErrors) as (keyof EditorData)[]).map(key => <li key={key}><button type="button" className="text-button" onClick={() => setFocusTarget(key)}>{FIELD_LABELS[key]}: {fieldErrors[key]!.join(" ")}</button></li>)}
+    </ul></Notice> : null}
+    {loading ? <Loading label="Opening the editor" /> : <form id="challenge-editor" onSubmit={save} className="editor" noValidate>
       <div className="editor-main">
         <section className="panel"><div className="panel-head"><h2>The challenge</h2></div><div className="panel-pad stack">
-          <label className="field"><span className="label-row">Title<small className="mono">{form.title.length}/80</small></span><input value={form.title} onChange={e => field("title", e.target.value)} required minLength={3} maxLength={80} readOnly={!editable || busy} placeholder="Night shift" /></label>
-          <DescriptionEditor value={form.description} onChange={value => field("description", value)} readOnly={!editable || busy} />
-          <label className="field"><span>Walkthrough</span><textarea rows={8} value={form.solution} onChange={e => field("solution", e.target.value)} required minLength={20} maxLength={20000} readOnly={!editable || busy} placeholder="The intended approach, and the lesson to take away." /><small>Players see this only after they solve the challenge.</small></label>
+          <label className="field"><span className="label-row">Title<small className="mono">{form.title.length}/80</small></span><input {...inputProps("title")} value={form.title} onChange={e => field("title", e.target.value)} required minLength={3} maxLength={80} readOnly={!editable || busy} placeholder="Night shift" />{fieldError("title")}</label>
+          <DescriptionEditor inputId="challenge-description" value={form.description} onChange={value => field("description", value)} readOnly={!editable || busy} validationError={fieldErrors.description?.join(" ")} focusRequest={descriptionFocus} />
+          <label className="field"><span>Walkthrough</span><textarea {...inputProps("solution")} rows={8} value={form.solution} onChange={e => field("solution", e.target.value)} required minLength={20} maxLength={50000} readOnly={!editable || busy} placeholder="The intended approach, and the lesson to take away." />{fieldError("solution")}<small>Players see this only after they solve the challenge.</small></label>
         </div></section>
         <section className="panel"><div className="panel-head"><h2>Files</h2><span className="spacer" /><span className="mono muted">{(detail?.files.length ?? 0) + files.length} {((detail?.files.length ?? 0) + files.length) === 1 ? "file" : "files"}</span></div><div className="panel-pad stack">
           {detail?.files.length ? <ul className="files">{detail.files.map(file => <li key={file.id}><div className="file-info"><span className="mono strong">{file.name}</span><span className="mono faint">{humanSize(file.size)}</span>{file.sha256 ? <span className="checksum mono">sha256 <code>{file.sha256}</code></span> : null}</div><a className="button button-secondary" href={`/api/v1/staff/challenges/${encodeURIComponent(currentId)}/files/${encodeURIComponent(file.id)}`} download><Icon name="download" size={16} />Download</a>{editable ? <button className="button button-secondary" type="button" aria-label={`Remove ${file.name}`} disabled={busy} onClick={() => void removeFile(file)}>Remove</button> : null}</li>)}</ul> : null}
@@ -174,15 +216,15 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
       </div>
       <aside className="editor-side">
         <section className="panel"><div className="panel-head"><h2>Details</h2></div><div className="panel-pad stack">
-          <label className="field"><span>Availability</span><select value={form.visibility} onChange={e => field("visibility", e.target.value as EditorData["visibility"])} disabled={!editable || busy}><option value="practice">Practice library</option><option value="competition">Competition only</option></select><small>Competition-only challenges stay out of practice. After independent review, an admin can add them to one event.</small></label>
-          <label className="field"><span>Category</span><select value={form.category} onChange={e => field("category", e.target.value as Category)} disabled={!editable || busy}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
-          <div className="field"><span>Difficulty</span><div className="segmented block" role="group" aria-label="Difficulty">{DIFFICULTIES.map(d => <button key={d} type="button" aria-pressed={form.difficulty === d} disabled={!editable || busy} onClick={() => field("difficulty", d)}><Pips value={d} />{d}</button>)}</div></div>
-          <div className="two"><label className="field"><span>Points</span><input className="mono" type="number" value={form.xp} onChange={e => field("xp", Number(e.target.value))} min={0} max={1000} required readOnly={!editable || busy} /></label><label className="field"><span>Minutes</span><input className="mono" type="number" value={form.estimatedMinutes} onChange={e => field("estimatedMinutes", Number(e.target.value))} min={1} max={480} required readOnly={!editable || busy} /></label></div>
-          <label className="field"><span>Tags</span><input value={form.tags} onChange={e => field("tags", e.target.value)} readOnly={!editable || busy} placeholder="disk image, deleted files, weekly" /><small>Separate tags with commas. Add <code>weekly</code> to feature it during the week it is published (Monday to Sunday, Philippine time).</small></label>
+          <label className="field"><span>Availability</span><select {...inputProps("visibility")} value={form.visibility} onChange={e => field("visibility", e.target.value as EditorData["visibility"])} disabled={!editable || busy}><option value="practice">Practice library</option><option value="competition">Competition only</option></select>{fieldError("visibility")}<small>Competition-only challenges stay out of practice. After independent review, an admin can add them to one event.</small></label>
+          <label className="field"><span>Category</span><select {...inputProps("category")} value={form.category} onChange={e => field("category", e.target.value as Category)} disabled={!editable || busy}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select>{fieldError("category")}</label>
+          <div className="field"><span>Difficulty</span><div {...inputProps("difficulty")} className="segmented block" role="group" tabIndex={-1} aria-label="Difficulty">{DIFFICULTIES.map(d => <button key={d} type="button" aria-pressed={form.difficulty === d} disabled={!editable || busy} onClick={() => field("difficulty", d)}><Pips value={d} />{d}</button>)}</div>{fieldError("difficulty")}</div>
+          <div className="two"><label className="field"><span>Points</span><input {...inputProps("xp")} className="mono" type="number" value={form.xp} onChange={e => field("xp", e.target.value === "" ? "" : Number(e.target.value))} min={0} max={1000} required readOnly={!editable || busy} />{fieldError("xp")}</label><label className="field"><span>Minutes</span><input {...inputProps("estimatedMinutes")} className="mono" type="number" value={form.estimatedMinutes} onChange={e => field("estimatedMinutes", e.target.value === "" ? "" : Number(e.target.value))} min={1} max={480} required readOnly={!editable || busy} />{fieldError("estimatedMinutes")}</label></div>
+          <label className="field"><span>Tags</span><input {...inputProps("tags")} value={form.tags} onChange={e => field("tags", e.target.value)} readOnly={!editable || busy} placeholder="disk image, deleted files, weekly" />{fieldError("tags")}<small>Separate tags with commas. Add <code>weekly</code> to feature it during the week it is published (Monday to Sunday, Philippine time).</small></label>
         </div></section>
         <section className="panel"><div className="panel-head"><h2>Flag</h2></div><div className="panel-pad stack">
-          <label className="field"><span>Format shown to players</span><input className="mono" value={form.flagFormat} onChange={e => field("flagFormat", e.target.value)} required readOnly={!editable || busy} /></label>
-          {editable ? <label className="field"><span>{currentId === "new" ? "Correct flag" : "Replace the correct flag"}</span><input className="mono" type="password" disabled={busy} value={form.flag} onChange={e => field("flag", e.target.value)} required={currentId === "new"} autoComplete="new-password" minLength={8} maxLength={200} placeholder="dfCTF{...}" /><small>{currentId === "new" ? "Stored as a keyed digest. No one can read it back, including you." : "Leave empty to keep the current flag."}</small></label> : <p className="fine">The correct flag is stored as a keyed digest on the server.</p>}
+          <label className="field"><span>Format shown to players</span><input {...inputProps("flagFormat")} className="mono" value={form.flagFormat} onChange={e => field("flagFormat", e.target.value)} required minLength={3} maxLength={100} readOnly={!editable || busy} />{fieldError("flagFormat")}</label>
+          {editable ? <label className="field"><span>{currentId === "new" ? "Correct flag" : "Replace the correct flag"}</span><input {...inputProps("flag")} className="mono" type="password" disabled={busy} value={form.flag} onChange={e => field("flag", e.target.value)} required={currentId === "new"} autoComplete="new-password" minLength={8} maxLength={200} placeholder="dfCTF{...}" />{fieldError("flag")}<small>{currentId === "new" ? "Stored as a keyed digest. No one can read it back, including you." : "Leave empty to keep the current flag."}</small></label> : <p className="fine">The correct flag is stored as a keyed digest on the server.</p>}
         </div></section>
         <section className="panel"><div className="panel-head"><h2>{editingDraft ? "Ready for review" : "Publishing"}</h2>{editingDraft ? <><span className="spacer" /><span className="mono muted">{checklist.filter(c => c.done).length} of {checklist.length}</span></> : null}</div><div className="panel-pad stack">
           {editingDraft ? <>

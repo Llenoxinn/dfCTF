@@ -194,13 +194,25 @@ export function ThemeToggle() {
   </div>;
 }
 
+export class ApiError extends Error {
+  readonly fieldErrors: Record<string, string[]> = {};
+  constructor(message: string, public status: number, public code?: string, public details?: unknown) {
+    super(message);
+    if (details && typeof details === "object" && "fieldErrors" in details && details.fieldErrors && typeof details.fieldErrors === "object") {
+      for (const [field, messages] of Object.entries(details.fieldErrors)) {
+        if (Array.isArray(messages) && messages.every(message => typeof message === "string")) this.fieldErrors[field] = messages;
+      }
+    }
+  }
+}
+
 export async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers);
   if (!["GET", "HEAD", "OPTIONS"].includes((options?.method ?? "GET").toUpperCase())) headers.set("X-dfCTF-Request", "1");
   if (options?.body && !(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
   const response = await fetch(path, { credentials: "same-origin", ...options, headers });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error?.message || data.message || `Request failed (${response.status}). Please try again.`);
+  if (!response.ok) throw new ApiError(data.error?.message || data.message || `Request failed (${response.status}). Please try again.`, response.status, data.error?.code, data.error?.details);
   return data as T;
 }
 

@@ -1,5 +1,7 @@
 "use client";
 
+import ValidatedForm from "./validated-form";
+
 import Link from "next/link";
 import { createContext, FormEvent, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Community } from "@/lib/types";
@@ -134,11 +136,11 @@ function TryOne({ createAccount, signedIn }: { createAccount: () => void; signed
       <p>Someone left this in a config file. It looks scrambled, but it isn’t encrypted.</p>
       <div className="mini-code"><code>ZGZDVEZ7YjRzZTY0X2lzX24wdF9lbmNyeXB0MTBufQ==</code></div>
       {result === "correct" ? <div className="verdict verdict-correct" role="status"><span className="mono" aria-hidden="true">[x]</span><DecodeText text="correct" className="mono strong" /><span className="fade-up mono strong">+50 pts</span><span className="muted">That one was practice. The real board is waiting.</span><button type="button" className="button button-primary" onClick={createAccount}>{signedIn ? "Open the challenges" : "Create an account"}</button></div>
-        : <form className="flag-row" onSubmit={check}>
+        : <ValidatedForm className="flag-row" onSubmit={check}>
           <label className="sr-only" htmlFor="try-flag">Flag</label>
           <input id="try-flag" key={attempt} className={`flag-input${result === "wrong" ? " shake is-wrong" : ""}`} value={flag} onChange={e => { setFlag(e.target.value); setResult(null); }} placeholder="dfCTF{...}" autoComplete="off" spellCheck={false} aria-invalid={result === "wrong" || undefined} aria-describedby={result === "wrong" ? "try-verdict" : undefined} />
           <button className="button button-primary" disabled={!flag.trim()}>Check flag</button>
-        </form>}
+        </ValidatedForm>}
       {result === "wrong" ? <p id="try-verdict" className="verdict verdict-wrong mono" role="alert"><span aria-hidden="true">[ ] </span>incorrect. Nothing was deducted; try again.</p> : null}
       {result !== "correct" ? <button type="button" className="text-button" aria-expanded={hint} onClick={() => setHint(v => !v)}><span className="mono" aria-hidden="true">{hint ? "[-]" : "[+]"}</span>{hint ? "Hide the hint" : "Show a hint"}</button> : null}
       {hint && result !== "correct" ? <p className="muted">The two <code>=</code> at the end are padding, a giveaway for Base64. Try <code>echo ... | base64 -d</code> in a terminal.</p> : null}
