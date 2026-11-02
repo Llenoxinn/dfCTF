@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const config: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["@electric-sql/pglite", "pg", "@node-rs/argon2"],
+  outputFileTracingIncludes: {
+    "/*": ["./certs/supabase-prod-ca-2021.crt"],
+  },
   outputFileTracingExcludes: {
     "/*": ["./.data/**/*", "./.env", "./.env.*", "./test-results/**/*", "./playwright-report/**/*"],
   },
