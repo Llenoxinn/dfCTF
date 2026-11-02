@@ -6,68 +6,98 @@ labels: ''
 assignees: ''
 ---
 
-<!--
-Use this template for existing UI that renders incorrectly, such as overlapping
-text, clipped controls, poor contrast, or a broken mobile layout. Use Feature
-request for a proposed redesign, and Bug report for functionality errors.
-Keep one visual problem per issue. Replace the prompts with your details; use
-"Unknown" or "Not applicable" where needed. Remove personal data, secrets, CTF
-flags, and challenge solutions from screenshots and recordings.
--->
+> **Fill this out:** Replace `...` with your answers. Change `- [ ]` to `- [x]`
+> to check a box. Use `Unknown` or `N/A` when needed; remove unused optional sections.
+> Report one visual problem per issue. Use **Feature request** for a proposed redesign.
 
 ## Before submitting
 
-- [ ] I searched existing open and closed issues for the same visual problem.
-- [ ] I checked that my report and attachments contain no sensitive information or challenge answers.
+- [ ] I searched open and closed issues for the same visual problem.
+- [ ] My report and attachments contain no secrets, personal data, CTF flags, or challenge solutions.
 
-## Summary and location
+## 1. Summary and location
 
-Describe the visual problem. Identify the page or route (without private query
-parameters), component, and affected state, such as loading, empty, error, or open menu.
+**What looks wrong?** ...
 
-## Steps to reproduce
+**Page or route:** `...` (omit private query parameters)
 
-Include any content, scrolling, resizing, or interaction needed to reveal the issue.
+**Component or element:** ... (for example: leaderboard, navigation, or submit button)
 
-1. Open ...
-2. Resize or interact with ...
-3. ...
+**Affected state:** ... (for example: loading, empty, error, focused, or open menu)
 
-## Actual appearance
+**Issue type — select all that apply:**
 
-Describe what looks wrong, such as text overlapping a button or content extending
-beyond the screen.
+- [ ] Alignment or spacing
+- [ ] Overlapping, clipped, or overflowing content
+- [ ] Text size, readability, or color contrast
+- [ ] Mobile or responsive layout
+- [ ] Missing or distorted icon, image, or other visual element
+- [ ] Incorrect hover, focus, selected, or disabled appearance
+- [ ] Other: ...
 
-## Expected appearance
+## 2. Steps to reproduce
 
-Describe how the element should look or behave. Link an existing design or a
-correctly rendered page if available; a mockup is not required.
+**Starting conditions:** ... (account role, content, and any relevant settings)
 
-## Screenshots or recording
+1. Open `...`.
+2. Set the window size or orientation to `...`.
+3. Scroll, select, or focus `...`.
+4. Observe `...`.
 
-Attach the current appearance. If possible, include one full-page or full-window
-view for context and one close-up with the affected area marked. Add an expected
-appearance comparison if available. If you cannot attach images, describe the
-position, size, and visible text of the affected element.
+## 3. Actual and expected appearance
 
-## Display environment
+**Actual:** ...
 
-- Deployment: local / staging / production
-- App version or commit, if known:
-- Account role: signed out / learner / author / reviewer / administrator
-- Device and operating system, including version:
-- Browser and version:
-- Browser viewport width x height in CSS pixels, if known (e.g. 390 x 844):
-- Browser zoom and system text/display scaling (e.g. 100%, default text size):
-- Orientation: portrait / landscape
-- Theme: light / dark / system
+**Expected:** ...
 
-## Impact and scope
+## 4. Screenshots or recording
 
-Does the issue hide content, reduce readability, or prevent an action? Mention
-whether it happens on other pages, screen sizes, or browsers you have tried.
-If an interaction is affected, say whether you used a mouse, keyboard, or touch.
+**Current appearance:** Drag a screenshot or recording here. Include a full-window
+view for context and, if useful, a close-up with the affected area marked.
 
-## Additional context (optional)
+**Expected appearance or design reference (optional):** Attach or link a comparison
+and explain the relevant difference. A mockup is not required.
 
-Include the last known working version or date, a workaround, or related issues.
+If images are unavailable, describe the affected element's position, visible text,
+and how it overlaps, disappears, or otherwise renders incorrectly.
+
+## 5. Display environment
+
+Replace the answer column with your details. Viewport means the browser's content
+area, rather than the monitor's resolution.
+
+| Field | Your answer |
+| --- | --- |
+| Deployment | ... (local / staging / production) |
+| App version or commit | ... or Unknown |
+| Account role | ... (signed out / learner / author / reviewer / administrator) |
+| Device | ... |
+| Operating system and version | ... |
+| Browser and version | ... |
+| Viewport width x height in CSS pixels | ... (for example: 390 x 844) |
+| Browser zoom | ... (for example: 100%) |
+| System text size or display scaling | ... (for example: default / 125%) |
+| Orientation | ... (portrait / landscape) |
+| Active theme | ... (light / dark; if using system, state which was displayed) |
+
+## 6. Impact and scope
+
+**Impact — select one:**
+
+- [ ] Content or a control is inaccessible; I cannot complete the task.
+- [ ] The page is usable, but content is difficult to read or interact with.
+- [ ] Appearance only; I can read the content and complete the task normally.
+
+**Task or content affected:** ...
+
+**Input method, if relevant:** ... (mouse / keyboard / touch)
+
+**Other pages, screen sizes, or browsers tested:** ... (write `Not tested` if applicable)
+
+**Workaround:** ... (write `None known` if unavailable)
+
+## 7. Additional context (optional)
+
+**Last known working version or date:** ... or Unknown
+
+**Related issues or other details:** ...

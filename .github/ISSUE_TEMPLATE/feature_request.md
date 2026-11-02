@@ -6,55 +6,68 @@ labels: ''
 assignees: ''
 ---
 
-<!--
-Keep one proposal per issue. Describe the user need before suggesting an
-implementation; technical knowledge is not required. Replace the prompts with
-your details and use "Not applicable" where needed. Use Bug report for existing
-functionality that is not working as intended.
--->
+> **Fill this out:** Replace `...` with your answers. Change `- [ ]` to `- [x]`
+> to check a box. Use `Unknown` or `N/A` when needed; remove unused optional sections.
+> Keep one proposal per issue. Use **Bug report** for existing functionality that fails.
 
 ## Before submitting
 
-- [ ] I searched existing open and closed issues for similar requests.
+- [ ] I searched open and closed issues for similar requests.
 - [ ] I checked the README and project plan for existing functionality and planned work.
+- [ ] My examples and attachments contain no secrets, personal data, CTF flags, or challenge solutions.
 
-## Problem or opportunity
+## 1. Problem or opportunity
 
-Who needs this improvement, and what are they trying to accomplish? Describe the
-current workflow and its limitation with a concrete example.
+**Who would benefit?** ... (for example: learners, authors, reviewers, or administrators)
 
-## Proposed change
+**What are they trying to accomplish?** ...
 
-Describe the behavior you would like dfCTF to provide and why it would help.
-Focus on what a user should be able to do; implementation suggestions are optional.
+**What makes this difficult today?** ... (include a concrete example)
 
-## Example user flow
+## 2. Proposed change
 
-Show how someone would use the feature, including where they start and the result.
+**What should dfCTF allow the user to do?** ...
 
-1. A user ...
-2. They ...
-3. The result is ...
+**How would this solve the problem?** ...
 
-## Acceptance criteria
+Describe the desired behavior in plain language; implementation details are optional.
 
-Replace these prompts with observable outcomes that would make the request complete.
+## 3. Example user flow
 
-- [ ] A user can ...
-- [ ] When ..., the application ...
+1. The user starts at `...`.
+2. They `...`.
+3. dfCTF `...`.
+4. The user can now `...`.
 
-## Alternatives and workarounds
+## 4. Acceptance criteria
 
-What can users do today? Describe other approaches you considered and why they
-do not fully meet the need, or write "None known".
+Replace these examples with observable outcomes. **Leave these boxes unchecked
+when submitting**; they track delivery of the requested feature, not completion
+of this report.
 
-## Scope and constraints (optional)
+- [ ] A user with the `...` role can `...`.
+- [ ] When `...`, dfCTF displays or performs `...`.
 
-Mention relevant account roles, practice or competition behavior, mobile use,
-accessibility, or privacy considerations. Separate essential behavior from
-optional additions.
+## 5. Alternatives and workarounds
 
-## References or mockups (optional)
+**Current workaround:** ... (write `None known` if unavailable)
 
-Attach sketches, examples, or related issues that clarify the proposal. Explain
-what each reference demonstrates and remove private data or challenge answers.
+**Other approaches considered:** ...
+
+**Why are those approaches insufficient?** ...
+
+## 6. Scope and constraints (optional)
+
+| Category | Your answer |
+| --- | --- |
+| Essential behavior | ... |
+| Nice-to-have additions | ... |
+| Affected pages or workflows | ... |
+| Account permissions, mobile use, accessibility, or privacy considerations | ... |
+
+## 7. References or mockups (optional)
+
+Drag sketches or mockups into the issue editor, or link related issues and
+examples. For each reference, explain which behavior or design detail it illustrates.
+
+**References and explanation:** ...
