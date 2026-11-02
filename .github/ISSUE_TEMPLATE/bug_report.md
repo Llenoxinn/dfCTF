@@ -6,60 +6,92 @@ labels: ''
 assignees: ''
 ---
 
-<!--
-Use this template for functionality problems. For layout, styling, or responsive
-display problems, use the Visual UI bug template. Keep one problem per issue.
-Replace the prompts below with your details; use "Unknown" or "Not applicable"
-where needed. Remove secrets, personal data, CTF flags, and challenge solutions
-from all text, screenshots, and logs before posting.
--->
+> **Fill this out:** Replace `...` with your answers. Change `- [ ]` to `- [x]`
+> to check a box. Use `Unknown` or `N/A` when needed; remove unused optional sections.
+> Report one problem per issue. For layout or styling problems, use **Visual UI bug**.
 
 ## Before submitting
 
-- [ ] I searched existing open and closed issues for the same problem.
-- [ ] I checked that my report and attachments contain no sensitive information or challenge answers.
+- [ ] I searched open and closed issues for the same problem.
+- [ ] My report and attachments contain no secrets, personal data, CTF flags, or challenge solutions.
 
-## Summary
+## 1. Summary
 
-Describe what is broken and which task you were trying to complete.
+**What is broken?** ...
 
-## Steps to reproduce
+**What were you trying to do?** ...
 
-Include the starting page, account role, and any necessary setup. Use fictional data.
+**Affected page or route:** `...` (omit private query parameters)
 
-1. Open ...
-2. Select or enter ...
-3. ...
+## 2. Steps to reproduce
 
-## Actual behavior
+**Starting conditions:** ... (account role, relevant settings, and fictional test data)
 
-Describe what happened. Include the exact error message, if any.
+1. Open `...`.
+2. Select or enter `...`.
+3. Perform `...`.
+4. Observe `...`.
 
-## Expected behavior
+## 3. Actual and expected behavior
 
-Describe what should have happened instead.
+**Actual:** ...
 
-## Environment
+**Expected:** ...
 
-- Deployment: local / staging / production
-- Affected page or route (omit private query parameters):
-- App version or commit, if known:
-- Account role: signed out / learner / author / reviewer / administrator
-- Device and operating system, including version:
-- Browser and version:
+**Exact error message:** ... (write `None` if no message appears)
 
-## Frequency and impact
+## 4. Environment
 
-How often does this happen (every time, sometimes, or once)? What task does it
-block? If it worked before, include the last known working version or date.
-Mention a workaround if you found one.
+Replace the answer column with your details.
 
-## Evidence (optional)
+| Field | Your answer |
+| --- | --- |
+| Deployment | ... (local / staging / production) |
+| App version or commit | ... or Unknown |
+| Account role | ... (signed out / learner / author / reviewer / administrator) |
+| Device | ... |
+| Operating system and version | ... |
+| Browser and version | ... |
 
-Attach screenshots or a short recording. If relevant, paste sanitized browser
-console or server logs in a fenced code block, with the time and timezone of the
-failure. Do not upload full environment files, database dumps, or private artifacts.
+## 5. Frequency and impact
 
-## Additional context (optional)
+**Frequency — select one:**
 
-Link related issues or describe anything else that helps reproduce the problem.
+- [ ] Every attempt
+- [ ] Sometimes
+- [ ] Happened once; I have not reproduced it again
+
+**Impact — select one:**
+
+- [ ] I cannot complete the task and have no workaround.
+- [ ] I can complete the task using a workaround.
+- [ ] I can complete the task despite the problem.
+
+**Task affected:** ...
+
+**Workaround:** ... (write `None known` if unavailable)
+
+**Last known working version or date:** ... or Unknown
+
+## 6. Evidence (optional)
+
+Drag screenshots or a short recording into the issue editor. Include enough
+context to show the problem, with sensitive content removed.
+
+**Time of failure, including timezone:** ...
+
+<details>
+<summary>Relevant console or server logs (optional)</summary>
+
+Paste only relevant, sanitized log lines. Do not upload environment files,
+database dumps, or private challenge artifacts. Remove this block if unused.
+
+```text
+Paste sanitized logs here.
+```
+
+</details>
+
+## 7. Additional context (optional)
+
+Related issues or other details that help reproduce the problem: ...
