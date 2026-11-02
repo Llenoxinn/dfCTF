@@ -1096,6 +1096,12 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .staff-gate div { display: grid; gap: 12px; justify-items: start; }
 .editor { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 24px; align-items: start; }
 .editor-main, .editor-side { display: grid; gap: 24px; min-width: 0; }
+.editor .files li { padding-left: 0; padding-right: 0; }
+.editor .files li:first-child { padding-top: 0; }
+.editor .files li:last-child { padding-bottom: 0; }
+.editor .file-info > .strong { max-width: 100%; overflow-wrap: anywhere; }
+.editor .file-info > .faint { white-space: nowrap; }
+.editor .checksum { align-items: baseline; }
 .dropzone { position: relative; display: grid; gap: 6px; justify-items: center; padding: 28px 18px; border: 1px dashed var(--line-strong); border-radius: var(--r); text-align: center; font-size: .8125rem; cursor: pointer; transition: border-color 150ms ease; }
 .dropzone strong { font-size: .875rem; }
 .dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
@@ -1138,6 +1144,8 @@ dl.resource-area-notes { display: grid; gap: 20px; }
   .hide-sm { display: none; }
 }
 @media (max-width: 560px) {
+  .editor .files li { flex-wrap: wrap; }
+  .editor .file-info { flex-basis: 100%; }
   .flag-row, .inline-form { flex-direction: column; align-items: stretch; }
   .standings li { grid-template-columns: 28px 28px minmax(0, 1fr) 64px; gap: 10px; }
   .standings li > .meter, .standings li > :nth-child(5) { display: none; }
