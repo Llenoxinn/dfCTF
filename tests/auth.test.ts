@@ -212,6 +212,45 @@ describe("open registration and account access", () => {
     expect(await isEmailAllowed(`  ${email.toUpperCase()}  `)).toBe(true);
   });
 
+  it.each(["verified", "unverified", "oauth"] as const)("keeps an existing %s account unchanged after repeat registration", async (kind) => {
+    const email = `duplicate-${kind}@example.test`;
+    const registered = await auth.api.signUpEmail({ body: { email, name: "Original account", password } });
+    const id = registered.user.id;
+    if (kind !== "unverified") await store.db.update(user).set({ emailVerified: true }).where(eq(user.id, id));
+    if (kind === "oauth") {
+      await store.db.delete(account).where(eq(account.userId, id));
+      await store.db.insert(account).values({ id: randomUUID(), userId: id, providerId: "google", accountId: `oauth-${id}` });
+    }
+    const identities = await store.db.select().from(user).where(eq(user.email, email));
+    const credentials = await store.db.select().from(account).where(eq(account.userId, id));
+    const access = await store.db.select().from(allowlist).where(eq(allowlist.email, email));
+    const mailCount = outbound.messages.length;
+    const replacementPassword = "a different registration passphrase";
+
+    for (const submittedEmail of [email, email.toUpperCase()]) {
+      const response = await authPost(applicationRequest("/api/auth/sign-up/email", {
+        email: submittedEmail, name: "Replacement account", password: replacementPassword,
+      }));
+      expect(response.status).toBe(200);
+      expect(response.headers.getSetCookie()).toHaveLength(0);
+      const result = await response.json();
+      expect(result.token).toBeNull();
+      expect(result.user.id).not.toBe(id);
+      expect(await store.db.select().from(user).where(eq(user.id, result.user.id))).toHaveLength(0);
+      expect(await store.db.select().from(user).where(eq(user.email, email))).toEqual(identities);
+      expect(await store.db.select().from(account).where(eq(account.userId, id))).toEqual(credentials);
+      expect(await store.db.select().from(allowlist).where(eq(allowlist.email, email))).toEqual(access);
+      expect(await store.db.select().from(session).where(eq(session.userId, id))).toHaveLength(0);
+      expect(outbound.messages).toHaveLength(mailCount);
+    }
+    const replacementLogin = await auth.api.signInEmail({ body: { email, password: replacementPassword }, asResponse: true });
+    expect(replacementLogin.status).toBe(401);
+    if (kind !== "oauth") {
+      const originalLogin = await auth.api.signInEmail({ body: { email, password }, asResponse: true });
+      expect(originalLogin.status).toBe(kind === "verified" ? 200 : 403);
+    }
+  });
+
   it("keeps verified accounts usable when they have no legacy access entry", async () => {
     const identity=await provision("no-access-entry@example.test");
     await store.db.delete(allowlist).where(eq(allowlist.email,identity.email));

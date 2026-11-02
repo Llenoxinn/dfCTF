@@ -16,6 +16,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [signupComplete, setSignupComplete] = useState(false);
   const [token, setToken] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [backup, setBackup] = useState(false);
@@ -35,11 +36,11 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
 
   function changeMode(next: AuthMode) {
     if (mode === "reset" && next === "signin") { window.location.replace("/?auth=signin"); return; }
-    setMode(next); setError(""); setMessage(""); setPassword("");
+    setMode(next); setError(""); setMessage(""); setPassword(""); setSignupComplete(false);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy(true); setError(""); setMessage("");
+    event.preventDefault(); setBusy(true); setError(""); setMessage(""); setSignupComplete(false);
     try {
       if (mode === "forgot") {
         await api("/api/auth/request-password-reset", { method: "POST", body: JSON.stringify({ email, redirectTo: `${window.location.origin}/?reset=1` }) });
@@ -53,7 +54,11 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
       } else {
         const result = await api<{ twoFactorRedirect?: boolean }>(`/api/auth/${mode === "signup" ? "sign-up" : "sign-in"}/email`, { method: "POST", body: JSON.stringify({ email, password, ...(mode === "signup" ? { name: email.split("@")[0] } : {}), callbackURL: window.location.origin }) });
         if (result.twoFactorRedirect) { setMode("mfa"); setPassword(""); }
-        else { await refresh(); if (mode === "signup") setMessage("Account created. Check your email to verify your address, then sign in."); }
+        else if (mode === "signup") {
+          // Better Auth also returns success for existing emails to protect account privacy.
+          setPassword(""); setSignupComplete(true);
+          setMessage("If this email is eligible for a new account, check your inbox for a verification link. If you already have an account, sign in or reset your password. Your existing account is unchanged.");
+        } else await refresh();
       }
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to continue. Please try again."); }
     finally { setBusy(false); }
@@ -95,7 +100,10 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
           <button type="button" aria-pressed={mode === "signin"} onClick={() => changeMode("signin")}>Sign in</button>
           <button type="button" aria-pressed={mode === "signup"} onClick={() => changeMode("signup")}>Create account</button>
         </div> : null}
-        {message ? <Notice type="success">{message}</Notice> : null}{error ? <Notice type="error">{error}</Notice> : null}
+        {message ? <Notice type={signupComplete ? "info" : "success"}>{message}{signupComplete ? <div className="cta-row">
+          <button type="button" className="text-button" onClick={() => changeMode("signin")}>Sign in to your account</button>
+          <button type="button" className="text-button" onClick={() => changeMode("forgot")}>Reset your password</button>
+        </div> : null}</Notice> : null}{error ? <Notice type="error">{error}</Notice> : null}
         <form onSubmit={submit} className="stack">
           {mode !== "mfa" && mode !== "reset" ? <label className="field"><span>Email</span><input type="email" name="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" disabled={busy} /></label> : null}
           {mode === "signin" || mode === "signup" || mode === "reset" ? <div className="field">

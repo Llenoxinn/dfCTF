@@ -15,7 +15,7 @@ test("real registration, verification, private download, concurrent scoring and 
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.locator("form").getByRole("button", { name: "Create account", exact: true }).click();
-  await expect(page.getByText("Account created. Check your email to verify your address, then sign in.")).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("If this email is eligible for a new account, check your inbox for a verification link.");
   expect((await page.request.post("/api/auth/sign-in/email", { data: { email, password } })).status()).toBe(403);
 
   async function message(subject: string) {
