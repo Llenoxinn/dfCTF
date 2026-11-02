@@ -11,12 +11,14 @@ You do steps 1 to 3 once. After that, signing in asks for the code automatically
 
    | Role | Can do | Command |
    | --- | --- | --- |
-   | Reviewer | Test-solve and publish other people's challenges | `npm run admin -- reviewer you@example.com` |
+   | Reviewer | Edit challenges and files while In review, then test-solve and publish other people's challenges | `npm run admin -- reviewer you@example.com` |
    | Administrator | Everything: write, review, host competitions, manage accounts | `npm run admin -- grant you@example.com` |
 
    On a Docker deployment, prefix the command with `docker compose --env-file .env.production exec app`.
 
 Nobody can publish a challenge they wrote. Each challenge needs a second staff member to test-solve it, so a team needs at least two staff accounts.
+
+While a challenge is **In review**, an independent reviewer or administrator can correct its content and files. Choose **Save changes**, solve the updated challenge, and enter **Your test-solve flag** to enable **Verify and publish**. Saving keeps it In review. Authors must return their own challenge to draft to edit it; published and archived versions stay locked.
 
 ## 2. Install an authenticator app
 

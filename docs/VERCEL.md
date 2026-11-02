@@ -20,6 +20,8 @@ Use a separate staging project, database, SMTP credentials, OAuth applications, 
 | `MAIL_FROM` | Sender authorized by that provider |
 | `ARTIFACT_LOCAL_BACKUP` | `0` (also enforced automatically on Vercel) |
 
+For Supabase, set the URL query parameters to `sslmode=verify-full` and `sslrootcert=certs%2Fsupabase-prod-ca-2021.crt`, replacing any existing values for these parameters. The public Supabase CA in `certs/` ships with every server route. Replace any `sslrootcert` path pointing to your computer with this relative path. Keep certificate and hostname verification enabled.
+
 Google and GitHub are optional. Enable a provider only with both its client ID and secret, then register `https://YOUR-STAGING-HOST/api/auth/callback/google` or `/github` and test the full callback. Changing the hostname requires updating `APP_URL` and the callbacks together. Other automatic deployment URLs are not additional trusted application origins.
 
 ## Migrations, existing files, and staff

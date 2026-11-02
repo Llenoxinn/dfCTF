@@ -6,6 +6,7 @@ import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
 import { api, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, Loading, Notice, Pips } from "./ui";
 import DescriptionEditor from "./description-editor";
 import { MAX_ARTIFACT_BYTES, ARTIFACT_SIZE_LABEL } from "@/lib/artifacts";
+import { canEditChallengeContent } from "@/lib/challenge-permissions";
 
 type EditorData = {
   title: string; category: Category; difficulty: Level; description: string;
@@ -86,7 +87,8 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
     setDetail(data); setForm({ title: data.title, category: data.category, difficulty: data.difficulty, description: data.description, solution: data.solution ?? "", flag: "", flagFormat: data.flagFormat, tags: data.tags.join(", "), xp: data.xp, estimatedMinutes: data.estimatedMinutes, visibility: data.visibility ?? "practice" });
   }, []);
   useEffect(() => { if (id === "new") return; read(id).catch(err => setError(err.message)).finally(() => setLoading(false)); }, [id, read]);
-  const editable = !detail || detail.status === "draft" && (role === "admin" || role === "author" && detail.authorId === viewerId);
+  const editable = detail ? canEditChallengeContent({ id: viewerId, role }, detail) : role === "admin" || role === "author";
+  const editingDraft = editable && (!detail || detail.status === "draft");
   const canReview = role === "reviewer" || role === "admin";
   const canWithdraw = detail?.status === "review" && (role === "admin" || role === "author" && detail.authorId === viewerId);
   const dirty = files.length > 0 || (detail ? !!form.flag || form.title !== detail.title || form.description !== detail.description || form.solution !== (detail.solution ?? "") || form.category !== detail.category || form.difficulty !== detail.difficulty || form.xp !== detail.xp || form.estimatedMinutes !== detail.estimatedMinutes || form.flagFormat !== detail.flagFormat || form.tags !== detail.tags.join(", ") || form.visibility !== (detail.visibility ?? "practice") : Object.entries(blank).some(([key, value]) => form[key as keyof EditorData] !== value));
@@ -101,25 +103,27 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
   function field<K extends keyof EditorData>(key: K, value: EditorData[K]) { setForm(f => ({ ...f, [key]: value })); }
 
   async function removeFile(file: StaffDetail["files"][number]) {
-    if (busy || !editable || !window.confirm(`Remove ${file.name} from this draft?`)) return;
+    if (busy || !editable || !window.confirm(`Remove ${file.name} from this ${editingDraft ? "draft" : "challenge"}?`)) return;
     setBusy(true); setError(""); setMessage("");
     try {
       await api(`/api/v1/staff/challenges/${encodeURIComponent(currentId)}/files/${encodeURIComponent(file.id)}`, { method: "DELETE" });
       setDetail(current => current ? { ...current, files: current.files.filter(item => item.id !== file.id) } : current);
-      setMessage(`${file.name} removed from this draft.`);
+      setTestFlag("");
+      setMessage(`${file.name} removed from this ${editingDraft ? "draft" : "challenge"}.`);
     } catch (err) { setError(err instanceof Error ? err.message : "Could not remove this file."); }
     finally { setBusy(false); }
   }
 
   async function save(event: FormEvent) {
-    event.preventDefault(); if (busy) return; setBusy(true); setError(""); setMessage("");
+    event.preventDefault(); if (busy || !editable) return; setBusy(true); setError(""); setMessage("");
     let savedId = currentId, saved = false, uploaded = 0;
     try {
       const payload = { ...form, tags: form.tags.split(",").map(t => t.trim()).filter(Boolean), ...(currentId !== "new" && !form.flag ? { flag: undefined } : {}) };
       const result = await api<{ id: string }>(currentId === "new" ? "/api/v1/staff/challenges" : `/api/v1/staff/challenges/${encodeURIComponent(currentId)}`, { method: currentId === "new" ? "POST" : "PATCH", body: JSON.stringify(payload) });
       savedId = currentId === "new" ? result.id : currentId; saved = true; setCurrentId(savedId);
       for (const file of files) { const body = new FormData(); body.append("file", file); await api(`/api/v1/staff/challenges/${encodeURIComponent(savedId)}/files`, { method: "POST", body }); uploaded++; }
-      setMessage("Draft saved. Check the description and files, then send it for review.");
+      setTestFlag("");
+      setMessage(detail?.status === "review" ? "Review changes saved. Test-solve the updated challenge before publishing." : "Draft saved. Check the description and files, then send it for review.");
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save this draft."); }
     finally {
       // Drop the files that landed so a retry never uploads them twice; re-read only after the draft saved, so failed edits stay in the form.
@@ -129,7 +133,7 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
     }
   }
   async function transition(status: "draft" | "review" | "archived" | "publish") {
-    if (busy) return; setBusy(true); setError(""); setMessage("");
+    if (busy || dirty) return; setBusy(true); setError(""); setMessage("");
     try { await api(`/api/v1/staff/challenges/${encodeURIComponent(currentId)}${status === "publish" ? "/publish" : ""}`, { method: status === "publish" ? "POST" : "PATCH", body: status === "publish" ? JSON.stringify({ flag: testFlag }) : JSON.stringify({ status }) }); await read(currentId); setTestFlag(""); setMessage(status === "publish" ? "Published. The challenge is now on the board." : status === "review" ? "Sent for review. A reviewer other than the author can publish it." : status === "draft" ? "Returned to draft. Make your corrections, save, and send it for review again." : "Archived. The challenge is no longer on the board."); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not update the status."); } finally { setBusy(false); }
   }
@@ -152,7 +156,7 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
     <button className="text-button back-link" onClick={() => { if (confirmLeave()) close(); }} disabled={busy}><Icon name="back" size={16} />Back to authoring</button>
     <div className="page-head">
       <div><div className="title-row"><h1>{currentId === "new" ? "New challenge" : form.title || "Untitled challenge"}</h1><StatusBadge status={detail?.status ?? "draft"} /></div><p className="muted">{editable ? "A clear description, purposeful files, and a satisfying discovery." : "Read the challenge, solve it yourself, and use the publishing controls."}</p></div>
-      {editable && !loading ? <div className="head-actions"><span className="fine">{busy ? "Saving" : detail && !dirty ? "All changes saved" : currentId === "new" ? "Not saved yet" : "Unsaved changes"}</span><button type="submit" form="challenge-editor" className="button button-secondary" disabled={busy}>Save draft</button>{currentId !== "new" ? <button type="button" className="button button-primary" onClick={() => transition("review")} disabled={busy || dirty} title={dirty ? "Save your changes first" : "Send for an independent review"}>Send for review</button> : null}</div> : null}
+      {editable && !loading ? <div className="head-actions"><span className="fine">{busy ? "Saving" : detail && !dirty ? "All changes saved" : currentId === "new" ? "Not saved yet" : "Unsaved changes"}</span><button type="submit" form="challenge-editor" className="button button-secondary" disabled={busy}>{editingDraft ? "Save draft" : "Save changes"}</button>{editingDraft && currentId !== "new" ? <button type="button" className="button button-primary" onClick={() => transition("review")} disabled={busy || dirty} title={dirty ? "Save your changes first" : "Send for an independent review"}>Send for review</button> : null}</div> : null}
     </div>
     {error ? <Notice type="error">{error}</Notice> : null}{message ? <Notice type="success">{message}</Notice> : null}
     {loading ? <Loading label="Opening the editor" /> : <form id="challenge-editor" onSubmit={save} className="editor">
@@ -180,17 +184,18 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
           <label className="field"><span>Format shown to players</span><input className="mono" value={form.flagFormat} onChange={e => field("flagFormat", e.target.value)} required readOnly={!editable || busy} /></label>
           {editable ? <label className="field"><span>{currentId === "new" ? "Correct flag" : "Replace the correct flag"}</span><input className="mono" type="password" disabled={busy} value={form.flag} onChange={e => field("flag", e.target.value)} required={currentId === "new"} autoComplete="new-password" minLength={8} maxLength={200} placeholder="dfCTF{...}" /><small>{currentId === "new" ? "Stored as a keyed digest. No one can read it back, including you." : "Leave empty to keep the current flag."}</small></label> : <p className="fine">The correct flag is stored as a keyed digest on the server.</p>}
         </div></section>
-        <section className="panel"><div className="panel-head"><h2>{editable ? "Ready for review" : "Publishing"}</h2>{editable ? <><span className="spacer" /><span className="mono muted">{checklist.filter(c => c.done).length} of {checklist.length}</span></> : null}</div><div className="panel-pad stack">
-          {editable ? <>
+        <section className="panel"><div className="panel-head"><h2>{editingDraft ? "Ready for review" : "Publishing"}</h2>{editingDraft ? <><span className="spacer" /><span className="mono muted">{checklist.filter(c => c.done).length} of {checklist.length}</span></> : null}</div><div className="panel-pad stack">
+          {editingDraft ? <>
             <ul className="checklist" aria-label="Ready for review">{checklist.map(item => <li key={item.label} data-done={item.done || undefined}><span className="mono">{item.done ? "[x]" : "[ ]"}</span>{item.label}</li>)}</ul>
             <p className="fine">{currentId === "new" ? "Save the draft first, then attach any files it needs and send it for review." : dirty ? "Save your changes before sending for review." : "Ready. A reviewer other than you will solve it before it goes live."}</p>
           </> : detail?.status === "review" ? <>
             <p className="muted">Check the description, files, walkthrough, and learning value. Authors can’t approve their own challenges.</p>
             {canReview && detail.canPublish !== false ? <>
-              <label className="field"><span>Your test-solve flag</span><input className="mono" type="text" disabled={busy} value={testFlag} onChange={e => setTestFlag(e.target.value)} placeholder={form.flagFormat} autoComplete="off" spellCheck={false} maxLength={1000} /><small>Solve it yourself, using its files if it has any, and enter the flag you found.</small></label>
-              <button type="button" className="button button-primary" onClick={() => transition("publish")} disabled={busy || !testFlag.trim()}>{busy ? "Checking" : "Verify and publish"}</button>
+              {dirty ? <Notice>Save your changes before test-solving and publishing.</Notice> : null}
+              <label className="field"><span>Your test-solve flag</span><input className="mono" type="text" disabled={busy || dirty} value={testFlag} onChange={e => setTestFlag(e.target.value)} placeholder={form.flagFormat} autoComplete="off" spellCheck={false} maxLength={1000} /><small>Solve it yourself, using its files if it has any, and enter the flag you found.</small></label>
+              <button type="button" className="button button-primary" onClick={() => transition("publish")} disabled={busy || dirty || !testFlag.trim()}>{busy ? "Checking" : "Verify and publish"}</button>
             </> : <Notice>Waiting for an independent reviewer. Authors can’t publish their own challenges.</Notice>}
-            {canWithdraw ? <button type="button" className="button button-secondary" disabled={busy} onClick={() => transition("draft")}>Return to draft</button> : null}
+            {canWithdraw ? <button type="button" className="button button-secondary" disabled={busy || dirty} onClick={() => transition("draft")}>Return to draft</button> : null}
           </> : detail?.status === "published" ? <>
             <Notice type="success">{detail.visibility === "competition" ? "Reviewed and ready for a competition. Hidden from the practice library." : "Live on the board."}</Notice>
             {role === "admin" ? <button type="button" className="button button-secondary" disabled={busy} onClick={() => { if (window.confirm("Archive this challenge? Players will no longer be able to open it.")) void transition("archived"); }}><Icon name="archive" size={16} />Archive challenge</button> : null}

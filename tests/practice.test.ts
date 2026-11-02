@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { createStore } from "@/server/db";
 import { user,challenges,challengeVersions,solves,xpLedger,auditEvents,artifacts,artifactContents } from "@/server/schema";
 import { createChallenge,editChallenge,publishChallenge,challengeDetail,submitFlag,getProgress,listChallenges,consumeLimit } from "@/server/challenges";
-import { saveArtifact,downloadArtifact } from "@/server/files";
+import { saveArtifact,removeArtifact,downloadArtifact } from "@/server/files";
 import { flagDigest,matchesFlag } from "@/server/flags";
 import { challengeInput,challengePatchInput,codenameSchema,codenameKey } from "@/server/validation";
 import { checkOrigin } from "@/server/http";
@@ -103,6 +103,47 @@ describe("private practice integrity",()=>{
     await expect(publishChallenge(store.db,{...author,role:"admin"},c.id,flag)).rejects.toMatchObject({code:"SELF_REVIEW"});
     await expect(publishChallenge(store.db,reviewer,c.id,"dfCTF{wrong_flag}")).rejects.toMatchObject({code:"REVIEW_FLAG_INCORRECT"});
     await publishChallenge(store.db,reviewer,c.id,flag);await expect(editChallenge(store.db,author,c.id,{title:"Changed after publication"})).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
+  });
+  it("lets independent reviewers correct content and files, save in review, and publish the updated challenge",async()=>{
+    const c=await createChallenge(store.db,author,draft("Reviewer corrections"));
+    const original=await saveArtifact(store.db,author,c.id,"original.txt",Buffer.from("Original fictional evidence"));
+    await expect(editChallenge(store.db,reviewer,c.id,{title:"Too early"})).rejects.toMatchObject({status:404});
+    await expect(saveArtifact(store.db,reviewer,c.id,"early.txt",Buffer.from("Too early"))).rejects.toMatchObject({status:404});
+    await editChallenge(store.db,author,c.id,{status:"review"});
+    const corrected="dfCTF{reviewer_corrected_fixture}";
+    expect(await editChallenge(store.db,reviewer,c.id,challengePatchInput.parse({title:"Corrected by reviewer",description:"Review the corrected fictional evidence file.",flag:corrected,tags:["reviewed"]}))).toMatchObject({status:"review"});
+    await removeArtifact(store.db,reviewer,c.id,original.id);
+    const file=await saveArtifact(store.db,reviewer,c.id,"corrected.txt",Buffer.from(corrected));
+    expect(await (await downloadArtifact(store.db,reviewer,c.id,file.id,true)).text()).toBe(corrected);
+    expect(await challengeDetail(store.db,reviewer,c.id,true)).toMatchObject({status:"review",title:"Corrected by reviewer",authorId:author.id,tags:["reviewed"],files:[{id:file.id}]});
+    await expect(publishChallenge(store.db,reviewer,c.id,flag)).rejects.toMatchObject({code:"REVIEW_FLAG_INCORRECT"});
+    await publishChallenge(store.db,reviewer,c.id,corrected);
+    expect(await challengeDetail(store.db,learner,c.id)).toMatchObject({status:"published",title:"Corrected by reviewer"});
+    expect((await store.db.select().from(auditEvents).where(eq(auditEvents.targetId,c.id))).filter(e=>e.actorId===reviewer.id).map(e=>e.action)).toEqual(["challenge.edit","artifact.remove","artifact.upload","challenge.publish"]);
+    for(const viewer of [reviewer,{...reviewer,role:"admin" as const}]) {
+      await expect(editChallenge(store.db,viewer,c.id,{title:"Late edit"})).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
+      await expect(saveArtifact(store.db,viewer,c.id,"late.txt",Buffer.from("Late edit"))).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
+      await expect(removeArtifact(store.db,viewer,c.id,file.id)).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
+    }
+  });
+  it("keeps review editing separate from ownership, lifecycle changes, and locked versions",async()=>{
+    const c=await createChallenge(store.db,author,draft("Review boundaries"));
+    const file=await saveArtifact(store.db,author,c.id,"evidence.txt",Buffer.from(flag));
+    await editChallenge(store.db,author,c.id,{status:"review"});
+    for(const viewer of [learner,{...reviewer,role:"author" as const},{...author,role:"reviewer" as const}]) {
+      await expect(editChallenge(store.db,viewer,c.id,{title:"Forbidden correction"})).rejects.toMatchObject({status:404});
+      await expect(saveArtifact(store.db,viewer,c.id,"forbidden.txt",Buffer.from("Forbidden"))).rejects.toMatchObject({status:404});
+      await expect(removeArtifact(store.db,viewer,c.id,file.id)).rejects.toMatchObject({status:404});
+    }
+    for(const status of ["draft","review","archived"])await expect(editChallenge(store.db,reviewer,c.id,{status})).rejects.toMatchObject({status:404});
+    await expect(createChallenge(store.db,reviewer,draft("Reviewer creation"))).rejects.toMatchObject({status:403});
+    await expect(publishChallenge(store.db,{...author,role:"reviewer"},c.id,flag)).rejects.toMatchObject({code:"SELF_REVIEW"});
+    await expect(editChallenge(store.db,{...reviewer,role:"admin"},c.id,{solution:"The corrected walkthrough still explains the intended approach."})).resolves.toMatchObject({status:"review"});
+    await store.db.update(challengeVersions).set({locked:true}).where(eq(challengeVersions.challengeId,c.id));
+    await expect(editChallenge(store.db,reviewer,c.id,{title:"Locked review"})).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
+    await expect(removeArtifact(store.db,reviewer,c.id,file.id)).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
+    await store.db.update(challenges).set({status:"archived"}).where(eq(challenges.id,c.id));
+    await expect(editChallenge(store.db,reviewer,c.id,{title:"Archived review"})).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
   });
   it("preserves omitted draft fields on PATCH and allows explicitly clearing tags",async()=>{
     const c=await createChallenge(store.db,author,{...draft("Patch only the title"),tags:["weekly","training"],flagFormat:"dfCTF{answer}"});
