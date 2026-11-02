@@ -4,7 +4,7 @@ import path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { artifacts, artifactContents, challenges } from "./schema";
 import type { Database } from "./db";
-import { audit, challengeRecord } from "./challenges";
+import { audit, challengeRecord, prepareChallengeRevision } from "./challenges";
 import { HttpError } from "./http";
 import type { Viewer } from "@/lib/types";
 import { requireCompetitionChallenge } from "./competition-access";
@@ -43,12 +43,13 @@ export async function saveArtifact(db:Database,viewer:Viewer,id:string,name:stri
   try {
     return await db.transaction(async tx=>{
       await tx.select().from(challenges).where(eq(challenges.id,id)).for("update");
-      const row=await challengeRecord(tx,id);
+      const row=await prepareChallengeRevision(tx,viewer,id);
       requireFileEditor(viewer,row.challenge,row.version.locked);
       const file={id:randomUUID(),versionId:row.version.id,name:safeName,storageKey,size:bytes.length,sha256:createHash("sha256").update(bytes).digest("hex")};
       await tx.insert(artifacts).values(file);
       await tx.insert(artifactContents).values({artifactId:file.id,content:bytes});
-      await audit(tx,viewer.id,"artifact.upload",id,{fileId:file.id,size:file.size,sha256:file.sha256});
+      await tx.update(challenges).set({updatedAt:new Date(),reviewerId:null}).where(eq(challenges.id,id));
+      await audit(tx,viewer.id,"artifact.upload",id,{fileId:file.id,size:file.size,sha256:file.sha256,versionId:row.version.id,independentReview:viewer.role==="admin"});
       return {id:file.id,name:file.name,size:file.size,sha256:file.sha256};
     });
   } catch(error) {if(location)await unlink(location).catch(()=>{});throw error;}
@@ -56,14 +57,18 @@ export async function saveArtifact(db:Database,viewer:Viewer,id:string,name:stri
 export async function removeArtifact(db:Database,viewer:Viewer,id:string,fileId:string) {
   const location=await db.transaction(async tx=>{
     await tx.select().from(challenges).where(eq(challenges.id,id)).for("update");
-    const row=await challengeRecord(tx,id);
-    requireFileEditor(viewer,row.challenge,row.version.locked);
-    const [file]=await tx.select().from(artifacts).where(and(eq(artifacts.id,fileId),eq(artifacts.versionId,row.version.id)));
+    const original=await challengeRecord(tx,id);
+    const [file]=await tx.select().from(artifacts).where(and(eq(artifacts.id,fileId),eq(artifacts.versionId,original.version.id)));
     if(!file)throw new HttpError(404,"NOT_FOUND","File unavailable.");
+    const row=await prepareChallengeRevision(tx,viewer,id);
+    requireFileEditor(viewer,row.challenge,row.version.locked);
+    const removedId=row.fileIds.get(fileId)??fileId;
     const location=artifactPath(file.storageKey);
-    await tx.delete(artifacts).where(eq(artifacts.id,fileId));
-    await audit(tx,viewer.id,"artifact.remove",id,{fileId});
-    return artifactBackupsEnabled()?location:null;
+    await tx.delete(artifacts).where(eq(artifacts.id,removedId));
+    await tx.update(challenges).set({updatedAt:new Date(),reviewerId:null}).where(eq(challenges.id,id));
+    await audit(tx,viewer.id,"artifact.remove",id,{fileId:removedId,versionId:row.version.id,independentReview:viewer.role==="admin"});
+    const [shared]=await tx.select({id:artifacts.id}).from(artifacts).where(eq(artifacts.storageKey,file.storageKey)).limit(1);
+    return artifactBackupsEnabled()&&!shared?location:null;
   });
   // Commit first so a failed transaction cannot leave a published file missing.
   try {if(location)await unlink(location);} catch(error) {

@@ -19,6 +19,7 @@ export function Icon({ name, size = 20, className = "" }: { name: string; size?:
     chevron: <path d="m9 6 6 6-6 6" />,
     down: <path d="m6 9 6 6 6-6" />,
     plus: <path d="M12 5v14M5 12h14" />,
+    more: <><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></>,
     exit: <path d="M10 4.5H5.5v15H10m-1-7.5h11.5m-4-4 4 4-4 4" />,
     info: <><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5m0-9v.5" /></>,
     alert: <><path d="M12 4 21 19.5H3L12 4Z" /><path d="M12 10v4.5m0 2.5v.5" /></>,

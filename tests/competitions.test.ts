@@ -111,7 +111,7 @@ describe("competition isolation and scoring",()=>{
     const {e,c}=await event();
     await expect(saveCompetition(store.db,admin,eventInput(),e.id)).rejects.toMatchObject({code:"COMPETITION_LOCKED"});
     await expect(saveCompetition(store.db,admin,eventInput([{challengeId:c.id,points:100}]))).rejects.toMatchObject({code:"CHALLENGE_ASSIGNED"});
-    await expect(editChallenge(store.db,admin,c.id,{visibility:"practice"})).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
+    await expect(editChallenge(store.db,admin,c.id,{visibility:"practice"})).rejects.toMatchObject({code:"COMPETITION_LOCKED"});
     await expect(editChallenge(store.db,admin,c.id,{status:"archived"})).rejects.toMatchObject({code:"COMPETITION_LOCKED"});
   });
   it("supports HTTPS CTFd links with independent host registration and rejects unsafe URLs and schedules",async()=>{

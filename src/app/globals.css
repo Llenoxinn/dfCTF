@@ -525,6 +525,15 @@ a.card:active { transform: scale(.98); }
 .table { display: grid; grid-template-columns: minmax(0, 1fr); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
 .tr { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 160px 120px 80px 64px 130px; gap: 16px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); text-align: left; font-size: .8125rem; transition: background-color 150ms ease; }
 .table.authoring .tr { grid-template-columns: minmax(0, 1fr) 150px 120px 60px 160px 120px 110px; }
+.challenge-status-cell { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.challenge-actions { position: relative; z-index: 1; display: inline-flex; }
+.challenge-actions-trigger { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--r); color: var(--muted); opacity: 0; pointer-events: none; }
+.authoring .tr:hover .challenge-actions-trigger, .challenge-actions-trigger:focus-visible, .challenge-actions:has(:popover-open) .challenge-actions-trigger { opacity: 1; pointer-events: auto; }
+.challenge-actions-trigger:hover { color: var(--text); background: var(--surface-2); }
+.challenge-actions-menu { position: fixed; inset: auto; margin: 0; min-width: 136px; padding: 4px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--surface); color: var(--text); box-shadow: 0 8px 24px rgb(0 0 0 / .25); }
+.challenge-actions-menu button { display: block; width: 100%; padding: 8px 12px; text-align: left; font-size: .8125rem; border-radius: var(--r); }
+.challenge-actions-menu button:hover, .challenge-actions-menu button:focus-visible { background: var(--surface-2); }
+@media (hover: none) { .challenge-actions-trigger { opacity: 1; pointer-events: auto; } }
 .tr:last-child { border-bottom: 0; }
 .tr.th { padding-top: 10px; padding-bottom: 10px; font-size: .75rem; font-weight: 500; color: var(--faint); }
 .td-title { display: grid; gap: 2px; min-width: 0; }

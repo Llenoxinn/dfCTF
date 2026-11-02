@@ -1,7 +1,7 @@
 import { and, eq, gt, asc, desc, sql, count, sum, inArray } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { Database } from "./db";
-import { challenges, challengeVersions, artifacts, solves, submissions, xpLedger, rateLimits, auditEvents, user, competitionChallenges, competitions } from "./schema";
+import { challenges, challengeVersions, artifacts, artifactContents, solves, submissions, xpLedger, rateLimits, auditEvents, user, competitionChallenges, competitions } from "./schema";
 import { flagDigest, matchesFlag } from "./flags";
 import { HttpError } from "./http";
 import { challengeInput, summarize } from "./validation";
@@ -46,6 +46,38 @@ export async function challengeRecord(db:Executor,id:string) {
   if(!row) throw new HttpError(404,"NOT_FOUND","This challenge is unavailable.");
   return row;
 }
+async function editedByAdministrator(db:Executor,viewer:Viewer,id:string,versionId:string) {
+  const [edit]=await db.select({id:auditEvents.id}).from(auditEvents).where(and(
+    eq(auditEvents.targetId,id),eq(auditEvents.actorId,viewer.id),
+    sql`${auditEvents.metadata}->>'versionId' = ${versionId}`,
+    sql`${auditEvents.metadata}->>'independentReview' = 'true'`
+  )).limit(1);
+  return !!edit;
+}
+
+// Call with the challenge row locked. Published versions and their solve history stay intact.
+export async function prepareChallengeRevision(db:Executor,viewer:Viewer,id:string) {
+  let row=await challengeRecord(db,id);
+  const fileIds=new Map<string,string>();
+  if(viewer.role!=="admin"||!["published","archived"].includes(row.challenge.status))return {...row,fileIds};
+  const linked=await db.select({id:competitions.id}).from(competitions).innerJoin(competitionChallenges,eq(competitionChallenges.competitionId,competitions.id))
+    .where(and(eq(competitionChallenges.challengeId,id),eq(competitions.status,"published"),gt(competitions.endsAt,new Date()))).limit(1);
+  if(linked.length)throw new HttpError(409,"COMPETITION_LOCKED","Archive the published competition before editing one of its challenges.");
+  const {id:previousId,createdAt:previousCreatedAt,...content}=row.version;
+  const versionId=randomUUID(),version=row.version.version+1;
+  await db.insert(challengeVersions).values({...content,id:versionId,version,locked:false});
+  const files=await db.select().from(artifacts).where(eq(artifacts.versionId,previousId));
+  for(const file of files) {
+    const fileId=randomUUID();fileIds.set(file.id,fileId);
+    await db.insert(artifacts).values({...file,id:fileId,versionId});
+    // Copy the durable bytes; legacy local backups can share their immutable storage key.
+    await db.insert(artifactContents).select(db.select({artifactId:sql<string>`${fileId}`.as("artifact_id"),content:artifactContents.content}).from(artifactContents).where(eq(artifactContents.artifactId,file.id)));
+  }
+  await db.update(challenges).set({currentVersion:version,status:"review",reviewerId:null,publishedAt:null,updatedAt:new Date()}).where(eq(challenges.id,id));
+  await audit(db,viewer.id,"challenge.revise",id,{versionId,previousVersion:row.version.version,independentReview:true});
+  row=await challengeRecord(db,id);
+  return {...row,fileIds};
+}
 export async function challengeDetail(db:Database,viewer:Viewer,id:string,staff=false,competitionId?:string):Promise<ChallengeDetail & {authorId?:string;canPublish?:boolean}> {
   const now=new Date();
   const row=await challengeRecord(db,id);const c=row.challenge,v=row.version;
@@ -61,7 +93,7 @@ export async function challengeDetail(db:Database,viewer:Viewer,id:string,staff=
   ]);
   return {id:c.id,slug:c.slug,title:v.title,summary:v.summary,description:v.description,category:v.category as Category,difficulty:v.difficulty as Difficulty,tags:v.tags,xp:v.xp,estimatedMinutes:v.estimatedMinutes,solved:!!mySolve.length,attempted:!!myAttempt.length,solveCount:solverRows.length,status:c.status,flagFormat:v.flagFormat,author:row.author||"dfCTF author",version:v.version,files,solvers:solverRows.map((s,i)=>({codename:s.codename||"Unnamed player",solvedAt:s.solvedAt.toISOString(),firstBlood:i===0})),
     ...(currentWeekly(weeklyRows,now)?.id===c.id?{weeklyEndsAt:weekEnd(now).toISOString()}:{}),
-    ...(mySolve.length||staff?{solution:v.solution}:{}),...(staff?{visibility:c.visibility,authorId:c.authorId,canPublish:c.status==="review"&&viewer.role!=="author"&&c.authorId!==viewer.id}:{})};
+    ...(mySolve.length||staff?{solution:v.solution}:{}),...(staff?{visibility:c.visibility,authorId:c.authorId,canPublish:c.status==="review"&&["reviewer","admin"].includes(viewer.role)&&c.authorId!==viewer.id&&!await editedByAdministrator(db,viewer,id,v.id)}:{})};
 }
 export async function getProgress(db:Database,userId:string):Promise<Progress> {
   const [awards,completed,attempted,library]=await Promise.all([
@@ -117,7 +149,7 @@ export async function createChallenge(db:Database,viewer:Viewer,input:ChallengeD
 export async function editChallenge(db:Database,viewer:Viewer,id:string,input:Partial<ChallengeDraft>&{status?:string}) {
   return db.transaction(async tx=>{
     await tx.select().from(challenges).where(eq(challenges.id,id)).for("update");
-    const {challenge:c,version:v}=await challengeRecord(tx,id);
+    let {challenge:c,version:v}=await challengeRecord(tx,id);
     const managesDraft=canManageChallengeDraft(viewer,c);
     if(!managesDraft&&!(viewer.role==="reviewer"&&c.authorId!==viewer.id&&c.status!=="draft"&&!input.status))throw new HttpError(404,"NOT_FOUND","This challenge is unavailable for editing.");
     if(input.status==="archived"&&c.status==="published") {
@@ -130,6 +162,7 @@ export async function editChallenge(db:Database,viewer:Viewer,id:string,input:Pa
       await tx.update(challenges).set({status:"draft",updatedAt:new Date()}).where(eq(challenges.id,id));
       await audit(tx,viewer.id,"challenge.withdraw_review",id);return {id,status:"draft"};
     }
+    if(!input.status&&viewer.role==="admin")({challenge:c,version:v}=await prepareChallengeRevision(tx,viewer,id));
     if(!canEditChallengeContent(viewer,c)||v.locked)throw new HttpError(409,"IMMUTABLE_VERSION","Only unlocked drafts and independent reviews can be edited. Published content is locked.");
     if(input.status) {
       if(c.status!=="draft"||input.status!=="review")throw new HttpError(422,"INVALID_STATE","Drafts can only be submitted for independent review.");
@@ -142,14 +175,14 @@ export async function editChallenge(db:Database,viewer:Viewer,id:string,input:Pa
     if(updates.description&&!updates.summary)updates.summary=summarize(updates.description);
     else if(updates.summary==="")delete updates.summary;
     await tx.update(challengeVersions).set({...updates,...(flag?{flagHash:flagDigest(flag)}:{})}).where(eq(challengeVersions.id,v.id));
-    await tx.update(challenges).set({updatedAt:new Date(),...(visibility?{visibility}:{})}).where(eq(challenges.id,id));await audit(tx,viewer.id,"challenge.edit",id);return {id,status:c.status};
+    await tx.update(challenges).set({updatedAt:new Date(),reviewerId:null,...(visibility?{visibility}:{})}).where(eq(challenges.id,id));await audit(tx,viewer.id,"challenge.edit",id,{versionId:v.id,independentReview:viewer.role==="admin"});return {id,status:c.status};
   });
 }
 export async function publishChallenge(db:Database,viewer:Viewer,id:string,reviewFlag:string) {
   if(!["reviewer","admin"].includes(viewer.role))throw new HttpError(403,"FORBIDDEN","An independent reviewer must publish this challenge.");
   return db.transaction(async tx=>{
     await tx.select().from(challenges).where(eq(challenges.id,id)).for("update");const {challenge:c,version:v}=await challengeRecord(tx,id);
-    if(c.authorId===viewer.id)throw new HttpError(403,"SELF_REVIEW","A different reviewer must test-solve and approve your challenge.");
+    if(c.authorId===viewer.id||await editedByAdministrator(tx,viewer,id,v.id))throw new HttpError(403,"SELF_REVIEW","A different reviewer must test-solve and approve your changes.");
     if(c.status!=="review")throw new HttpError(409,"INVALID_STATE","Only a challenge awaiting review can be published.");
     if(!matchesFlag(reviewFlag,v.flagHash))throw new HttpError(422,"REVIEW_FLAG_INCORRECT","Test-solve the challenge and submit its correct flag before publishing.");
     await tx.update(challenges).set({status:"published",reviewerId:viewer.id,publishedAt:new Date(),updatedAt:new Date()}).where(eq(challenges.id,id));
