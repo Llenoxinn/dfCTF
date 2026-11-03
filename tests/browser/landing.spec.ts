@@ -95,7 +95,7 @@ test("the closing cursor effect follows foreground text and buttons without bloc
   await expect(page).toHaveURL(/auth=signup/);
   await expect(page.locator("form").getByRole("button", { name: "Create account", exact: true })).toBeVisible();
   await page.goBack();
-  await closing.getByRole("button", { name: "See the leaderboard", exact: true }).click();
+  await closing.getByRole("button", { name: "Sign in for leaderboard", exact: true }).click();
   await expect(page).toHaveURL(/auth=signin/);
   await expect(page.locator("form").getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
 });

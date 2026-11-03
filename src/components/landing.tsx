@@ -158,7 +158,7 @@ function WeeklyNote({ title, endsAt }: { title: string; endsAt: string }) {
 }
 
 /** The public home page in one framed column. Signed-in players reach it from the wordmark; `enter` then replaces the sign-in actions. */
-export default function Landing({ signIn, createAccount, enter }: { signIn: () => void; createAccount: () => void; enter?: Enter }) {
+export default function Landing({ signIn, createAccount, enter, requestSignIn }: { signIn: () => void; createAccount: () => void; enter?: Enter; requestSignIn?: (destination: string) => void }) {
   const [data, setData] = useState<Community | null>(null);
   const [faq, setFaq] = useState(0);
   const [error, setError] = useState("");
@@ -182,6 +182,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
   const board = (range === "week" ? data?.top : data?.topAll) ?? [];
   const signedIn = !!enter;
   const start = signedIn ? "Open challenges" : "Start solving";
+  const openBoard = () => requestSignIn ? requestSignIn("/?view=leaderboard") : signIn();
 
   // Live numbers. Activity days run Monday-first, so the last partial week is this week.
   const days = data?.activity.days ?? [];
@@ -257,7 +258,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
       <section id="leaderboard" aria-labelledby="lb-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead id="lb-title" title="Every flag moves you up the board." side={<button className="button button-secondary" onClick={signIn}>See the full leaderboard</button>}>Earn points for new solves. Compare this week’s standings, follow the all-time board, and see when players are capturing flags.</SectionHead>
+        <SectionHead id="lb-title" title="Every flag moves you up the board." side={<button className="button button-secondary" onClick={openBoard}>{signedIn ? "See the full leaderboard" : "Sign in for full leaderboard"}</button>}>Earn points for new solves. Compare this week’s standings, follow the all-time board, and see when players are capturing flags.</SectionHead>
         <div className="grid gap-px border-t border-line bg-line lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="min-w-0 bg-bg">
             <div className="flex min-h-14 flex-wrap items-center gap-2.5 border-b border-line px-4 py-2.5 sm:px-6"><h3 className="text-base font-semibold">Standings</h3><InfoTip text="Points earned in this range. Ties go to whoever reached the score first." /><span className="spacer" /><div className="segmented small" role="group" aria-label="Range">{([["week", "This week"], ["all", "All time"]] as const).map(([v, l]) => <button key={v} type="button" aria-pressed={range === v} onClick={() => setRange(v)}>{l}</button>)}</div></div>
@@ -287,7 +288,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
         <div className="grid gap-px border-t border-line bg-line lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="flex min-w-0 flex-col gap-6 bg-bg p-4 sm:p-6">
             {data?.weekly ? <><p className="label-dot">This week closes in</p><Countdown endsAt={endsAt} /></> : null}
-            {data?.weekly ? <div className="mt-auto grid gap-4 [&_.card]:w-full"><ChallengeCard title={data.weekly.title} category={data.weekly.category} xp={data.weekly.xp} difficulty={data.weekly.difficulty} solveCount={data.weekly.solveCount} state="weekly" /><button className="button button-primary justify-self-start" onClick={enter ? () => enter("practice", data.weekly!.id) : signIn}>Open this week’s challenge</button></div>
+            {data?.weekly ? <div className="mt-auto grid gap-4 [&_.card]:w-full"><ChallengeCard title={data.weekly.title} category={data.weekly.category} xp={data.weekly.xp} difficulty={data.weekly.difficulty} solveCount={data.weekly.solveCount} state="weekly" /><button className="button button-primary justify-self-start" onClick={() => enter ? enter("practice", data.weekly!.id) : requestSignIn ? requestSignIn(`/?view=practice&challenge=${encodeURIComponent(data.weekly!.id)}`) : signIn()}>Open this week’s challenge</button></div>
               : !data ? <p className="text-sm text-muted">{error ? "The featured challenge is temporarily unavailable." : "Checking for a featured challenge…"}</p>
               : <div className="mt-auto grid justify-items-start gap-3 rounded-xs border border-dashed border-line-strong p-5"><p className="font-semibold">No featured challenge this week</p><p className="text-sm text-muted">There’s no scheduled release to wait for. Explore the practice library; its eligible solves still count toward this week’s standings.</p><button className="button button-secondary" onClick={createAccount}>{start}</button></div>}
           </div>
@@ -343,7 +344,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
       <section aria-labelledby="closing-title" className={`${PAD} relative isolate flex min-h-[420px] items-center overflow-hidden border-t border-line py-20`}>
         <Marks />
         <FaultyTerminal className="absolute inset-0 -z-10" />
-        <div className="grid max-w-lg gap-6"><h2 id="closing-title" className="text-[clamp(2.5rem,4.6vw,3.5rem)] font-medium leading-[1.04] tracking-[-0.04em]">Pick a challenge.<br />Start solving.</h2><p className="text-lg text-muted">Create an account in a minute. Easy challenges take about fifteen minutes, and a wrong answer never costs points.</p><div className="cta-row"><button className="button button-primary button-large" onClick={createAccount}>{start}</button><button className="button button-secondary button-large" onClick={signIn}>See the leaderboard</button></div></div>
+        <div className="grid max-w-lg gap-6"><h2 id="closing-title" className="text-[clamp(2.5rem,4.6vw,3.5rem)] font-medium leading-[1.04] tracking-[-0.04em]">Pick a challenge.<br />Start solving.</h2><p className="text-lg text-muted">Create an account in a minute. Easy challenges take about fifteen minutes, and a wrong answer never costs points.</p><div className="cta-row"><button className="button button-primary button-large" onClick={createAccount}>{start}</button><button className="button button-secondary button-large" onClick={openBoard}>{signedIn ? "See the leaderboard" : "Sign in for leaderboard"}</button></div></div>
       </section>
     </main>
 

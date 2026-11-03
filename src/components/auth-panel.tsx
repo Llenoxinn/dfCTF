@@ -4,13 +4,14 @@ import ValidatedForm from "./validated-form";
 
 import { FormEvent, useEffect, useState } from "react";
 import type { Bootstrap, Community } from "@/lib/types";
+import { destinationLabel } from "@/lib/auth-navigation";
 import AsciiField from "./ascii-field";
 import DecryptedText from "./decrypted-text";
 import { api, Icon, Loading, Notice, Spinner, Wordmark } from "./ui";
 
 export type AuthMode = "signin" | "signup" | "forgot" | "reset" | "mfa";
 
-export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", back }: { bootstrap: Bootstrap; refresh: () => Promise<void>; initialMode?: AuthMode; back?: () => void }) {
+export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", returnTo, back }: { bootstrap: Bootstrap; refresh: () => Promise<void>; initialMode?: AuthMode; returnTo?: string | null; back?: () => void }) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,7 +55,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
         await api("/api/v1/auth/mfa/verify", { method: "POST", body: JSON.stringify({ code, method: backup ? "backup" : "totp" }) });
         await refresh();
       } else {
-        const result = await api<{ twoFactorRedirect?: boolean }>(`/api/auth/${mode === "signup" ? "sign-up" : "sign-in"}/email`, { method: "POST", body: JSON.stringify({ email, password, ...(mode === "signup" ? { name: email.split("@")[0] } : {}), callbackURL: window.location.origin }) });
+        const result = await api<{ twoFactorRedirect?: boolean }>(`/api/auth/${mode === "signup" ? "sign-up" : "sign-in"}/email`, { method: "POST", body: JSON.stringify({ email, password, ...(mode === "signup" ? { name: email.split("@")[0] } : {}), callbackURL: `${window.location.origin}${returnTo ?? "/"}` }) });
         if (result.twoFactorRedirect) { setMode("mfa"); setPassword(""); }
         else if (mode === "signup") {
           // Better Auth also returns success for existing emails to protect account privacy.
@@ -69,7 +70,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
   async function social(provider: "google" | "github") {
     setBusy(true); setError("");
     try {
-      const result = await api<{ url?: string }>("/api/auth/sign-in/social", { method: "POST", body: JSON.stringify({ provider, callbackURL: window.location.origin }) });
+      const result = await api<{ url?: string }>("/api/auth/sign-in/social", { method: "POST", body: JSON.stringify({ provider, callbackURL: `${window.location.origin}${returnTo ?? "/"}` }) });
       if (result.url) window.location.assign(result.url); else throw new Error("The provider did not return a sign-in link.");
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to connect."); setBusy(false); }
   }
@@ -98,6 +99,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
         {back && (mode === "signin" || mode === "signup") ? <button className="text-button back-link" onClick={back}><Icon name="back" size={16} />Home</button> : null}
         <h2>{title}</h2>
         <p className="muted">{subtitle}</p>
+        {returnTo ? <p className="fine" role="status">Sign in or create an account to open {destinationLabel(returnTo)}. We’ll keep your place.</p> : null}
         {mode === "signin" || mode === "signup" ? <div className="segmented block" role="group" aria-label="Choose an option">
           <button type="button" aria-pressed={mode === "signin"} onClick={() => changeMode("signin")}>Sign in</button>
           <button type="button" aria-pressed={mode === "signup"} onClick={() => changeMode("signup")}>Create account</button>
