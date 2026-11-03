@@ -26,19 +26,21 @@ import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, 
 // The guides are long, so their text loads only when the Resources tab opens.
 const ResourcesContent = dynamic(() => import("./resources-content"), { loading: () => <Loading label="Opening the guides" backdrop /> });
 const PlayerProfileDashboard = dynamic(() => import("./player-profile"), { loading: () => <Loading label="Opening Profile" /> });
+const Socials = dynamic(() => import("./socials"), { loading: () => <Loading label="Opening Socials" /> });
 
-type View = "home" | "practice" | "leaderboard" | "profile" | "progress" | "competitions" | "authoring" | "rules" | "resources" | "settings";
+type View = "home" | "practice" | "leaderboard" | "profile" | "socials" | "progress" | "competitions" | "authoring" | "rules" | "resources" | "settings";
 // Settings lives in the profile menu; home is the landing page behind the wordmark.
 const TABS: { id: View; label: string; staff?: boolean }[] = [
-  { id: "practice", label: "Challenges" }, { id: "leaderboard", label: "Leaderboard" }, { id: "profile", label: "Profile" }, { id: "progress", label: "Progress" },
+  { id: "practice", label: "Challenges" }, { id: "leaderboard", label: "Leaderboard" }, { id: "profile", label: "Profile" }, { id: "socials", label: "Socials" }, { id: "progress", label: "Progress" },
   { id: "competitions", label: "Competitions" }, { id: "authoring", label: "Authoring", staff: true }, { id: "rules", label: "Rules" },
   { id: "resources", label: "Resources" },
 ];
 const VIEWS: View[] = ["home", ...TABS.map(t => t.id), "settings"];
 
-function hrefFor(view: View, challenge = "") {
+function hrefFor(view: View, challenge = "", player = "") {
   const params = new URLSearchParams({ view });
   if (challenge) params.set("challenge", challenge);
+  if (view === "socials" && player) params.set("player", player);
   return `/?${params}`;
 }
 
@@ -60,6 +62,7 @@ export default function Workspace() {
   const [bootError, setBootError] = useState("");
   const [view, setView] = useState<View>("practice");
   const [selected, setSelected] = useState("");
+  const [socialPlayer,setSocialPlayer] = useState("");
   const [competitionRoute,setCompetitionRoute] = useState<CompetitionRoute>({eventId:"",challengeId:""});
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
   const [returnTo, setReturnTo] = useState<string | null>(null);
@@ -106,6 +109,7 @@ export default function Workspace() {
       const requested = target.get("view");
       setView(VIEWS.includes(requested as View) ? requested as View : "practice");
       setSelected(requested === "competitions" ? "" : target.get("challenge") ?? "");
+      setSocialPlayer(requested === "socials" ? target.get("player") ?? "" : "");
       setCompetitionRoute({eventId:target.get("competition")??"",challengeId:requested==="competitions"?target.get("challenge")??"":""});
       const auth = params.get("auth");
       const linkFlow = params.has("token") || params.has("verified") || params.has("error");
@@ -155,7 +159,7 @@ export default function Workspace() {
   }
   function navigate(next: View, challenge = "") {
     if (leaveGuard.current && !leaveGuard.current()) return;
-    setView(next); setSelected(challenge);
+    setView(next); setSelected(challenge); setSocialPlayer("");
     setCompetitionRoute({eventId:"",challengeId:""});
     pushLocation(hrefFor(next, challenge));
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -164,9 +168,14 @@ export default function Workspace() {
   function openCompetition(eventId="",challengeId="") {
     if (leaveGuard.current && !leaveGuard.current()) return;
     const moved = !challengeId && eventId !== competitionRoute.eventId;
-    setView("competitions");setSelected("");setCompetitionRoute({eventId,challengeId});
+    setView("competitions");setSelected("");setSocialPlayer("");setCompetitionRoute({eventId,challengeId});
     const params=new URLSearchParams({view:"competitions",...(eventId?{competition:eventId}:{}),...(challengeId?{challenge:challengeId}:{})});
     pushLocation(`/?${params}`);if(moved)window.scrollTo({top:0,behavior:"instant"});
+  }
+  function openPlayer(codename: string) {
+    if (leaveGuard.current && !leaveGuard.current()) return;
+    setView("socials");setSelected("");setSocialPlayer(codename);setCompetitionRoute({eventId:"",challengeId:""});
+    pushLocation(hrefFor("socials","",codename));window.scrollTo({top:0,behavior:"instant"});document.getElementById("main-content")?.focus({preventScroll:true});
   }
   function openAuth(mode: AuthMode | null, destination?: string) {
     if (leaveGuard.current && !leaveGuard.current()) return;
@@ -176,6 +185,7 @@ export default function Workspace() {
     if (target) {
       const params = new URLSearchParams(target.split("?")[1]);
       setView(params.get("view") as View); setSelected(params.get("challenge") ?? "");
+      setSocialPlayer(params.get("player") ?? "");
     } else if (mode) { setView("practice"); setSelected(""); }
     pushLocation(mode ? `/?${new URLSearchParams({ auth: mode, ...(target ? { returnTo: target } : {}) })}` : "/");
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -199,8 +209,8 @@ export default function Workspace() {
   const activeView = view === "authoring" && !staff ? "practice" : view;
   const weekly = challenges.find(isWeekly);
   // A challenge opens as a dialog over the current page, so closing it keeps your place and scroll.
-  const openChallenge = (id: string) => { setSelected(id); pushLocation(hrefFor(activeView, id)); };
-  const closeChallenge = () => { setSelected(""); pushLocation(hrefFor(activeView)); };
+  const openChallenge = (id: string) => { setSelected(id); pushLocation(hrefFor(activeView, id, socialPlayer)); };
+  const closeChallenge = () => { setSelected(""); pushLocation(hrefFor(activeView,"",socialPlayer)); };
 
   return <div className="app">
     <a className="skip-link" href="#main-content" onClick={event => inPlace(event, () => document.getElementById("main-content")?.focus())}>Skip to content</a>
@@ -220,13 +230,14 @@ export default function Workspace() {
       {dataError ? <Notice type="error">{dataError} <button className="text-button" onClick={loadData}>Try again</button></Notice> : null}
       {activeView === "settings" ? <Settings bootstrap={bootstrap} refresh={refresh} signOut={signOut} board={board} progress={progress} />
         : activeView === "profile" ? <PlayerProfileDashboard key={user.id} userId={user.id} refreshKey={`${progress?.totalXp??0}:${progress?.solvedCount??0}`} open={id=>id?openChallenge(id):navigate("practice")} settings={()=>navigate("settings")} refreshSession={refresh}/>
+        : activeView === "socials" ? <Socials key={user.id} codename={socialPlayer} openPlayer={openPlayer} back={()=>navigate("socials")} ownProfile={()=>navigate("profile")} openChallenge={openChallenge}/>
         : activeView === "authoring" ? <Authoring bootstrap={bootstrap} goSettings={() => navigate("settings")} registerLeaveGuard={registerLeaveGuard} />
         : activeView === "rules" ? <RulesContent />
         : activeView === "resources" ? <LearningProgressProvider key={bootstrap.user.id} userId={bootstrap.user.id}><ResourcesContent /></LearningProgressProvider>
         : activeView === "competitions" ? <Competitions bootstrap={bootstrap} route={competitionRoute} open={openCompetition} goSettings={() => navigate("settings")} renderChallenge={(eventId,id,back,onSolved) => <ChallengeView key={`${eventId}:${id}`} id={id} competitionId={eventId} back={back} onSolved={onSolved} />} />
         // Load before the first library render: mounting it empty, then swapping in the loader, drops focus from its search box.
         : !progress && !dataError ? <Loading label="Loading the board" backdrop />
-        : activeView === "leaderboard" ? <LeaderboardView initial={board} progress={progress} viewer={codename} />
+        : activeView === "leaderboard" ? <LeaderboardView initial={board} progress={progress} viewer={codename} openPlayer={openPlayer}/>
         : activeView === "progress" ? <ProgressView progress={progress} board={board} total={challenges.length} open={openChallenge} browse={() => navigate("practice")} />
         : <Library challenges={challenges} progress={progress} board={board} query={query} setQuery={setQuery} searchInput={searchInput} open={openChallenge} />}
       {selected && activeView !== "competitions" ? <ChallengeView key={selected} id={selected} back={closeChallenge} onSolved={loadData} /> : null}
@@ -464,14 +475,14 @@ function solveTime(value: string) {
   return new Date(value).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 }
 
-function StandingsTable({ standings, viewer, max }: { standings: Leaderboard["standings"]; viewer: Leaderboard["viewer"]; max: number }) {
+function StandingsTable({ standings, viewer, max, openPlayer }: { standings: Leaderboard["standings"]; viewer: Leaderboard["viewer"]; max: number; openPlayer:(name:string)=>void }) {
   const shown = standings.slice(0, 15), pinned = viewer && !shown.some(s => s.codename === viewer.codename);
-  const row = (s: Leaderboard["standings"][number], you: boolean) => <li key={s.codename} className={`${s.rank <= 3 ? "top" : ""}${you ? " you" : ""}`}><span className="rank mono">{String(s.rank).padStart(2, "0")}</span><Identicon name={s.codename} you={you} /><span className="mono name">{s.codename}{you ? <em>you</em> : null}</span><Meter value={s.points} max={max} tone={s.rank <= 3 || you ? "accent" : "ink"} label={`${s.points} points`} /><span className="mono num muted">{s.solves}</span><span className="mono num strong">{s.points.toLocaleString()}</span></li>;
+  const row = (s: Leaderboard["standings"][number], you: boolean) => <li key={s.codename} className={`${s.rank <= 3 ? "top" : ""}${you ? " you" : ""}`}><span className="rank mono">{String(s.rank).padStart(2, "0")}</span><Identicon name={s.codename} you={you} /><a className="mono name player-profile-link" href={hrefFor("socials","",s.codename)} aria-label={`View ${s.codename}'s profile`} onClick={e=>inPlace(e,()=>openPlayer(s.codename))}>{s.codename}{you ? <em>you</em> : null}</a><Meter value={s.points} max={max} tone={s.rank <= 3 || you ? "accent" : "ink"} label={`${s.points} points`} /><span className="mono num muted">{s.solves}</span><span className="mono num strong">{s.points.toLocaleString()}</span></li>;
   if (!standings.length) return <p className="muted panel-pad">No points yet in this range. The first solve puts a name at the top.</p>;
   return <ol className="standings"><li className="standings-head" aria-hidden="true"><span>#</span><span /><span>Player</span><span /><span className="num">Solves</span><span className="num">Points</span></li>{shown.map(s => row(s, s.codename === viewer?.codename))}{pinned ? <><li className="gap mono faint" aria-hidden="true">...</li>{row(viewer, true)}</> : null}</ol>;
 }
 
-function LeaderboardView({ initial, progress, viewer }: { initial: Leaderboard | null; progress: Progress | null; viewer: string }) {
+function LeaderboardView({ initial, progress, viewer, openPlayer }: { initial: Leaderboard | null; progress: Progress | null; viewer: string; openPlayer:(name:string)=>void }) {
   const [range, setRange] = useState<"week" | "all">("week");
   const [data, setData] = useState<Leaderboard | null>(initial);
   const [error, setError] = useState("");
@@ -484,7 +495,7 @@ function LeaderboardView({ initial, progress, viewer }: { initial: Leaderboard |
     {error ? <Notice type="error">{error} <button className="text-button" onClick={() => setRetry(n => n + 1)}>Try again</button></Notice> : !data ? <Loading label="Loading the leaderboard" backdrop /> : <>
     {range === "week" ? <section className="panel" aria-labelledby="race-title"><div className="panel-head"><h2 id="race-title">Race for #1</h2><InfoTip text="Each line is a player’s rank against all players, sampled at 20:00 Philippine time each day and now. Gaps mean the player had no solves yet. The bars are solves per hour; yellow caps mark hours with a first blood." /><span className="muted hide-sm">How this week’s top players have moved. Hover a name to follow its line.</span><span className="spacer" /><span className="muted">{left} left</span></div><RaceChart race={data.race} hourly={data.hourly} viewer={viewer} /></section> : null}
     <div className="lb-grid">
-      <section className="panel" aria-labelledby="stand-title"><div className="panel-head"><h2 id="stand-title">Standings</h2><InfoTip text="Points in this range. The meter shows each player’s points relative to the leader." /><span className="spacer" /><span className="muted">{data.players} {data.players === 1 ? "player" : "players"}</span></div><StandingsTable standings={data.standings} viewer={data.viewer} max={data.standings[0]?.points ?? 0} /></section>
+      <section className="panel" aria-labelledby="stand-title"><div className="panel-head"><h2 id="stand-title">Standings</h2><InfoTip text="Points in this range. The meter shows each player’s points relative to the leader. Select a player’s name to view their profile." /><span className="spacer" /><span className="muted">{data.players} {data.players === 1 ? "player" : "players"}</span></div><StandingsTable standings={data.standings} viewer={data.viewer} max={data.standings[0]?.points ?? 0} openPlayer={openPlayer}/></section>
       <div className="lb-side">
         <section className="panel" aria-labelledby="you-title"><div className="panel-head"><h2 id="you-title">Your standing</h2><InfoTip text="Your rank and points in this range, and how your solves spread across the seven categories." /><span className="spacer" /><span className="mono muted">{viewer}</span></div>
           <div className="you-stats"><div><strong className="accent">{data.viewer ? `#${data.viewer.rank}` : "unranked"}</strong><span>rank</span></div><div><strong>{(data.viewer?.points ?? 0).toLocaleString()}</strong><span>points</span></div><div><strong>{data.viewer?.solves ?? 0}</strong><span>solves</span></div></div>

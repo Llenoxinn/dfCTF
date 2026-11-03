@@ -6,7 +6,7 @@ import { profileMilestones, type PlayerProfile, type ProfileScope } from "../../
 test.use({deviceScaleFactor:2});
 function fixture(scope:ProfileScope,empty=false,long=false):PlayerProfile {
   const stats=empty?{rank:null,points:0,solved:0,firstBloods:0}:scope==="week"?{rank:5,points:25,solved:1,firstBloods:0}:{rank:2,points:160,solved:5,firstBloods:2};
-  const identity={codename:"profile_browser",displayName:empty?"":long?"学ぶ人🌐の長い名前とセキュリティ研究の旅を続ける人たち":"Fixture Learner",bio:empty?"":"Fictional player details used only in automated tests.",websiteUrl:"",githubUrl:""};
+  const identity={codename:"profile_browser",displayName:empty?"":long?"学ぶ人🌐の長い名前とセキュリティ研究の旅を続ける人たち":"Fixture Learner",bio:empty?"":"Fictional player details used only in automated tests.",websiteUrl:"",githubUrl:"",shareProfile:false};
   const scopeInfo={id:scope,label:scope==="week"?"Practice · this week":"Practice · all time",period:scope==="week"?"2 Nov – 8 Nov 2026 · PHT":"All-time practice"};
   const milestones=profileMilestones(stats),asOf="2026-11-03T10:00:00Z";
   const items=empty?[]:[{challengeId:`fixture-${scope}`,title:`${scope==="week"?"Weekly":"All-time"} fixture capture`,category:"Forensics" as const,at:asOf,points:stats.points,firstBlood:scope!=="week"}];
