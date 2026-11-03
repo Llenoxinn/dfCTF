@@ -60,3 +60,18 @@ Browser checks cover network failure/retry, expired sessions, history, search,
 competition-profile links, and narrow layouts in both site themes. Real Dark
 and Light PNG downloads were checked for PNG format and 2400 × 1350 dimensions,
 then opened for visual inspection.
+
+## Staging upgrade
+
+On 3 November 2026, after the owner's explicit approval for this migration, a
+fresh consistent logical snapshot was saved under the ignored
+`.data/socials-upgrade-backups/` directory, including pre-upgrade migrations and
+the migration journal. This private row snapshot is not a pg_dump archive or a
+completed restore rehearsal. A preflight check verified staging's previous
+migration hash before applying `0006_social_connections`.
+
+The migration succeeded. Friendship-table RLS, both new query indexes, and the
+non-null, default-false sharing column were verified before publishing Socials.
+No real player relationships were created during rollout. Production-domain
+promotion remains a Vercel deployment step; a successful build alone does not
+verify that the public domain serves the new revision.
