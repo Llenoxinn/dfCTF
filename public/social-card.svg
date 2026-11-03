@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#101113"/>
+  <rect x="28" y="28" width="1144" height="574" fill="none" stroke="#343536"/>
+  <g fill="#FFD23F" opacity=".14">
+    <path d="M916 80h24v24h-24zM964 80h24v24h-24zM1012 80h24v24h-24zM1060 80h24v24h-24zM1108 80h24v24h-24zM964 128h24v24h-24zM1012 128h24v24h-24zM1060 128h24v24h-24zM1108 128h24v24h-24zM1012 176h24v24h-24zM1060 176h24v24h-24zM1108 176h24v24h-24zM1060 224h24v24h-24zM1108 224h24v24h-24zM1108 272h24v24h-24z"/>
+  </g>
+  <text x="76" y="126" fill="#FFD23F" font-family="Consolas,monospace" font-size="52" font-weight="700">df<tspan fill="#F0EFE6">CTF</tspan></text>
+  <text x="78" y="173" fill="#A4A49F" font-family="Arial,sans-serif" font-size="19" letter-spacing="2">BY DFC DEVELOPERS</text>
+  <text x="76" y="310" fill="#F0EFE6" font-family="Arial,sans-serif" font-size="67" font-weight="700" letter-spacing="-2">Solve security challenges.</text>
+  <text x="76" y="395" fill="#FFD23F" font-family="Arial,sans-serif" font-size="76" font-weight="700" letter-spacing="-2">Capture the flag.</text>
+  <path d="M76 469h1048" stroke="#343536"/>
+  <text x="78" y="537" fill="#C5C5BD" font-family="Arial,sans-serif" font-size="24">Learn. Investigate. Solve.</text>
+  <text x="1124" y="537" fill="#A4A49F" font-family="Consolas,monospace" font-size="22" text-anchor="end">dfctf.vercel.app</text>
+</svg>
