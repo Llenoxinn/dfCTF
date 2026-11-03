@@ -108,7 +108,7 @@ export default function Workspace() {
       setCompetitionRoute({eventId:target.get("competition")??"",challengeId:requested==="competitions"?target.get("challenge")??"":""});
       const auth = params.get("auth");
       const linkFlow = params.has("token") || params.has("verified") || params.has("error");
-      setAuthMode(params.get("reset") === "1" && params.has("token") ? "reset" : auth === "signup" ? "signup" : auth === "signin" || linkFlow || destination ? "signin" : null);
+      setAuthMode(params.get("reset") === "1" && params.has("token") ? "reset" : auth === "signup" ? "signup" : auth === "signin" || linkFlow ? "signin" : null);
     }
     readLocation(); window.addEventListener("popstate", readLocation);
     return () => window.removeEventListener("popstate", readLocation);
@@ -187,7 +187,7 @@ export default function Workspace() {
 
   if (bootError && !bootstrap) return <Screen><Wordmark size="lg" /><div className="gate-card"><Notice type="error">{bootError}</Notice><button className="button button-primary" onClick={refresh}>Try again</button></div></Screen>;
   if (!bootstrap) return <Screen><Wordmark size="lg" /><Loading label="Opening dfCTF" /></Screen>;
-  if (authMode === "reset" || !bootstrap.user) return authMode ? <AuthPanel key={authMode === "reset" ? "reset" : "account"} bootstrap={bootstrap} refresh={refresh} initialMode={authMode} returnTo={returnTo} back={() => openAuth(null)} /> : <Landing signIn={() => openAuth("signin")} createAccount={() => openAuth("signup")} requestSignIn={destination => openAuth("signin", destination)} />;
+  if (authMode === "reset" || !bootstrap.user) return authMode || returnTo ? <AuthPanel key={authMode === "reset" ? "reset" : "account"} bootstrap={bootstrap} refresh={refresh} initialMode={authMode ?? "signin"} returnTo={returnTo} back={() => openAuth(null)} /> : <Landing signIn={() => openAuth("signin")} createAccount={() => openAuth("signup")} requestSignIn={destination => openAuth("signin", destination)} />;
   if (!bootstrap.hasAccess) return <AccessGate bootstrap={bootstrap} refresh={refresh} signOut={signOut} />;
   if (!bootstrap.user.codename) return <Onboarding user={bootstrap.user} refresh={refresh} />;
   if (view === "home") return <Landing signIn={() => navigate("leaderboard")} createAccount={() => navigate("practice")} enter={navigate} />;
