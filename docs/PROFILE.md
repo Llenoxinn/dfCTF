@@ -80,5 +80,12 @@ production build are the configured checks.
 Before deploying, apply `0005_player_profiles` using the existing migration
 connection and verify the new table, RLS, and two solve indexes. The migration
 is additive and existing profile rows are optional. Local verification does not
-apply migrations to a shared database. At this handoff, the shared-database
-snapshot and upgrade are pending the owner's explicit approval.
+apply migrations to a shared database.
+
+On 3 November 2026, after explicit owner approval, a consistent logical row
+snapshot of the existing staging application tables and migration journal was
+saved under the ignored `.data/profile-upgrade-backups/` directory together with
+the pre-upgrade SQL migrations. This is a private local snapshot, not a pg_dump
+archive or a completed restore drill. Migration `0005_player_profiles` was then
+applied to the saved staging database; the new table's RLS and both solve
+indexes were verified before publishing the application changes.
