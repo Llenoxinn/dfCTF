@@ -283,13 +283,13 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
       <section id="this-week" aria-labelledby="week-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead id="week-title" title="This week’s featured challenge.">When a weekly challenge is published, you’ll find it here. Solve it before Sunday 23:59 Philippine time to earn points on that week’s board.</SectionHead>
+        <SectionHead id="week-title" title="Featured this week.">Featured challenges appear when they’re ready. Every eligible practice solve earns points on the week’s board, which resets on Monday at 00:00 Philippine time.</SectionHead>
         <div className="grid gap-px border-t border-line bg-line lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="flex min-w-0 flex-col gap-6 bg-bg p-4 sm:p-6">
-            <p className="label-dot">{data?.weekly ? "This week closes in" : "The week closes in"}</p>
-            <Countdown endsAt={endsAt} />
+            {data?.weekly ? <><p className="label-dot">This week closes in</p><Countdown endsAt={endsAt} /></> : null}
             {data?.weekly ? <div className="mt-auto grid gap-4 [&_.card]:w-full"><ChallengeCard title={data.weekly.title} category={data.weekly.category} xp={data.weekly.xp} difficulty={data.weekly.difficulty} solveCount={data.weekly.solveCount} state="weekly" /><button className="button button-primary justify-self-start" onClick={enter ? () => enter("practice", data.weekly!.id) : signIn}>Open this week’s challenge</button></div>
-              : <div className="mt-auto grid justify-items-start gap-3 rounded-xs border border-dashed border-line-strong p-5"><p className="font-semibold">No weekly challenge yet</p><p className="text-sm text-muted">The next one appears here when it drops. Until then, the whole board is open.</p><button className="button button-secondary" onClick={createAccount}>{start}</button></div>}
+              : !data ? <p className="text-sm text-muted">{error ? "The featured challenge is temporarily unavailable." : "Checking for a featured challenge…"}</p>
+              : <div className="mt-auto grid justify-items-start gap-3 rounded-xs border border-dashed border-line-strong p-5"><p className="font-semibold">No featured challenge this week</p><p className="text-sm text-muted">There’s no scheduled release to wait for. Explore the practice library; its eligible solves still count toward this week’s standings.</p><button className="button button-secondary" onClick={createAccount}>{start}</button></div>}
           </div>
           <section aria-labelledby="recent-title" className="flex min-w-0 flex-col bg-bg">
             <div className="flex min-h-14 items-center gap-2.5 border-b border-line px-4 sm:px-6"><h3 id="recent-title" className="text-base font-semibold">Recent solves</h3><InfoTip text="The most recent correct flags across dfCTF. First blood is the first solve of a challenge." /></div>
