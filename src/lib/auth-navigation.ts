@@ -1,6 +1,6 @@
 import { CATEGORIES, DIFFICULTIES } from "./types";
 
-const protectedViews = ["practice", "leaderboard", "progress", "competitions", "authoring", "settings"];
+const protectedViews = ["practice", "leaderboard", "profile", "socials", "progress", "competitions", "authoring", "settings"];
 
 /** Keep login destinations inside known workspace routes; never accept an external redirect. */
 export function safeReturnTo(value: string | null): string | null {
@@ -10,6 +10,8 @@ export function safeReturnTo(value: string | null): string | null {
   const view = url.searchParams.get("view");
   if (!view || !protectedViews.includes(view)) return null;
   const params = new URLSearchParams({ view });
+  const player = url.searchParams.get("player");
+  if(view === "socials" && player && /^[A-Za-z0-9_.-]{3,24}$/.test(player))params.set("player",player);
   for (const key of ["challenge", "competition"] as const) {
     const id = url.searchParams.get(key);
     if (id && id.length <= 200) params.set(key, id);
@@ -29,5 +31,5 @@ export function destinationLabel(destination: string): string {
   const params = new URLSearchParams(destination.split("?")[1]);
   const view = params.get("view");
   if (view === "practice") return params.has("challenge") ? "the selected challenge" : params.has("category") ? `${params.get("category")} challenges` : "the challenge library";
-  return ({ leaderboard: "the full leaderboard", progress: "your progress", competitions: "competitions", authoring: "authoring", settings: "your settings" } as Record<string, string>)[view ?? ""] ?? "the challenge library";
+  return ({ leaderboard: "the full leaderboard", profile: "your profile", socials: params.has("player") ? `${params.get("player")}'s player profile` : "Socials", progress: "your progress", competitions: "competitions", authoring: "authoring", settings: "your settings" } as Record<string, string>)[view ?? ""] ?? "the challenge library";
 }

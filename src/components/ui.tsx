@@ -151,7 +151,7 @@ export function Loading({ label = "Loading", backdrop = false }: { label?: strin
 }
 
 /** A native modal dialog: the page behind goes inert, Escape and the backdrop close it, and focus returns to whatever opened it. */
-export function Modal({ labelledBy, onClose, children, className = "" }: { labelledBy: string; onClose: () => void; children: ReactNode; className?: string }) {
+export function Modal({ labelledBy, onClose, children, className = "", dismissible = true }: { labelledBy: string; onClose: () => void; children: ReactNode; className?: string; dismissible?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const downOnBackdrop = useRef(false);
@@ -166,9 +166,9 @@ export function Modal({ labelledBy, onClose, children, className = "" }: { label
     const r = e.currentTarget.getBoundingClientRect();
     return e.target === e.currentTarget && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom);
   };
-  return <dialog ref={ref} className={`modal ${className}`} aria-labelledby={labelledBy} onClose={onClose}
+  return <dialog ref={ref} className={`modal ${className}`} aria-labelledby={labelledBy} onClose={onClose} onCancel={event=>{if(!dismissible)event.preventDefault();}}
     onPointerDown={e => { downOnBackdrop.current = outside(e); }}
-    onClick={e => { if (downOnBackdrop.current && outside(e)) ref.current?.close(); }}>{children}</dialog>;
+    onClick={e => { if (dismissible && downOnBackdrop.current && outside(e)) ref.current?.close(); }}>{children}</dialog>;
 }
 
 export function Empty({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
