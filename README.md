@@ -136,9 +136,12 @@ chooses to share them. Apply `0006_social_connections` before deploying Socials;
 see [visibility and friendship rules](docs/SOCIALS.md).
 
 The main navigation contains **Challenges**, **Leaderboard**, **Competitions**,
-and **Resources**. Open the account menu beside your codename for **Profile**,
-**Socials**, **Progress**, **Rules**, and **Settings**; staff also see **Authoring**
-under Staff tools. The current personal page is shown beside your account name.
+and **Resources**. Open the account menu beside your codename to see your
+identicon, rank, and points, followed by **Profile**, **Progress**, and **Socials**,
+then **Settings** and **Rules**, with **Sign out** at the bottom. Staff also see
+**Authoring**, marked `staff`. The current page is highlighted in the menu and shown
+beside your account name. Arrow keys, Home, and End move between menu items;
+Escape closes the menu and returns focus to the account button.
 
 | Command | Purpose |
 | --- | --- |
