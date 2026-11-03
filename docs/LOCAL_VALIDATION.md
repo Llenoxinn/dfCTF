@@ -40,6 +40,27 @@ These checks validate local behavior with synthetic accounts, artifacts, and fla
 
 ## Latest local verification
 
+On 3 November 2026, the public-site review changes through staging application
+revision `0e82c24` passed TypeScript validation, the production build, and private
+file verification of all 41 build manifests. The unit suite passed all 163 tests.
+The final Edge browser run passed all 69 cases, including guest destinations and
+lesson filters through sign-in, social-login error recovery, mobile navigation,
+private support access before registration, and preservation of draft fragment
+history. All three real integration flows passed: account learning sync,
+registration/verification/password reset/downloads/concurrent scoring, and staff
+MFA/file removal/independent publication. Desktop and mobile support pages and
+the 1200×630 sharing image were visually inspected.
+
+The live-site review found Google `Error 400: redirect_uri_mismatch` for
+`https://dfctf.vercel.app/api/auth/callback/google`. Registering that URI on the
+owning Google Cloud web client remains an external configuration step; Google
+Cloud required owner sign-in during the review. GitHub initiation reached its
+expected login page, but neither provider's complete real-account round trip was
+validated. See [OAuth setup](OAUTH.md). The local tests do not validate live SMTP,
+provider secrets, deployment rollout, or database restoration. Challenge data was
+not changed: the difficulty and optional weekly-feature claims were corrected in
+the UI rather than creating or publishing unreviewed production content.
+
 On 31 October 2026, the `finalization` application changes through `264ee7c` passed TypeScript validation, all 145 unit tests, the production build, and independent verification of all 37 build manifests. The verifier first rejected the earlier manifests containing local `.data` files; the final build removed those references and passed. The native-auth route's traced files fell from about 223 MiB to 24 MiB on this Windows checkout. `npm audit --include=dev --audit-level=high` reported zero vulnerabilities, and all three training fixtures passed their consistency checks.
 
 The final browser run passed 50 cases; its new oversized-upload assertion initially also matched Next's route announcer. After scoping that test to the application's main region, the remaining case passed a targeted rerun. All three real integration tests passed with `ARTIFACT_LOCAL_BACKUP=0`, covering player, staff, and account-learning flows without artifact disk copies. PostgreSQL tools were unavailable on this checkout's PATH, so the native PostgreSQL recovery drill was not rerun here. Live Vercel, SMTP, OAuth, provider pooling, and deployed restoration remain the unchecked steps in [the Vercel staging checklist](VERCEL.md).
