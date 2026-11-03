@@ -234,7 +234,7 @@ export default function Workspace() {
         : activeView === "authoring" ? <Authoring bootstrap={bootstrap} goSettings={() => navigate("settings")} registerLeaveGuard={registerLeaveGuard} />
         : activeView === "rules" ? <RulesContent />
         : activeView === "resources" ? <LearningProgressProvider key={bootstrap.user.id} userId={bootstrap.user.id}><ResourcesContent /></LearningProgressProvider>
-        : activeView === "competitions" ? <Competitions bootstrap={bootstrap} route={competitionRoute} open={openCompetition} goSettings={() => navigate("settings")} renderChallenge={(eventId,id,back,onSolved) => <ChallengeView key={`${eventId}:${id}`} id={id} competitionId={eventId} back={back} onSolved={onSolved} />} />
+        : activeView === "competitions" ? <Competitions bootstrap={bootstrap} route={competitionRoute} open={openCompetition} openPlayer={openPlayer} goSettings={() => navigate("settings")} renderChallenge={(eventId,id,back,onSolved) => <ChallengeView key={`${eventId}:${id}`} id={id} competitionId={eventId} back={back} onSolved={onSolved} />} />
         // Load before the first library render: mounting it empty, then swapping in the loader, drops focus from its search box.
         : !progress && !dataError ? <Loading label="Loading the board" backdrop />
         : activeView === "leaderboard" ? <LeaderboardView initial={board} progress={progress} viewer={codename} openPlayer={openPlayer}/>

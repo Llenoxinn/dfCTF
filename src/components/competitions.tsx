@@ -5,6 +5,7 @@ import ValidatedForm from "./validated-form";
 import Link from "next/link";
 import { useCallback,useEffect,useRef,useState,type FormEvent,type ReactNode } from "react";
 import type { Bootstrap,ChallengeSummary,Competition,CompetitionDetail } from "@/lib/types";
+import { playerHref } from "@/lib/socials";
 import { ChallengeCard } from "./cards";
 import { api,Empty,Icon,Loading,Notice } from "./ui";
 
@@ -13,7 +14,7 @@ const href=(id="",challenge="")=>`/?${new URLSearchParams({view:"competitions",.
 const phaseName={upcoming:"Upcoming",live:"Live",ended:"Ended"};
 export type CompetitionRoute={eventId:string;challengeId:string};
 
-export default function Competitions({bootstrap,goSettings,renderChallenge,route,open}:{bootstrap:Bootstrap;goSettings:()=>void;renderChallenge:(eventId:string,id:string,back:()=>void,onSolved:()=>Promise<void>)=>ReactNode;route:CompetitionRoute;open:(id?:string,challenge?:string)=>void}){
+export default function Competitions({bootstrap,goSettings,renderChallenge,route,open,openPlayer}:{bootstrap:Bootstrap;goSettings:()=>void;renderChallenge:(eventId:string,id:string,back:()=>void,onSolved:()=>Promise<void>)=>ReactNode;route:CompetitionRoute;open:(id?:string,challenge?:string)=>void;openPlayer:(codename:string)=>void}){
   const [items,setItems]=useState<Competition[]>([]);const {eventId:selected,challengeId:challenge}=route;
   const [detail,setDetail]=useState<CompetitionDetail|null>(null),[editor,setEditor]=useState<string|null>(null),[manage,setManage]=useState(false);
   const [loading,setLoading]=useState(true),[error,setError]=useState(""),[busy,setBusy]=useState(false);
@@ -57,7 +58,7 @@ export default function Competitions({bootstrap,goSettings,renderChallenge,route
         </section>
         <section className="panel" aria-labelledby="event-scoreboard-title"><div className="panel-head"><h2 id="event-scoreboard-title">Competition scoreboard</h2><span className="spacer"/><button className="text-button" onClick={load}>Refresh scoreboard</button></div>
           <p className="fine panel-pad">Fixed points per challenge. Ties go to whoever reached the score first. The top 50 players are shown.</p>
-          {detail.standings.length?<div className="competition-score-wrap"><table className="competition-scoreboard"><thead><tr><th>Rank</th><th>Player</th><th>Solves</th><th>Points</th></tr></thead><tbody>{detail.standings.map(s=><tr key={s.codename}><td className="mono">{s.rank}</td><td className="mono">{s.codename}{s.codename===bootstrap.user?.codename?" (you)":""}</td><td className="mono">{s.solves}</td><td className="mono accent">{s.points}</td></tr>)}</tbody></table></div>:<p className="muted panel-pad">No competition solves yet.</p>}
+          {detail.standings.length?<div className="competition-score-wrap"><table className="competition-scoreboard"><thead><tr><th>Rank</th><th>Player</th><th>Solves</th><th>Points</th></tr></thead><tbody>{detail.standings.map(s=><tr key={s.codename}><td className="mono">{s.rank}</td><td className="mono"><a href={playerHref(s.codename)} className="player-profile-link" aria-label={`View ${s.codename}'s profile`} onClick={event=>{if(event.button||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();openPlayer(s.codename);}}>{s.codename}{s.codename===bootstrap.user?.codename?" (you)":""}</a></td><td className="mono">{s.solves}</td><td className="mono accent">{s.points}</td></tr>)}</tbody></table></div>:<p className="muted panel-pad">No competition solves yet.</p>}
         </section>
       </>:null}
     </>:!selected?<>{manage?<Notice>Create a draft, choose its host and schedule, then publish. Prepare competition-only challenges in Authoring and send them through independent review first.</Notice>:null}
