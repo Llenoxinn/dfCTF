@@ -29,13 +29,18 @@ const PlayerProfileDashboard = dynamic(() => import("./player-profile"), { loadi
 const Socials = dynamic(() => import("./socials"), { loading: () => <Loading label="Opening Socials" /> });
 
 type View = "home" | "practice" | "leaderboard" | "profile" | "socials" | "progress" | "competitions" | "authoring" | "rules" | "resources" | "settings";
-// Settings lives in the profile menu; home is the landing page behind the wordmark.
-const TABS: { id: View; label: string; staff?: boolean }[] = [
-  { id: "practice", label: "Challenges" }, { id: "leaderboard", label: "Leaderboard" }, { id: "profile", label: "Profile" }, { id: "socials", label: "Socials" }, { id: "progress", label: "Progress" },
-  { id: "competitions", label: "Competitions" }, { id: "authoring", label: "Authoring", staff: true }, { id: "rules", label: "Rules" },
+// Frequent shared destinations stay visible; personal pages, help and staff tools live in the account disclosure.
+const TABS: { id: View; label: string }[] = [
+  { id: "practice", label: "Challenges" }, { id: "leaderboard", label: "Leaderboard" },
+  { id: "competitions", label: "Competitions" },
   { id: "resources", label: "Resources" },
 ];
-const VIEWS: View[] = ["home", ...TABS.map(t => t.id), "settings"];
+const ACCOUNT_GROUPS: {label:string;staff?:boolean;items:{id:View;label:string}[]}[] = [
+  {label:"Your space",items:[{id:"profile",label:"Profile"},{id:"socials",label:"Socials"},{id:"progress",label:"Progress"}]},
+  {label:"Staff tools",staff:true,items:[{id:"authoring",label:"Authoring"}]},
+  {label:"Help & account",items:[{id:"rules",label:"Rules"},{id:"settings",label:"Settings"}]},
+];
+const VIEWS: View[] = ["home", ...TABS.map(t => t.id), ...ACCOUNT_GROUPS.flatMap(group=>group.items.map(item=>item.id))];
 
 function hrefFor(view: View, challenge = "", player = "") {
   const params = new URLSearchParams({ view });
@@ -207,7 +212,6 @@ export default function Workspace() {
   const codename = user.codename!;
   const staff = user.role !== "participant";
   const activeView = view === "authoring" && !staff ? "practice" : view;
-  const weekly = challenges.find(isWeekly);
   // A challenge opens as a dialog over the current page, so closing it keeps your place and scroll.
   const openChallenge = (id: string) => { setSelected(id); pushLocation(hrefFor(activeView, id, socialPlayer)); };
   const closeChallenge = () => { setSelected(""); pushLocation(hrefFor(activeView,"",socialPlayer)); };
@@ -216,14 +220,10 @@ export default function Workspace() {
     <a className="skip-link" href="#main-content" onClick={event => inPlace(event, () => document.getElementById("main-content")?.focus())}>Skip to content</a>
     <header className="app-bar">
       <a href={hrefFor("home")} className="brand-link" aria-label="dfCTF home" onClick={e => inPlace(e, () => navigate("home"))}><Wordmark /></a>
-      <nav className="tabs" aria-label="Main">{TABS.filter(v => !v.staff || staff).flatMap(v => {
-        const current = activeView === v.id && (!weekly || selected !== weekly.id);
-        const tab = <a key={v.id} className="tab" href={hrefFor(v.id)} aria-current={current ? "page" : undefined} onClick={e => inPlace(e, () => navigate(v.id))}><span>{v.label}</span></a>;
-        return v.id === "leaderboard" && weekly ? [tab, <a key="week" className="tab" href={hrefFor("practice", weekly.id)} aria-current={selected === weekly.id ? "page" : undefined} onClick={e => inPlace(e, () => navigate("practice", weekly.id))}><span>This week</span></a>] : [tab];
-      })}</nav>
+      <nav className="tabs" aria-label="Main">{TABS.map(v=><a key={v.id} className="tab" href={hrefFor(v.id)} aria-current={activeView===v.id?"page":undefined} onClick={e=>inPlace(e,()=>navigate(v.id))}><span>{v.label}</span></a>)}</nav>
       <span className="spacer" />
       {board?.weekEndsAt ? <WeekChip endsAt={board.weekEndsAt} onOpen={e => inPlace(e, () => navigate("leaderboard"))} /> : null}
-      <ProfileMenu codename={codename} points={progress?.totalXp ?? 0} rank={board?.viewer?.rank} onProfile={() => navigate("profile")} onSettings={() => navigate("settings")} onSignOut={signOut} />
+      <ProfileMenu codename={codename} points={progress?.totalXp ?? 0} rank={board?.viewer?.rank} current={activeView} staff={staff} navigate={navigate} onSignOut={signOut} />
     </header>
     <main className="app-main" id="main-content" tabIndex={-1}>
       {bootError ? <Notice type="error">{bootError}</Notice> : null}
@@ -251,8 +251,10 @@ function Screen({ children }: { children: ReactNode }) {
   return <div className="center-screen"><AsciiField className="screen-ascii" ox={0.5} oy={1.08} rx={0.75} ry={0.7} fadeFrom={-1} fadeTo={0} />{children}</div>;
 }
 
-function ProfileMenu({ codename, points, rank, onProfile, onSettings, onSignOut }: { codename: string; points: number; rank?: number; onProfile:()=>void; onSettings: () => void; onSignOut: () => void }) {
+function ProfileMenu({ codename, points, rank, current, staff, navigate, onSignOut }: { codename: string; points: number; rank?: number; current:View;staff:boolean;navigate:(view:View)=>void;onSignOut:()=>void }) {
   const [open, setOpen] = useState(false); const root = useRef<HTMLDivElement>(null); const button = useRef<HTMLButtonElement>(null);
+  const groups=ACCOUNT_GROUPS.filter(group=>!group.staff||staff);
+  const activeLabel=groups.flatMap(group=>group.items).find(item=>item.id===current)?.label;
   useEffect(() => {
     if (!open) return;
     const close = (e: Event) => {
@@ -262,10 +264,10 @@ function ProfileMenu({ codename, points, rank, onProfile, onSettings, onSignOut 
     window.addEventListener("pointerdown", close); window.addEventListener("keydown", close);
     return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", close); };
   }, [open]);
-  // A disclosure, not role="menu": two plain buttons need no arrow-key model.
+  // A disclosure containing grouped navigation links; standard Tab/Shift+Tab works throughout.
   return <div className="profile" ref={root}>
-    <button ref={button} type="button" className="profile-button" aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} size={32} you /><span className="profile-text"><span className="mono profile-name">{codename}</span><span className="standing-pill">{rank ? <b>#{rank} this week</b> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></span><Icon name="down" size={14} /></button>
-    {open ? <div className="menu" id="profile-actions"><button type="button" onClick={() => { setOpen(false); onProfile(); }}>Profile</button><button type="button" onClick={() => { setOpen(false); onSettings(); }}>Settings</button><button type="button" onClick={() => { setOpen(false); onSignOut(); }}><Icon name="exit" size={15} />Sign out</button></div> : null}
+    <button ref={button} type="button" className="profile-button" aria-label={`Account menu for ${codename}`} aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} size={32} you /><span className="profile-text"><span className="mono profile-name">{codename}</span>{activeLabel?<span className="profile-context">{activeLabel}</span>:null}<span className="standing-pill">{rank ? <b>#{rank} this week</b> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></span><Icon name="down" size={14} /></button>
+    {open ? <nav className="menu account-navigation" id="profile-actions" aria-label="Account">{groups.map(group=><div className="account-nav-group" role="group" aria-label={group.label} key={group.label}><span className="account-nav-label" aria-hidden="true">{group.label}</span>{group.items.map(item=><a key={item.id} href={hrefFor(item.id)} aria-current={current===item.id?"page":undefined} onClick={event=>inPlace(event,()=>{setOpen(false);button.current?.focus();navigate(item.id);})}>{item.label}{current===item.id?<span className="account-current" aria-hidden="true">Current</span>:null}</a>)}</div>)}<div className="account-nav-signout"><button type="button" onClick={()=>{setOpen(false);onSignOut();}}><Icon name="exit" size={15}/>Sign out</button></div></nav> : null}
   </div>;
 }
 

@@ -16,14 +16,14 @@ test("real players discover leaderboard profiles, opt into sharing and accept mu
     const privateDetails={displayName:"Synthetic social learner",bio:"Fixture details shared only with consent.",websiteUrl:"",githubUrl:"",shareProfile:false};
     expect((await page.request.patch("/api/v1/profile",{data:privateDetails})).status()).toBe(200);
     const concealed=await(await other.request.get(`/api/v1/players/${a}`)).json();expect(concealed.identity.displayName).toBe("");expect(concealed.identity.bio).toBe("");
-    await page.getByRole("navigation",{name:"Main",exact:true}).getByRole("link",{name:"Profile",exact:true}).click();await page.getByRole("button",{name:"Edit profile",exact:true}).click();
+    await page.getByRole("button",{name:/^Account menu for/}).click();await page.getByRole("navigation",{name:"Account",exact:true}).getByRole("link",{name:"Profile",exact:true}).click();await page.getByRole("button",{name:"Edit profile",exact:true}).click();
     await page.getByRole("dialog",{name:"Edit profile",exact:true}).getByLabel("Share my display name, bio, and links with signed-in players",{exact:true}).check();await page.getByRole("button",{name:"Save profile",exact:true}).click();await expect(page.getByRole("dialog")).toHaveCount(0);
     expect((await page.request.post(`/api/v1/challenges/${fixture.challengeId}/submissions`,{data:{flag:fixture.flag}})).ok()).toBe(true);
     await other.getByRole("navigation",{name:"Main",exact:true}).getByRole("link",{name:"Leaderboard",exact:true}).click();await other.getByRole("button",{name:"All time",exact:true}).click();
     await other.getByRole("link",{name:`View ${a}'s profile`,exact:true}).click();await expect(other.getByRole("heading",{name:privateDetails.displayName,exact:true})).toBeVisible();
     const publicProfile=await(await other.request.get(`/api/v1/players/${a}`)).json();expect(JSON.stringify(publicProfile)).not.toContain(fixture.learners.learner);expect(JSON.stringify(publicProfile)).not.toContain(fixture.flag);
     await other.getByRole("button",{name:`Add friend: ${a}`,exact:true}).click();await expect(other.getByRole("button",{name:`Cancel request: ${a}`,exact:true})).toBeVisible();
-    await page.getByRole("navigation",{name:"Main",exact:true}).getByRole("link",{name:"Socials",exact:true}).click();await page.getByRole("button",{name:"Received",exact:true}).click();
+    await page.getByRole("button",{name:/^Account menu for/}).click();await page.getByRole("navigation",{name:"Account",exact:true}).getByRole("link",{name:"Socials",exact:true}).click();await page.getByRole("button",{name:"Received",exact:true}).click();
     const connections=page.getByRole("region",{name:"Your connections",exact:true});await connections.getByRole("button",{name:`Accept request: ${b}`,exact:true}).click();await page.getByRole("button",{name:"Friends",exact:true}).click();await expect(connections.getByRole("link",{name:new RegExp(b)})).toBeVisible();
     await other.reload();await expect(other.getByRole("button",{name:`Remove friend: ${a}`,exact:true})).toBeVisible();
     expect((await page.request.patch("/api/v1/profile",{data:privateDetails})).status()).toBe(200);await other.reload();await expect(other.getByRole("heading",{name:a,exact:true})).toBeVisible();await expect(other.getByText(privateDetails.bio,{exact:true})).toHaveCount(0);

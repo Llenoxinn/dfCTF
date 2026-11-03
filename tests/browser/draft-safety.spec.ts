@@ -48,6 +48,16 @@ async function openDraft(page: Page) {
   await expect(page.getByLabel(/^Description/)).toHaveValue("Inspect the supplied fictional training file.");
 }
 
+test("account-menu destinations respect the unsaved-draft guard and restore focus on cancellation",async({page})=>{
+  await mockDraft(page);await page.goto("/?view=authoring");await openDraft(page);
+  const description=page.getByLabel(/^Description/);await description.fill("Keep these edits when account navigation is cancelled.");
+  let accept=false;page.on("dialog",async dialog=>{await(accept?dialog.accept():dialog.dismiss());});
+  const account=page.getByRole("button",{name:/^Account menu for/}),menu=page.getByRole("navigation",{name:"Account",exact:true});
+  await account.click();await menu.getByRole("link",{name:"Rules",exact:true}).click();
+  await expect(page).toHaveURL(/view=authoring/);await expect(description).toHaveValue("Keep these edits when account navigation is cancelled.");await expect(account).toBeFocused();
+  accept=true;await account.click();await menu.getByRole("link",{name:"Rules",exact:true}).click();await expect(page.getByRole("heading",{name:"Rules / Mechanics",exact:true})).toBeVisible();
+});
+
 test("unchanged drafts close silently and canceled Back or header navigation keeps unsaved edits", async ({ page }) => {
   await mockDraft(page);
   const prompts: string[] = []; let accept = false;
@@ -121,7 +131,8 @@ for (const direction of ["back", "forward"] as const) {
     await mockDraft(page);
     await page.goto("/?view=practice");
     const navigation = page.getByRole("navigation", { name: "Main" });
-    await navigation.getByRole("link", { name: "Authoring", exact: true }).click();
+    await page.getByRole("button", { name: /^Account menu for/ }).click();
+    await page.getByRole("navigation", { name: "Account", exact: true }).getByRole("link", { name: "Authoring", exact: true }).click();
     if (direction === "forward") {
       await navigation.getByRole("link", { name: "Challenges", exact: true }).click();
       await page.evaluate(() => history.back());
@@ -162,7 +173,8 @@ test("canceling the browser reload warning retains unsaved edits", async ({ page
 test("skip-link focus and native fragment history preserve unsaved edits when Back is canceled", async ({ page }) => {
   await mockDraft(page);
   await page.goto("/?view=practice");
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Authoring", exact: true }).click();
+  await page.getByRole("button", { name: /^Account menu for/ }).click();
+  await page.getByRole("navigation", { name: "Account", exact: true }).getByRole("link", { name: "Authoring", exact: true }).click();
   await openDraft(page);
   await page.evaluate(() => { window.location.hash = "main-content"; });
   await expect(page).toHaveURL(/view=authoring#main-content$/);

@@ -1,6 +1,7 @@
 # Player discovery and friendships
 
-Socials is a signed-in workspace section. Leaderboard names link to
+Socials is a signed-in workspace section, available from the account menu beside
+your codename. Leaderboard names link to
 `/?view=socials&player=CODENAME`; links preserve native new-tab behavior and the
 destination survives sign-in, reload, and browser history. Directory and
 connection lists use bounded 20-player pages with filter-bound keyset cursors.
