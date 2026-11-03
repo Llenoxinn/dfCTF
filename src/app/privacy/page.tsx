@@ -10,13 +10,14 @@ export default function PrivacyPage() {
       <h2>Information we store and why</h2>
       <p>dfCTF is maintained by DFC Developers. We store your email address, verification status, public codename, account role, and account creation details to provide access and manage the platform. Email/password accounts store a password hash. If you enable two-factor authentication, we also store the information needed to verify it and manage backup codes.</p>
       <p>Signing in with Google or GitHub supplies a provider account identifier, email, and profile fields returned by that provider. The account connection can include encrypted provider tokens. The provider handles its own password; dfCTF does not receive that password.</p>
-      <p>You may save an optional display name, bio, website, and GitHub profile link in the owner-only Profile dashboard. These fields do not create a public profile page. You choose whether to include optional details in a downloaded player card; sharing that image makes its chosen details and practice statistics visible to its recipients.</p>
+      <p>You may save an optional display name, bio, website, and GitHub profile link in your Profile dashboard. These details stay private by default. You can choose to share them with signed-in players in Socials, and turn that sharing off again in Edit profile. You also choose whether to include optional details in a downloaded player card; sharing that image makes its chosen details and practice statistics visible to its recipients.</p>
       <p>We store challenge attempts as digests and outcomes, solve times, points, competition registrations, and staff actions to operate scoring and review activity. Signed-in learning progress includes reading positions, bookmarks, and topics marked read.</p>
       <p>Sessions can record your IP address, browser information, and expiry time. Rate-limit records, request identifiers, and service logs help protect accounts and investigate errors. Do not upload personal or confidential evidence as challenge material.</p>
     </section>
     <section>
       <h2>What other players can see</h2>
       <p>Your codename, points, solve counts, solve times, first-blood recognition, and competition standings can appear publicly. Your account email and Google or GitHub profile name are not used as your public codename automatically. Account details and security records are available to authorized maintainers where needed to operate the service.</p>
+      <p>Signed-in players can open player profiles from leaderboards and Socials to see codenames and practice results, plus any optional details the owner has chosen to share. Friendship does not reveal private details. We store friend requests, accepted connections, and declined-request cooldowns; each player can see only their own friends and requests. A friendship requires acceptance, either person can remove it, and the other player's friend list is not exposed.</p>
     </section>
     <section>
       <h2>Cookies and browser storage</h2>

@@ -130,6 +130,10 @@ creates a 2400 × 1350 image locally. Card preferences stay in this browser per
 account; account security remains in Settings. Apply migration
 `0005_player_profiles` with `npm run db:migrate` before deploying this feature.
 See [Profile data sources, privacy, and export design](docs/PROFILE.md).
+The **Socials** tab adds player discovery, leaderboard-linked player views, and
+accepted friend requests. Optional profile details stay private until the owner
+chooses to share them. Apply `0006_social_connections` before deploying Socials;
+see [visibility and friendship rules](docs/SOCIALS.md).
 
 | Command | Purpose |
 | --- | --- |

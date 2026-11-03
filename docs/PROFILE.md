@@ -1,6 +1,8 @@
 # Player Profile
 
-The Profile tab is owner-only; it does not create public profile routes. Account
+The Profile tab is owner-only. The signed-in [Socials section](SOCIALS.md) lets
+players view each other's codenames and practice results, with optional profile
+details shared only after the owner opts in. Account
 security and immutable codenames remain in the existing Settings/onboarding
 flows. Optional display name, bio, website, and GitHub link live in a minimal
 `player_profiles` table, protected by the same session/access checks and RLS as
@@ -38,7 +40,7 @@ schema rejects identity, role, score, and unknown fields.
 
 The card is a 1200 × 675 SVG with a responsive image preview. The same renderer
 is rasterized locally to a 2400 × 1350 PNG. It uses an explicit background,
-system sans/monospace fonts resolved by the same browser for both images, and
+one consistent system sans-serif family resolved by the same browser for both images, and
 the platform's deterministic inline identicon. No remote avatars, image proxy,
 third-party renderer, or new export dependency is needed. There is no avatar
 upload service in the platform, so no nonfunctional upload control is added.
@@ -49,13 +51,13 @@ points, capture/First Blood counts, proven milestones, and snapshot time can
 enter the renderer. Email, auth IDs, tokens, submissions, flags, private challenge
 metadata, and audit records are excluded. XML is escaped and text is bounded.
 
-Three card themes, three curated accents, optional fields, and up to two proven
+Dark and Light card themes, three curated accents, optional fields, and up to two proven
 milestones can be selected. Preferences are saved only in this browser under an
 account-specific key; storage failures are disclosed. Factual values are never
 editable. The export module is loaded on demand, freezes the selected SVG for a
 single export, bounds font/image waits, prevents concurrent requests, and frees
-temporary object URLs. Profile edits remain owner-only until the user shares a
-downloaded card; they do not publish a profile page.
+temporary object URLs. Optional profile details remain owner-only unless the
+owner enables sharing with signed-in players or shares a downloaded card.
 
 ## Verification and rollout
 
@@ -67,8 +69,8 @@ Downloaded PNG signatures and 2400 × 1350 dimensions are asserted at device
 pixel ratio 2, including a narrow viewport. Actual populated, empty, and long
 Unicode PNGs were opened and visually inspected across the three themes.
 
-The final verification passed TypeScript, 171 unit tests in 18 files, 77 browser
-tests, and four real local integration flows. The Profile integration flow
+The current verification passed TypeScript, 180 unit tests in 19 files, 82 browser
+tests, and five real local integration flows. The Profile integration flow
 persists edits, submits a valid fixture solve, compares the owner's statistics
 with the official board, and checks sign-out and second-account isolation.
 
