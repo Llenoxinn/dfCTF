@@ -1,6 +1,6 @@
 # Player Profile
 
-The Profile tab is owner-only. The signed-in [Socials section](SOCIALS.md) lets
+The Profile page in the account menu is owner-only. The signed-in [Socials section](SOCIALS.md) lets
 players view each other's codenames and practice results, with optional profile
 details shared only after the owner opts in. Account
 security and immutable codenames remain in the existing Settings/onboarding

@@ -124,16 +124,21 @@ Provider configuration is included, but a real social sign-in round trip require
 
 ## Development commands
 
-The signed-in **Profile** tab provides owner-only display details, scoped practice
+The signed-in **Profile** page provides owner-only display details, scoped practice
 statistics, capture history, and a customizable player card. **Download PNG**
 creates a 2400 × 1350 image locally. Card preferences stay in this browser per
 account; account security remains in Settings. Apply migration
 `0005_player_profiles` with `npm run db:migrate` before deploying this feature.
 See [Profile data sources, privacy, and export design](docs/PROFILE.md).
-The **Socials** tab adds player discovery, leaderboard-linked player views, and
+The **Socials** page adds player discovery, leaderboard-linked player views, and
 accepted friend requests. Optional profile details stay private until the owner
 chooses to share them. Apply `0006_social_connections` before deploying Socials;
 see [visibility and friendship rules](docs/SOCIALS.md).
+
+The main navigation contains **Challenges**, **Leaderboard**, **Competitions**,
+and **Resources**. Open the account menu beside your codename for **Profile**,
+**Socials**, **Progress**, **Rules**, and **Settings**; staff also see **Authoring**
+under Staff tools. The current personal page is shown beside your account name.
 
 | Command | Purpose |
 | --- | --- |
