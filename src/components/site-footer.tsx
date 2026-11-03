@@ -3,6 +3,7 @@ import Link from "next/link";
 export function SiteLinks() {
   return <nav aria-label="Help and information" className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
     <Link className="link-button" href="/support">Help / Contact</Link>
+    <Link className="link-button" href="/privacy">Privacy</Link>
   </nav>;
 }
 
