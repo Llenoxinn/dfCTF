@@ -487,15 +487,27 @@ a.card:active { transform: scale(.98); }
 .profile-name { overflow: hidden; text-overflow: ellipsis; max-width: 24ch; }
 .menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; display: grid; min-width: 180px; padding: 6px; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; box-shadow: 0 12px 32px -12px rgb(0 0 0 / .5); transform-origin: top right; animation: menu-in 150ms var(--ease-out); }
 .menu button { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r); text-align: left; font-size: .875rem; }
-.account-navigation { width: min(268px,calc(100vw - 32px)); min-width: 0; max-height: calc(100dvh - 80px); overflow-y: auto; overscroll-behavior: contain; }
-.account-nav-group { display: grid; padding: 6px 0; }
-.account-nav-group + .account-nav-group, .account-nav-signout { border-top: 1px solid var(--line); }
-.account-nav-label { padding: 6px 10px; color: var(--faint); font: 500 .6875rem/1.4 var(--font-code); letter-spacing: .08em; }
-.account-navigation a, .account-navigation button { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 10px; border-radius: var(--r); text-align: left; font-size: .875rem; }
+.profile-chevron { transition: transform 150ms var(--ease-out); }
+.profile[data-open] .profile-button { background: var(--surface-2); }
+.profile[data-open] .profile-chevron { transform: rotate(180deg); }
+/* Account menu: identity first, then task groups divided by hairlines; headings only where a group needs one. */
+.account-navigation { width: min(288px,calc(100vw - 32px)); min-width: 0; max-height: calc(100dvh - 80px); padding: 4px; border-radius: calc(var(--r) + 4px); overflow-y: auto; overscroll-behavior: contain; }
+.account-identity { display: grid; grid-template-columns: 40px minmax(0,1fr); align-items: center; gap: 12px; padding: 10px 10px 12px; }
+.account-identity strong { display: block; font-size: .875rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.account-identity strong + span { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 2px; font-size: .75rem; color: var(--muted); }
+.account-role { padding: 0 6px; border: 1px solid var(--accent); border-radius: var(--r); font: 500 .6875rem/1.5 var(--font-code); color: var(--accent-text); }
+.account-nav-group, .account-nav-signout { display: grid; padding: 4px 0; border-top: 1px solid var(--line); }
+.account-nav-label { padding: 8px 10px 4px; color: var(--faint); font: 500 .6875rem/1.4 var(--font-code); letter-spacing: .08em; }
+.account-navigation a, .account-navigation button { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 8px 10px; border-radius: var(--r); text-align: left; font-size: .875rem; line-height: 1.4; color: var(--text); }
+.account-nav-primary a { font-weight: 500; }
+.account-nav-secondary a, .account-nav-signout button { color: var(--muted); }
+.account-navigation a:focus-visible, .account-navigation button:focus-visible { outline-offset: -2px; }
 .account-navigation a[aria-current="page"] { color: var(--accent-text); background: var(--bg); box-shadow: inset 2px 0 var(--accent-text); }
-.account-current { font-size: .6875rem; color: var(--muted); }
-.account-nav-signout { padding-top: 6px; }.account-nav-signout button { justify-content: start; width: 100%; }
-@media (hover: hover) and (pointer: fine) { .account-navigation a:hover { background: var(--line); } }
+.account-staff-tag { padding: 0 6px; border: 1px solid var(--line-strong); border-radius: var(--r); font: 500 .6875rem/1.5 var(--font-code); color: var(--faint); }
+.account-nav-signout button { justify-content: start; gap: 10px; width: 100%; }
+@media (pointer: coarse) { .account-navigation a, .account-navigation button { min-height: 44px; } }
+@media (hover: hover) and (pointer: fine) { .account-navigation a:hover, .account-navigation button:hover { background: var(--line); color: var(--text); } .account-navigation a[aria-current="page"]:hover { color: var(--accent-text); } }
+.account-navigation a:active, .account-navigation button:active { background: var(--line-strong); }
 @keyframes menu-in { from { opacity: 0; transform: scale(.97); } }
 @media (hover: hover) and (pointer: fine) { .tab:hover { color: var(--text); } .tab:hover > span { background: var(--surface-2); } .profile-button:hover, .menu button:hover { background: var(--surface-2); } .menu button:hover { background: var(--line); } }
 .app-main { max-width: var(--page); margin: 0 auto; padding: 36px 32px 72px; display: grid; gap: 28px; outline: none; }
