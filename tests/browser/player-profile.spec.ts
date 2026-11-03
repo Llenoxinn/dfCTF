@@ -74,18 +74,18 @@ test("scope changes update statistics, activity, milestones and card together",a
 
 test("customization persists per owner, exports a real matching PNG and resets",async({page})=>{
   const mock=await mockProfile(page);await page.setViewportSize({width:1440,height:1000});await page.goto("/?view=profile");
-  await page.getByRole("button",{name:"Paper",exact:true}).click();await page.getByRole("button",{name:"Cyan",exact:true}).click();
+  await page.getByRole("button",{name:"Light",exact:true}).click();await page.getByRole("button",{name:"Cyan",exact:true}).click();
   await page.getByLabel("First Blood count",{exact:true}).uncheck();
   expect(await svg(page)).toContain("#f5f3ec");expect(await svg(page)).not.toContain("FIRST BLOODS");
   expect(await svg(page)).not.toMatch(/PRIVATE_EMAIL|@example.test|userId|token|Download PNG/);
   await png(page,"test-results/profile-card-populated.png");
   await expect(page.getByRole("link",{name:"Save PNG again",exact:true})).toBeVisible();
-  await page.reload();await expect(page.getByRole("button",{name:"Paper",exact:true})).toHaveAttribute("aria-pressed","true");
+  await page.reload();await expect(page.getByRole("button",{name:"Light",exact:true})).toHaveAttribute("aria-pressed","true");
   await page.screenshot({path:"test-results/profile-dashboard-desktop.png",fullPage:true});
   mock.owner("second-profile-owner");await page.reload();
-  await expect(page.getByRole("button",{name:"Carbon",exact:true})).toHaveAttribute("aria-pressed","true");
-  await page.getByRole("button",{name:"Midnight",exact:true}).click();await page.getByRole("button",{name:"Reset card",exact:true}).click();
-  await expect(page.getByRole("button",{name:"Carbon",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(page.getByRole("button",{name:"Dark",exact:true})).toHaveAttribute("aria-pressed","true");
+  await page.getByRole("button",{name:"Light",exact:true}).click();await page.getByRole("button",{name:"Reset card",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Dark",exact:true})).toHaveAttribute("aria-pressed","true");
 });
 
 for(const variant of ["empty","unicode"] as const){
@@ -97,7 +97,7 @@ for(const variant of ["empty","unicode"] as const){
     if(variant==="empty"){await expect(page.getByRole("region",{name:"Practice · all time statistics"})).toContainText("Unranked");await expect(page.getByText("Your first capture starts here",{exact:true})).toBeVisible();}
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     expect(await svg(page)).not.toContain("<image");expect(unexpected).toEqual([]);
-    if(variant==="unicode")await page.getByRole("button",{name:"Midnight",exact:true}).click();
+    if(variant==="unicode")await page.getByRole("button",{name:"Light",exact:true}).click();
     await png(page,`test-results/profile-card-${variant}.png`);
     await page.evaluate(()=>window.scrollTo({top:0,behavior:"instant"}));
     await page.screenshot({path:`test-results/profile-dashboard-${variant}-mobile.png`,fullPage:true});
@@ -150,7 +150,7 @@ test("a pending export freezes scope and editing until the snapshot is ready",as
   await expect(page.getByRole("button",{name:"Preparing PNG",exact:true})).toBeDisabled();
   await expect(page.getByLabel("Practice scope",{exact:true})).toBeDisabled();
   await expect(page.getByRole("button",{name:"Edit profile",exact:true})).toBeDisabled();
-  await expect(page.getByRole("button",{name:"Paper",exact:true})).toBeDisabled();
+  await expect(page.getByRole("button",{name:"Light",exact:true})).toBeDisabled();
   await page.evaluate(()=>(window as unknown as {releaseProfileImage:()=>void}).releaseProfileImage());
   await event;await expect(page.getByLabel("Practice scope",{exact:true})).toBeEnabled();
 });

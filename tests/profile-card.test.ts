@@ -4,6 +4,12 @@ import { profileMilestones, type PublicProfileCard } from "@/lib/player-profile"
 
 const card:PublicProfileCard={codename:"fixture_player",displayName:"Fixture Learner",bio:"A fictional profile for automated tests.",scope:"Practice · all time",period:"All-time practice",asOf:"2026-11-03T10:00:00Z",rank:2,points:150,solved:3,firstBloods:1,milestones:profileMilestones({rank:2,points:150,solved:3,firstBloods:1})};
 describe("public card rendering",()=>{
+  it("offers only dark and light, preserves old preferences and uses one font family",()=>{
+    expect(CARD_THEMES).toEqual(["dark","light"]);
+    expect(parseCardPreferences({theme:"paper"}).theme).toBe("light");
+    for(const theme of ["carbon","midnight","unknown"])expect(parseCardPreferences({theme}).theme).toBe("dark");
+    for(const theme of CARD_THEMES)expect(renderProfileCard(card,{...DEFAULT_CARD,theme}).match(/font-family=/g)).toHaveLength(1);
+  });
   it("escapes text and ignores private fields and unsafe image sources",()=>{
     const svg=renderProfileCard({...card,displayName:'<script>&"',bio:'<image href="https://private.test/secret"/>',email:"DO_NOT_EXPORT",token:"PRIVATE_TOKEN",avatar:"http://127.0.0.1/private"} as PublicProfileCard,DEFAULT_CARD);
     expect(svg).toContain("&lt;script&gt;&amp;&quot;");
@@ -13,7 +19,7 @@ describe("public card rendering",()=>{
   });
   it("limits persisted choices and never manufactures an unearned milestone",()=>{
     const preferences=parseCardPreferences({theme:"unknown",accent:"javascript",showBio:false,milestones:["unearned","first-capture","first-blood","ten-captures","first-capture"]});
-    expect(preferences).toMatchObject({theme:"carbon",accent:"gold",showBio:false,milestones:["first-capture","first-blood"]});
+    expect(preferences).toMatchObject({theme:"dark",accent:"gold",showBio:false,milestones:["first-capture","first-blood"]});
     const svg=renderProfileCard({...card,rank:null,points:0,solved:0,firstBloods:0,milestones:[]},preferences);
     expect(svg).toContain("Unranked");expect(svg).not.toContain("First capture");expect(svg).not.toContain(card.bio);
   });

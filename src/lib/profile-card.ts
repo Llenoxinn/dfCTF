@@ -2,15 +2,16 @@ import { identiconPath } from "./pixel";
 import type { PublicProfileCard } from "./player-profile";
 
 export const CARD_WIDTH = 1200, CARD_HEIGHT = 675;
-export const CARD_THEMES = ["carbon", "paper", "midnight"] as const;
+export const CARD_THEMES = ["dark", "light"] as const;
 export const CARD_ACCENTS = ["gold", "mint", "cyan"] as const;
 export type CardPreferences = { theme: typeof CARD_THEMES[number]; accent: typeof CARD_ACCENTS[number]; showDisplayName: boolean; showBio: boolean; showFirstBloods: boolean; milestones: string[] };
-export const DEFAULT_CARD: CardPreferences = { theme:"carbon",accent:"gold",showDisplayName:true,showBio:true,showFirstBloods:true,milestones:["first-capture","first-blood"] };
+export const DEFAULT_CARD: CardPreferences = { theme:"dark",accent:"gold",showDisplayName:true,showBio:true,showFirstBloods:true,milestones:["first-capture","first-blood"] };
 
 export function parseCardPreferences(value: unknown): CardPreferences {
   const raw = value && typeof value === "object" ? value as Partial<CardPreferences> : {};
+  const savedTheme = (raw as { theme?: string }).theme;
   return {
-    theme: CARD_THEMES.includes(raw.theme!) ? raw.theme! : DEFAULT_CARD.theme,
+    theme: savedTheme === "light" || savedTheme === "paper" ? "light" : "dark",
     accent: CARD_ACCENTS.includes(raw.accent!) ? raw.accent! : DEFAULT_CARD.accent,
     showDisplayName: typeof raw.showDisplayName === "boolean" ? raw.showDisplayName : true,
     showBio: typeof raw.showBio === "boolean" ? raw.showBio : true,
@@ -33,11 +34,10 @@ function lines(value: string, max: number, count = 2) {
 export function renderProfileCard(card: PublicProfileCard, preferences: CardPreferences): string {
   const prefs=parseCardPreferences(preferences);
   const palette = {
-    carbon:{bg:"#101113",surface:"#191b1e",text:"#ece8df",muted:"#aaa79f",line:"#36393d"},
-    paper:{bg:"#f5f3ec",surface:"#eae8df",text:"#17181b",muted:"#55564e",line:"#c8c7be"},
-    midnight:{bg:"#081c25",surface:"#102c37",text:"#e5f3f5",muted:"#a0bdc6",line:"#31535f"},
+    dark:{bg:"#101113",surface:"#191b1e",text:"#ece8df",muted:"#aaa79f",line:"#36393d"},
+    light:{bg:"#f5f3ec",surface:"#eae8df",text:"#17181b",muted:"#55564e",line:"#c8c7be"},
   }[prefs.theme];
-  const accent = (prefs.theme === "paper" ? {gold:"#795600",mint:"#126346",cyan:"#086781"} : {gold:"#ffd23f",mint:"#78d6b1",cyan:"#70d4ef"})[prefs.accent];
+  const accent = (prefs.theme === "light" ? {gold:"#795600",mint:"#126346",cyan:"#086781"} : {gold:"#ffd23f",mint:"#78d6b1",cyan:"#70d4ef"})[prefs.accent];
   const text=(x:number,y:number,value:unknown,size=20,fill=palette.text,extra="")=>`<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" ${extra}>${xml(value)}</text>`;
   const display=prefs.showDisplayName && card.displayName ? card.displayName : card.codename;
   const names=lines(display,20), hasName=display!==card.codename;
@@ -48,12 +48,12 @@ export function renderProfileCard(card: PublicProfileCard, preferences: CardPref
     <rect width="1200" height="675" fill="${palette.bg}"/>
     <rect x="24" y="24" width="1152" height="627" rx="12" fill="none" stroke="${palette.line}"/>
     <path d="M64 109H1136M64 580H1136" stroke="${palette.line}"/>
-    ${text(64,79,"dfCTF",32,accent,'font-weight="800" font-family="Consolas, monospace"')}
+    ${text(64,79,"dfCTF",32,accent,'font-weight="800"')}
     ${text(1136,77,"PLAYER IDENTITY / PRACTICE",15,palette.muted,'text-anchor="end" letter-spacing="2"')}
     <rect x="64" y="148" width="120" height="120" rx="8" fill="${palette.surface}" stroke="${palette.line}"/>
     <g transform="translate(68 152)" fill="${accent}" shape-rendering="crispEdges"><path d="${identiconPath(card.codename,112)}"/></g>
     ${names.map((name,i)=>text(216,190+i*50,name,44,palette.text,'font-weight="700"')).join("")}
-    ${hasName?text(216,names.length>1?280:242,`@${fit(card.codename,24)}`,24,accent,'font-family="Consolas, monospace"'):text(216,250,"INDEPENDENT PLAYER",14,palette.muted,'letter-spacing="2"')}
+    ${hasName?text(216,names.length>1?280:242,`@${fit(card.codename,24)}`,24,accent):text(216,250,"INDEPENDENT PLAYER",14,palette.muted,'letter-spacing="2"')}
     ${prefs.showBio && card.bio?lines(card.bio,48).map((line,i)=>text(64,316+i*26,line,20,palette.muted)).join(""):""}
     <rect x="64" y="372" width="1072" height="128" rx="8" fill="${palette.surface}" stroke="${palette.line}"/>
     ${stats.map(([label,value],i)=>{const width=1072/stats.length,x=88+i*width;return `${i?`<path d="M${64+i*width} 396v80" stroke="${palette.line}"/>`:""}${text(x,409,label,14,palette.muted,'letter-spacing="1.5"')}${text(x,464,value,value.length>11?30:value.length>8?38:46,i===0?accent:palette.text,'font-weight="700"')}`;}).join("")}
@@ -61,7 +61,7 @@ export function renderProfileCard(card: PublicProfileCard, preferences: CardPref
     ${text(64,609,card.scope,18,accent,'font-weight="700"')}
     ${text(1136,609,card.period,16,palette.muted,'text-anchor="end"')}
     ${text(64,635,`SNAPSHOT ${snapshot} PHT`,12,palette.muted,'letter-spacing="1"')}
-    ${text(1136,635,"dfctf.vercel.app",13,palette.muted,'text-anchor="end" font-family="Consolas, monospace"')}
+    ${text(1136,635,"dfctf.vercel.app",13,palette.muted,'text-anchor="end"')}
   </svg>`;
 }
 
