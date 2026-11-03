@@ -4,6 +4,15 @@ import { user } from "./auth-schema";
 import type { LearningProgress } from "@/lib/resource-learning";
 export * from "./auth-schema";
 
+export const playerProfiles = pgTable("player_profiles", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  displayName: text("display_name").notNull().default(""),
+  bio: text("bio").notNull().default(""),
+  websiteUrl: text("website_url").notNull().default(""),
+  githubUrl: text("github_url").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}).enableRLS();
+
 export const learningProgress = pgTable("learning_progress", {
   userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
   progress: jsonb("progress").$type<LearningProgress>().notNull(),
@@ -52,7 +61,7 @@ export const solves = pgTable("solves", {
   id: text("id").primaryKey(), userId: text("user_id").notNull().references(()=>user.id),
   challengeId: text("challenge_id").notNull().references(()=>challenges.id), versionId: text("version_id").notNull().references(()=>challengeVersions.id),
   assistance: text("assistance").notNull().default("independent"), createdAt: at("created_at")
-},t=>[uniqueIndex("solve_once").on(t.userId,t.challengeId)]).enableRLS();
+},t=>[uniqueIndex("solve_once").on(t.userId,t.challengeId), index("solve_owner_history").on(t.userId,t.createdAt,t.id), index("solve_first_blood").on(t.challengeId,t.createdAt,t.id)]).enableRLS();
 export const xpLedger = pgTable("xp_ledger", {
   id: text("id").primaryKey(), userId: text("user_id").notNull().references(()=>user.id),
   familyId: text("family_id").notNull(), solveId: text("solve_id").notNull().references(()=>solves.id),

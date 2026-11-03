@@ -36,6 +36,13 @@
       "when": 1793184800660,
       "tag": "0004_learning_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793699599234,
+      "tag": "0005_player_profiles",
+      "breakpoints": true
     }
   ]
 }
