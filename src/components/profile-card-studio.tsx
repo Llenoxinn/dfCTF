@@ -8,6 +8,7 @@ import { Icon, Notice, Spinner } from "./ui";
 export default function ProfileCardStudio({ userId, card, scope, onBusy }: { userId: string; card: PublicProfileCard; scope: string; onBusy: (busy:boolean)=>void }) {
   const [preferences,setPreferences]=useState<CardPreferences>(()=>parseCardPreferences(DEFAULT_CARD));
   const [ready,setReady]=useState(false),[storage,setStorage]=useState(true),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[error,setError]=useState("");
+  const [prepared,setPrepared]=useState<{url:string;filename:string}|null>(null);
   const lock=useRef(false),mounted=useRef(true);
   const key=`dfctf:profile-card:v1:${userId}`;
   useEffect(()=>{
@@ -22,6 +23,8 @@ export default function ProfileCardStudio({ userId, card, scope, onBusy }: { use
     try {localStorage.setItem(key,JSON.stringify(preferences));}catch{setStorage(false);}
   },[preferences,ready,storage,key]);
   const svg=useMemo(()=>renderProfileCard(card,preferences),[card,preferences]);
+  useEffect(()=>{setPrepared(null);},[svg]);
+  useEffect(()=>()=>{if(prepared)URL.revokeObjectURL(prepared.url);},[prepared]);
   const source=`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   function update(patch:Partial<CardPreferences>){setPreferences(current=>({...current,...patch}));setMessage("");setError("");}
   async function download(){
@@ -32,7 +35,7 @@ export default function ProfileCardStudio({ userId, card, scope, onBusy }: { use
       const exporter=await import("@/lib/profile-card-export");
       const blob=await exporter.profileCardPng(snapshot);
       if(!mounted.current)return;
-      exporter.downloadCard(blob,filename);setMessage("PNG prepared. Check your browser’s downloads.");
+      setPrepared({url:exporter.downloadCard(blob,filename),filename});setMessage("PNG prepared. Check your browser’s downloads.");
     }catch(err){if(mounted.current){setMessage("");setError(err instanceof Error?err.message:"Could not export the card. Retry the download.");}}
     finally{lock.current=false;if(mounted.current){setBusy(false);onBusy(false);}}
   }
@@ -57,6 +60,7 @@ export default function ProfileCardStudio({ userId, card, scope, onBusy }: { use
         <p className="fine">{storage?"Card preferences are saved in this browser for this account.":"Browser storage is unavailable. These preferences apply only to this session."}</p>
         <div className="profile-export-actions"><button type="button" className="button button-primary" disabled={busy || !ready} onClick={download}>{busy?<Spinner/>:<Icon name="download" size={17}/>} {busy?"Preparing PNG":"Download PNG"}</button><button type="button" className="text-button" disabled={busy || !ready} onClick={()=>update(parseCardPreferences(DEFAULT_CARD))}>Reset card</button></div>
         <p className="fine" role="status" aria-live="polite">{message}</p>
+        {prepared?<p className="fine">If the browser didn’t start the download, <a className="link-button" href={prepared.url} download={prepared.filename}>Save PNG again</a>.</p>:null}
         {error?<Notice type="error">{error} <button type="button" className="text-button" onClick={download}>Retry export</button></Notice>:null}
       </div>
     </div>

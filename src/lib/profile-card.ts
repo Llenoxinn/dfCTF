@@ -20,7 +20,7 @@ export function parseCardPreferences(value: unknown): CardPreferences {
 }
 
 const graphemes = (value: string) => [...new Intl.Segmenter(undefined,{granularity:"grapheme"}).segment(value)].map(part=>part.segment);
-const xml = (value: unknown) => String(value).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&apos;"}[c]!));
+const xml = (value: unknown) => String(value).toWellFormed().replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g,"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&apos;"}[c]!));
 function fit(value: string, max: number) { const chars=graphemes(value.replace(/\s+/g," ").trim()); return chars.length > max ? chars.slice(0,max-1).join("")+"…" : chars.join(""); }
 function lines(value: string, max: number, count = 2) {
   const chars=graphemes(value.replace(/\s+/g," ").trim()), result:string[]=[];

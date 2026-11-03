@@ -23,8 +23,10 @@ export async function profileCardPng(svg: string): Promise<Blob> {
   } finally {image.src="";URL.revokeObjectURL(source);}
 }
 
-export function downloadCard(blob: Blob, filename: string) {
+/** The caller owns the returned object URL until its fallback download link is removed. */
+export function downloadCard(blob: Blob, filename: string): string {
   const url=URL.createObjectURL(blob),anchor=document.createElement("a");
-  try {anchor.href=url;anchor.download=filename;document.body.appendChild(anchor);anchor.click();}
-  finally {anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+  try {anchor.href=url;anchor.download=filename;document.body.appendChild(anchor);anchor.click();return url;}
+  catch(error){URL.revokeObjectURL(url);throw error;}
+  finally {anchor.remove();}
 }

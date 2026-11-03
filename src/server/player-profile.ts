@@ -13,8 +13,8 @@ const httpsUrl = z.string().trim().max(240).refine(value => {
   try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password; } catch { return false; }
 }, "Use a complete HTTPS URL without a username or password.");
 export const profileInput = z.object({
-  displayName: z.string().trim().max(48, "Use at most 48 characters."),
-  bio: z.string().trim().max(180, "Use at most 180 characters."),
+  displayName: z.string().trim().max(48, "Use at most 48 characters.").refine(value=>value.isWellFormed()&&!/[\u0000-\u001f\u007f\ufffe\uffff]/.test(value),"Use valid Unicode text without control characters."),
+  bio: z.string().trim().max(180, "Use at most 180 characters.").refine(value=>value.isWellFormed()&&!/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\ufffe\uffff]/.test(value),"Use valid Unicode text without control characters."),
   websiteUrl: httpsUrl,
   githubUrl: httpsUrl.refine(value => { if (!value) return true; try { const url = new URL(value); return url.hostname === "github.com" && !url.port && !url.search && !url.hash && /^\/[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?\/?$/i.test(url.pathname); } catch { return false; } }, "Use a GitHub profile URL, such as https://github.com/your-name."),
 }).strict();

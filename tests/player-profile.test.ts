@@ -9,6 +9,7 @@ import type { Viewer } from "@/lib/types";
 import * as access from "@/server/access";
 import * as database from "@/server/db";
 import { GET, PATCH } from "@/app/api/v1/profile/route";
+import { HttpError } from "@/server/http";
 
 let store: Awaited<ReturnType<typeof createStore>>;
 const now = new Date("2026-11-03T10:00:00Z");
@@ -87,6 +88,7 @@ describe("authoritative owner profile", () => {
       expect(profileInput.safeParse({...fields,websiteUrl:value}).success).toBe(false);
       expect(profileInput.safeParse({...fields,githubUrl:value}).success).toBe(false);
     }
+    expect(profileInput.safeParse({...fields,displayName:"Invalid \ud800"}).success).toBe(false);
     const dbMock=vi.spyOn(database,"getDb").mockResolvedValue(store.db);
     const authMock=vi.spyOn(access,"requireAccess").mockResolvedValue({user:owner,session:{id:"test"}});
     vi.stubEnv("APP_URL","http://localhost:3000");
@@ -94,8 +96,10 @@ describe("authoritative owner profile", () => {
     try {
       const response=await PATCH(new Request("http://localhost:3000/api/v1/profile",{method:"PATCH",headers:{origin:"http://localhost:3000","content-type":"application/json"},body:JSON.stringify({...fields,userId:other.id,points:999})}),{});
       expect(response.status).toBe(422);
-      authMock.mockRejectedValue(Object.assign(new Error("signed out"),{status:401}));
-      expect((await GET(new Request("http://localhost:3000/api/v1/profile"),{})).status).not.toBe(200);
+      const own=await GET(new Request(`http://localhost:3000/api/v1/profile?userId=${other.id}`),{});
+      expect((await own.json()).identity.codename).toBe(owner.codename);
+      authMock.mockRejectedValue(new HttpError(401,"SIGN_IN_REQUIRED","Sign in to continue."));
+      expect((await GET(new Request("http://localhost:3000/api/v1/profile"),{})).status).toBe(401);
     } finally { authMock.mockRestore();dbMock.mockRestore();log.mockRestore();vi.unstubAllEnvs(); }
   });
 });

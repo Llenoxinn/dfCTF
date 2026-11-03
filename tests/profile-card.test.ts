@@ -9,6 +9,7 @@ describe("public card rendering",()=>{
     expect(svg).toContain("&lt;script&gt;&amp;&quot;");
     expect(svg).not.toMatch(/<script|<image|foreignObject|DO_NOT_EXPORT|PRIVATE_TOKEN|\shref="/);
     expect(svg).toContain('width="1200" height="675"');
+    expect(()=>encodeURIComponent(renderProfileCard({...card,displayName:"Invalid \ud800 name",bio:"\uffff"},DEFAULT_CARD))).not.toThrow();
   });
   it("limits persisted choices and never manufactures an unearned milestone",()=>{
     const preferences=parseCardPreferences({theme:"unknown",accent:"javascript",showBio:false,milestones:["unearned","first-capture","first-blood","ten-captures","first-capture"]});

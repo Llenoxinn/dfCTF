@@ -1240,7 +1240,7 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .profile-card-controls { border-left: 1px solid var(--line); display: grid; gap: 20px; align-content: start; padding: 24px; }
 .profile-control-group { border: 0; padding: 0; min-width: 0; margin: 0; display: grid; gap: 8px; }
 .profile-control-group legend { font-size: .8125rem; font-weight: 600; margin-bottom: 10px; padding: 0; }
-.profile-control-group > label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 32px; font-size: .8125rem; }
+.profile-control-group > label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 44px; font-size: .8125rem; }
 .profile-control-group input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent-text); }
 .profile-control-group small { color: var(--muted); }
 .profile-choice-row { display: flex; flex-wrap: wrap; gap: 6px; }
