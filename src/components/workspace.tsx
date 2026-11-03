@@ -35,10 +35,11 @@ const TABS: { id: View; label: string }[] = [
   { id: "competitions", label: "Competitions" },
   { id: "resources", label: "Resources" },
 ];
-const ACCOUNT_GROUPS: {label:string;staff?:boolean;items:{id:View;label:string}[]}[] = [
-  {label:"Your space",items:[{id:"profile",label:"Profile"},{id:"socials",label:"Socials"},{id:"progress",label:"Progress"}]},
-  {label:"Staff tools",staff:true,items:[{id:"authoring",label:"Authoring"}]},
-  {label:"Help & account",items:[{id:"rules",label:"Rules"},{id:"settings",label:"Settings"}]},
+// Ordered by how often players reach for them; group names stay available to assistive tech even where no heading is drawn.
+const ACCOUNT_GROUPS: {label:string;tone:"primary"|"staff"|"secondary";items:{id:View;label:string}[]}[] = [
+  {label:"Your space",tone:"primary",items:[{id:"profile",label:"Profile"},{id:"progress",label:"Progress"},{id:"socials",label:"Socials"}]},
+  {label:"Staff tools",tone:"staff",items:[{id:"authoring",label:"Authoring"}]},
+  {label:"Help & account",tone:"secondary",items:[{id:"settings",label:"Settings"},{id:"rules",label:"Rules"}]},
 ];
 const VIEWS: View[] = ["home", ...TABS.map(t => t.id), ...ACCOUNT_GROUPS.flatMap(group=>group.items.map(item=>item.id))];
 
@@ -253,7 +254,7 @@ function Screen({ children }: { children: ReactNode }) {
 
 function ProfileMenu({ codename, points, rank, current, staff, navigate, onSignOut }: { codename: string; points: number; rank?: number; current:View;staff:boolean;navigate:(view:View)=>void;onSignOut:()=>void }) {
   const [open, setOpen] = useState(false); const root = useRef<HTMLDivElement>(null); const button = useRef<HTMLButtonElement>(null);
-  const groups=ACCOUNT_GROUPS.filter(group=>!group.staff||staff);
+  const groups=ACCOUNT_GROUPS.filter(group=>group.tone!=="staff"||staff);
   const activeLabel=groups.flatMap(group=>group.items).find(item=>item.id===current)?.label;
   useEffect(() => {
     if (!open) return;
@@ -264,10 +265,24 @@ function ProfileMenu({ codename, points, rank, current, staff, navigate, onSignO
     window.addEventListener("pointerdown", close); window.addEventListener("keydown", close);
     return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", close); };
   }, [open]);
-  // A disclosure containing grouped navigation links; standard Tab/Shift+Tab works throughout.
-  return <div className="profile" ref={root}>
-    <button ref={button} type="button" className="profile-button" aria-label={`Account menu for ${codename}`} aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} size={32} you /><span className="profile-text"><span className="mono profile-name">{codename}</span>{activeLabel?<span className="profile-context">{activeLabel}</span>:null}<span className="standing-pill">{rank ? <b>#{rank} this week</b> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></span><Icon name="down" size={14} /></button>
-    {open ? <nav className="menu account-navigation" id="profile-actions" aria-label="Account">{groups.map(group=><div className="account-nav-group" role="group" aria-label={group.label} key={group.label}><span className="account-nav-label" aria-hidden="true">{group.label}</span>{group.items.map(item=><a key={item.id} href={hrefFor(item.id)} aria-current={current===item.id?"page":undefined} onClick={event=>inPlace(event,()=>{setOpen(false);button.current?.focus();navigate(item.id);})}>{item.label}{current===item.id?<span className="account-current" aria-hidden="true">Current</span>:null}</a>)}</div>)}<div className="account-nav-signout"><button type="button" onClick={()=>{setOpen(false);onSignOut();}}><Icon name="exit" size={15}/>Sign out</button></div></nav> : null}
+  // Arrow keys, Home and End move between rows as a convenience; Tab/Shift+Tab still walk the disclosure normally.
+  const moveFocus = (e: ReactKeyboardEvent<HTMLElement>) => {
+    const rows = [...e.currentTarget.querySelectorAll<HTMLElement>("a, button")], at = rows.indexOf(document.activeElement as HTMLElement);
+    const next = e.key === "ArrowDown" ? (at + 1) % rows.length : e.key === "ArrowUp" ? (at - 1 + rows.length) % rows.length : e.key === "Home" ? 0 : e.key === "End" ? rows.length - 1 : -1;
+    if (next < 0) return; e.preventDefault(); rows[next]?.focus();
+  };
+  // A disclosure containing grouped navigation links. It closes once focus leaves it, so it never lingers behind the page.
+  return <div className="profile" ref={root} data-open={open || undefined} onBlur={e => { if (open && e.relatedTarget && !root.current?.contains(e.relatedTarget as Node)) setOpen(false); }}>
+    <button ref={button} type="button" className="profile-button" aria-label={`Account menu for ${codename}`} aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} size={32} you /><span className="profile-text"><span className="mono profile-name">{codename}</span>{activeLabel?<span className="profile-context">{activeLabel}</span>:null}<span className="standing-pill">{rank ? <b>#{rank} this week</b> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></span><Icon name="down" size={14} className="profile-chevron" /></button>
+    {open ? <nav className="menu account-navigation" id="profile-actions" aria-label="Account" onKeyDown={moveFocus}>
+      <div className="account-identity"><Identicon name={codename} size={40} you /><div><strong className="mono">{codename}</strong><span>{staff ? <span className="account-role">Staff</span> : null}{rank ? <span>#{rank} this week</span> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></div></div>
+      {groups.map(group=>{const single=group.tone==="staff"&&group.items.length===1;
+        return <div className={`account-nav-group account-nav-${group.tone}`} role="group" aria-label={group.label} key={group.label}>
+          {group.tone==="staff"&&!single?<span className="account-nav-label" aria-hidden="true">{group.label}</span>:null}
+          {group.items.map(item=><a key={item.id} href={hrefFor(item.id)} aria-current={current===item.id?"page":undefined} onClick={event=>inPlace(event,()=>{setOpen(false);button.current?.focus();navigate(item.id);})}><span>{item.label}</span>{single?<span className="account-staff-tag" aria-hidden="true">staff</span>:null}</a>)}
+        </div>;})}
+      <div className="account-nav-signout"><button type="button" onClick={()=>{setOpen(false);onSignOut();}}><Icon name="exit" size={16}/>Sign out</button></div>
+    </nav> : null}
   </div>;
 }
 

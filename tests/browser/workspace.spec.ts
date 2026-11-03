@@ -43,9 +43,14 @@ test("compact navigation keeps personal pages and staff tools in an accessible a
   await expect(main.getByRole("link")).toHaveText(["Challenges","Leaderboard","Competitions","Resources"]);
   await account.click();const menu=page.getByRole("navigation",{name:"Account",exact:true});
   await expect(menu.getByRole("group",{name:"Staff tools",exact:true}).getByRole("link",{name:"Authoring",exact:true})).toHaveAttribute("href","/?view=authoring");
-  await expect(menu.getByRole("group",{name:"Your space",exact:true}).getByRole("link")).toHaveText(["Profile","Socials","Progress"]);
+  await expect(menu.getByRole("group",{name:"Your space",exact:true}).getByRole("link")).toHaveText(["Profile","Progress","Socials"]);
+  await expect(menu.getByRole("group",{name:"Help & account",exact:true}).getByRole("link")).toHaveText(["Settings","Rules"]);
+  await expect(menu.locator(".account-nav-label")).toHaveCount(0);await expect(menu.locator(".account-role")).toHaveText("Staff");
   await page.screenshot({path:"test-results/account-navigation-desktop.png",animations:"disabled"});
   await page.keyboard.press("Tab");await expect(menu.getByRole("link",{name:"Profile",exact:true})).toBeFocused();
+  await page.keyboard.press("ArrowDown");await expect(menu.getByRole("link",{name:"Progress",exact:true})).toBeFocused();
+  await page.keyboard.press("End");await expect(menu.getByRole("button",{name:"Sign out",exact:true})).toBeFocused();
+  await page.keyboard.press("ArrowDown");await expect(menu.getByRole("link",{name:"Profile",exact:true})).toBeFocused();
   await page.keyboard.press("Escape");await expect(account).toBeFocused();await expect(menu).toHaveCount(0);
   await account.click();await menu.getByRole("link",{name:"Progress",exact:true}).click();await expect(page.getByRole("heading",{name:"Progress",exact:true})).toBeVisible();
   await expect(page.locator(".profile-context")).toHaveText("Progress");await account.click();await expect(menu.getByRole("link",{name:"Progress",exact:true})).toHaveAttribute("aria-current","page");
@@ -61,7 +66,8 @@ test("player navigation fits narrow screens, hides staff tools and remains usabl
   const brandBounds=await page.getByRole("link",{name:"dfCTF home",exact:true}).boundingBox(),accountBounds=await account.boundingBox();
   expect(Math.abs((brandBounds!.y+brandBounds!.height/2)-(accountBounds!.y+accountBounds!.height/2))).toBeLessThan(3);
   await account.click();const menu=page.getByRole("navigation",{name:"Account",exact:true});
-  await expect(menu.getByRole("link",{name:"Authoring",exact:true})).toHaveCount(0);
+  await expect(menu.getByRole("link",{name:"Authoring",exact:true})).toHaveCount(0);await expect(menu.locator(".account-role, .account-staff-tag")).toHaveCount(0);
+  expect(await menu.locator(".account-identity strong").evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   const bounds=await menu.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(320);expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(680);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:"test-results/account-navigation-mobile-dark.png",animations:"disabled"});
