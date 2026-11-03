@@ -285,6 +285,7 @@ a.card:active { transform: scale(.98); }
 .files li:last-child { border-bottom: 0; }
 .files .button { flex: none; }
 .file-info { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; min-width: 0; flex: 1; font-size: .875rem; }
+.file-info > .strong { max-width: 100%; overflow-wrap: anywhere; }
 .checksum { display: flex; align-items: center; gap: 6px; width: 100%; font-size: .6875rem; color: var(--faint); min-width: 0; }
 .checksum code { background: none; padding: 0; overflow-wrap: anywhere; color: var(--faint); }
 .prose { display: grid; gap: 14px; font-size: 1rem; line-height: 1.65; max-width: 70ch; }
@@ -1136,7 +1137,6 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .editor .files li { padding-left: 0; padding-right: 0; }
 .editor .files li:first-child { padding-top: 0; }
 .editor .files li:last-child { padding-bottom: 0; }
-.editor .file-info > .strong { max-width: 100%; overflow-wrap: anywhere; }
 .editor .file-info > .faint { white-space: nowrap; }
 .editor .checksum { align-items: baseline; }
 .dropzone { position: relative; display: grid; gap: 6px; justify-items: center; padding: 28px 18px; border: 1px dashed var(--line-strong); border-radius: var(--r); text-align: center; font-size: .8125rem; cursor: pointer; transition: border-color 150ms ease; }
