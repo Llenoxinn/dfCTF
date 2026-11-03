@@ -1,8 +1,14 @@
 # dfCTF
 
+<p align="center">
+  <a href="#run-locally">
+    <img src="https://skillicons.dev/icons?i=nextjs,react,ts,nodejs,postgres,tailwind,vitest,githubactions,docker,vercel" alt="Built with Next.js, React, TypeScript, Node.js, PostgreSQL, Tailwind CSS, Vitest, GitHub Actions, Docker, and Vercel" />
+  </a>
+</p>
+
 A capture-the-flag (CTF) platform built as a side project. Anyone can register, verify their email, choose a codename, solve challenges, and earn points on the weekly and all-time leaderboards.
 
-The application is a custom Next.js modular monolith with React, Better Auth, Drizzle, and PostgreSQL. Development can use embedded PGlite without installing a database server. PostgreSQL stores account records, challenge data, and private artifact contents; persistent hosts can also keep local backup copies. [Architecture and invariants](docs/ARCHITECTURE.md) describe authentication, event isolation, scoring, and database ownership.
+The application is a custom Next.js 16 modular monolith with React 19, TypeScript, Tailwind CSS, Better Auth, Drizzle, and PostgreSQL. Development can use embedded PGlite without installing a database server. PostgreSQL stores account records, challenge data, and private artifact contents; persistent hosts can also keep local backup copies. [Architecture and invariants](docs/ARCHITECTURE.md) describe authentication, event isolation, scoring, and database ownership.
 
 See the [side project plan](docs/MVP.md) for current scope, the next small release, and known limitations. [PRODUCT.md](PRODUCT.md) describes the product and its constraints.
 
