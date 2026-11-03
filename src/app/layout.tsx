@@ -22,5 +22,5 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value) ?? "dark";
-  return <html lang="en" data-theme={theme} className={`${sans.variable} ${mono.variable} ${mark.variable}`} suppressHydrationWarning><body>{children}</body></html>;
+  return <html lang="en" data-theme={theme} data-scroll-behavior="smooth" className={`${sans.variable} ${mono.variable} ${mark.variable}`} suppressHydrationWarning><body>{children}</body></html>;
 }
