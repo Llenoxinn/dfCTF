@@ -74,6 +74,7 @@ test("mobile navigation exposes all sections and account actions without horizon
   await expect(nav.getByRole("link", { name: "Resources", exact: true })).toBeVisible();
   await expect(nav.getByRole("button", { name: "Start solving", exact: true })).toBeVisible();
   expect(await nav.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.screenshot({ path: "test-results/navigation-mobile.png" });
   await page.keyboard.press("Escape");
   await expect(menu).toBeFocused();
   await expect(nav).toBeHidden();

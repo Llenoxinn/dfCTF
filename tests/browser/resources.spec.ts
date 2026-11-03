@@ -332,13 +332,15 @@ test("public pages keep the full navigation and link back to home sections", asy
     await page.setViewportSize({ width, height: 844 });
     for (const path of ["/resources", "/resources/osint", "/rules"]) {
       await page.goto(path);
+      if (width < 1024) await page.getByRole("banner").getByRole("button", { name: "Menu", exact: true }).click();
       const sections = page.getByRole("banner").getByRole("navigation", { name: "Sections", exact: true });
-      await expect(sections.getByRole("link")).toHaveText(["Leaderboard", "This week", "Categories", "Resources", "Rules", "FAQ"]);
+      await expect(sections.getByRole("link")).toHaveText(["Leaderboard", "This week", "Categories", "Resources", "Rules", "FAQ", ...(width < 640 ? ["Start solving"] : [])]);
       const resources = sections.getByRole("link", { name: "Resources", exact: true });
       await resources.focus();
       await page.keyboard.press("Enter");
       await expect(page.getByRole("heading", { level: 1, name: "Tutorials & Resources", exact: true })).toBeVisible();
     }
+    if (width < 1024) await page.getByRole("banner").getByRole("button", { name: "Menu", exact: true }).click();
     await page.getByRole("banner").getByRole("link", { name: "FAQ", exact: true }).click();
     await expect(page).toHaveURL(/\/\?view=home#faq$/);
     await expect(page.locator("#faq")).toBeInViewport();

@@ -55,8 +55,8 @@ test("the full leaderboard explains sign-in and returns to the leaderboard", asy
 test("a declined social callback offers recovery without exposing the provider description", async ({ page }) => {
   await mockSignIn(page);
   await page.goto("/?auth=signin&oauthError=1&error=access_denied&error_description=private-provider-detail&returnTo=%2F%3Fview%3Dleaderboard");
-  await expect(page.getByRole("alert")).toContainText("Social sign-in was cancelled or declined.");
-  await expect(page.getByRole("alert")).not.toContainText("private-provider-detail");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Social sign-in was cancelled or declined.");
+  await expect(page.getByRole("main").getByRole("alert")).not.toContainText("private-provider-detail");
   await expect(page.getByRole("status")).toContainText("the full leaderboard");
   const requestPromise = page.waitForRequest("**/api/auth/sign-in/social");
   await page.route("**/api/auth/sign-in/social", route => route.fulfill({ status: 503, json: { error: { message: "Temporarily unavailable" } } }));
@@ -67,4 +67,21 @@ test("a declined social callback offers recovery without exposing the provider d
   expect(errorURL.searchParams.get("returnTo")).toBe("/?view=leaderboard");
   expect(errorURL.searchParams.get("oauthError")).toBe("1");
   await expect(page.getByRole("button", { name: "Continue with GitHub", exact: true })).toBeEnabled();
+});
+
+test("guests can reach privacy and private support before registering", async ({ page }) => {
+  await mockSignIn(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?auth=signup");
+  await page.getByRole("link", { name: "Privacy", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Privacy", exact: true })).toBeVisible();
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/privacy$/);
+  await page.getByRole("navigation", { name: "Help and information" }).getByRole("link", { name: "Help / Contact", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Help / Contact", exact: true })).toBeInViewport();
+  await expect(page.locator('a[href="mailto:dfctf.dfc@gmail.com?subject=dfCTF%20private%20security%20report"]')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  await page.screenshot({ path: "test-results/support-mobile.png", fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: "test-results/support-desktop.png", fullPage: true });
 });
