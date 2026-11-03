@@ -21,7 +21,7 @@ import { LearningProgressProvider } from "./resource-progress";
 import { Content } from "./content";
 import { ChallengeCard, type CardState } from "./cards";
 import { Heatmap, Radar, RaceChart, SolveGrid } from "./viz";
-import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Modal, Notice, Pips, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
+import { api, CopyButton, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Modal, Notice, Pips, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
 
 // The guides are long, so their text loads only when the Resources tab opens.
 const ResourcesContent = dynamic(() => import("./resources-content"), { loading: () => <Loading label="Opening the guides" backdrop /> });
@@ -370,6 +370,17 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
   const endpoint = competitionId ? `/api/v1/competitions/${encodeURIComponent(competitionId)}/challenges/${encodeURIComponent(id)}` : `/api/v1/challenges/${encodeURIComponent(id)}`;
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null); const [loadError, setLoadError] = useState(""); const [error, setError] = useState(""); const [flag, setFlag] = useState(""); const [busy, setBusy] = useState(false); const [result, setResult] = useState<SubmitResult | null>(null); const [miss, setMiss] = useState(0);
   const [solverError, setSolverError] = useState(""); const [shownSolvers, setShownSolvers] = useState(20);
+  const newlyCaptured = result?.status === "correct";
+  const captureFeedback = useCallback((node: HTMLDivElement | null) => {
+    if (!node || !newlyCaptured) return;
+    node.scrollIntoView({ block: "nearest", behavior: "instant" });
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Run once on the new solve; changing tabs must not replay the celebration.
+    const animation = node.animate(reduced ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: "translateY(12px)" }, { opacity: 1, transform: "translateY(0)" }], {
+      duration: reduced ? 160 : 240, easing: getComputedStyle(node).getPropertyValue("--ease-out").trim(),
+    });
+    return () => animation.cancel();
+  }, [newlyCaptured]);
   // Solvers get their own tab so a long list never pushes the flag form and walkthrough out of reach.
   const [pane, setPane] = useState<"challenge" | "solvers">("challenge");
   const tabIds = useId();
@@ -407,6 +418,7 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
       <span className="spacer" />
       <button type="button" className="icon-button" onClick={back} aria-label={competitionId ? "Close and return to the competition" : "Close challenge"}><Icon name="close" size={18} /></button>
     </div>
+    <p className="sr-only capture-announcement" role="status" aria-live="polite" aria-atomic="true">{newlyCaptured ? `Flag captured! ${result.xp} points earned.` : ""}</p>
     {loadError ? <div className="modal-body"><h2 id="challenge-title" className="sr-only">Challenge unavailable</h2><Empty title="This challenge isn’t available" action={<button className="button button-secondary" onClick={back}>{backLabel}</button>}>{loadError}</Empty></div>
     : !challenge ? <div className="modal-body"><h2 id="challenge-title" className="sr-only">Opening the challenge</h2><Loading label="Opening the challenge" /></div>
     : <div className="modal-body challenge">
@@ -438,10 +450,12 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
           <a className="button button-secondary" href={`${endpoint}/files/${encodeURIComponent(file.id)}`} download><Icon name="download" size={16} />Download</a>
         </li>)}</ul> : <p className="muted">No files. Everything you need is in the description.</p>}
       </section>
-      <section className="submit" aria-labelledby="submit-title">
-        {challenge.solved ? <div className="captured">
-          <div className="verdict verdict-correct"><span className="mono" aria-hidden="true">[x]</span>{result?.status === "correct" ? <DecodeText text="correct" className="mono strong" /> : <span className="mono strong">solved</span>}{result?.status === "correct" ? <span className="fade-up mono strong">+{result.xp} pts</span> : null}</div>
-          <h3 id="submit-title">Flag captured</h3>
+      <section className={`submit${newlyCaptured ? " submit-correct" : ""}`} aria-labelledby="submit-title">
+        {challenge.solved ? <div className="captured" ref={captureFeedback}>
+          {newlyCaptured ? <div className="capture-heading"><span className="capture-mark" aria-hidden="true"><Icon name="check" size={28} /></span><div><h3 id="submit-title">Flag captured!</h3><p className="capture-points"><strong className="mono">+{result.xp}</strong> points earned</p></div></div> : <>
+            <div className="verdict verdict-correct"><span className="mono" aria-hidden="true">[x]</span><span className="mono strong">solved</span></div>
+            <h3 id="submit-title">Flag captured</h3>
+          </>}
           <p className="muted">{result?.status === "correct" ? <>{competitionId ? "Your competition score" : "Your total"} is now <span className="mono">{result.totalXp.toLocaleString()}</span> points.</> : result?.status === "already_solved" ? "You had already solved this one, so no extra points. Your progress is saved." : <>This one is on your record for <span className="mono">{challenge.xp}</span> points.</>}</p>
           <button className="button button-secondary" onClick={back}>{competitionId ? "Back to competition" : "Find another challenge"}</button>
         </div> : <>
