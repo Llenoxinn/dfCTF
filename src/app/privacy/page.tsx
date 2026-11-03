@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/metadata";
 import InformationPage from "@/components/information-page";
 import { SUPPORT_EMAIL } from "@/lib/site";
 
-export const metadata: Metadata = { title: "Privacy · dfCTF", description: "Learn what dfCTF stores, what other players can see, and how to request access, correction, or deletion of account information." };
+export const metadata = publicPageMetadata("/privacy", "Privacy · dfCTF", "Learn what dfCTF stores, what other players can see, and how to request access, correction, or deletion of account information.");
 
 export default function PrivacyPage() {
   return <InformationPage title="Privacy" introduction="How dfCTF handles account information, learning progress, and public competition activity. Updated 3 November 2026.">

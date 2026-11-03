@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/metadata";
 import InformationPage from "@/components/information-page";
 import { SUPPORT_EMAIL } from "@/lib/site";
 
-export const metadata: Metadata = { title: "Help / Contact · dfCTF", description: "Get help with a dfCTF account, report a broken challenge, or contact the maintainers privately." };
+export const metadata = publicPageMetadata("/support", "Help / Contact · dfCTF", "Get help with a dfCTF account, report a broken challenge, or contact the maintainers privately.");
 
 export default function SupportPage() {
   return <InformationPage title="Help / Contact" introduction="Contact the dfCTF maintainers about account access, challenge problems, or private reports.">

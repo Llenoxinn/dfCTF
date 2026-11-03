@@ -1,9 +1,9 @@
-import type { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/metadata";
 import RulesContent from "@/components/rules-content";
 import SiteHeader from "@/components/site-header";
 import SiteFooter from "@/components/site-footer";
 
-export const metadata: Metadata = { title: "Rules / Mechanics · dfCTF" };
+export const metadata = publicPageMetadata("/rules", "Rules / Mechanics · dfCTF", "Read dfCTF rules for independent solving, allowed tools, safe practice, scoring, and fair play.");
 
 export default function RulesPage() {
   return <div className="rules-page">
