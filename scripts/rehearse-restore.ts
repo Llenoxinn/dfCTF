@@ -69,7 +69,7 @@ try {
   await store.migrate();
   const auth = createAuth(store.db);
   globals.dfctfAuth = Promise.resolve(auth);
-  const fixturePassword = `synthetic-restore-${randomUUID()}`;
+  const fixturePassword = `Synthetic-restore-1-${randomUUID()}`;
   async function identity(role: Viewer["role"]): Promise<Viewer> {
     const email = `restore-${role}@example.test`;
     const registered = await auth.api.signUpEmail({ body: { email, password: fixturePassword, name: "Synthetic recovery fixture" } });

@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useState } from "react";
 import type { Bootstrap, Community } from "@/lib/types";
 import { destinationLabel } from "@/lib/auth-navigation";
 import { socialSignInError } from "@/lib/social-errors";
+import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, PASSWORD_PATTERN, PASSWORD_REQUIREMENTS } from "@/lib/password-policy";
 import AsciiField from "./ascii-field";
 import DecryptedText from "./decrypted-text";
 import { SiteLinks } from "./site-footer";
@@ -83,7 +84,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
     signin: "Pick up where you left off. Your solves, points, and rank are saved to your account.",
     signup: "You’ll verify your email, then pick the codename that appears on the leaderboard.",
     forgot: "Enter your account email and we’ll send a link to set a new password.",
-    reset: "Use at least 15 characters. A memorable passphrase works well.",
+    reset: PASSWORD_REQUIREMENTS,
     mfa: "Enter the 6-digit code from your authenticator app.",
   }[mode];
   const action = { signin: "Sign in", signup: "Create account", forgot: "Send reset link", reset: "Update password", mfa: "Verify and continue" }[mode];
@@ -115,8 +116,8 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
           {mode !== "mfa" && mode !== "reset" ? <label className="field"><span>Email</span><input type="email" name="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" disabled={busy} /></label> : null}
           {mode === "signin" || mode === "signup" || mode === "reset" ? <div className="field">
             <div className="label-row"><label htmlFor="password">{mode === "reset" ? "New password" : "Password"}</label>{mode === "signin" ? <button type="button" className="text-button" onClick={() => changeMode("forgot")}>Forgot password?</button> : null}</div>
-            <div className="password-input"><input id="password" type={showPassword ? "text" : "password"} name="password" required minLength={mode === "signin" ? 1 : 15} maxLength={128} autoComplete={mode === "signin" ? "current-password" : "new-password"} value={password} onChange={e => setPassword(e.target.value)} disabled={busy} aria-describedby={mode !== "signin" ? "password-help" : undefined} /><button type="button" className="password-toggle" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}>{showPassword ? "Hide" : "Show"}</button></div>
-            {mode !== "signin" ? <small id="password-help">At least 15 characters, up to 128. {password.length ? <span className="mono">{password.length} so far.</span> : null}</small> : null}
+            <div className="password-input"><input id="password" type={showPassword ? "text" : "password"} name="password" required minLength={mode === "signin" ? 1 : PASSWORD_MIN_LENGTH} maxLength={PASSWORD_MAX_LENGTH} pattern={mode === "signin" ? undefined : PASSWORD_PATTERN.source} data-validation-message={mode === "signin" ? undefined : PASSWORD_REQUIREMENTS} autoComplete={mode === "signin" ? "current-password" : "new-password"} value={password} onChange={e => setPassword(e.target.value)} disabled={busy} aria-describedby={mode !== "signin" ? "password-help" : undefined} /><button type="button" className="password-toggle" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}>{showPassword ? "Hide" : "Show"}</button></div>
+            {mode !== "signin" ? <small id="password-help">{PASSWORD_REQUIREMENTS} {password.length ? <span className="mono">{password.length} so far.</span> : null}</small> : null}
           </div> : null}
           {mode === "mfa" ? <div className="field"><label htmlFor="mfa-code">{backup ? "Backup code" : "Authenticator code"}</label><input id="mfa-code" className={backup ? "mono" : "mono code-input"} autoComplete="one-time-code" inputMode={backup ? "text" : "numeric"} value={code} onChange={e => setCode(e.target.value)} required placeholder={backup ? "One unused backup code" : "000000"} pattern={backup ? undefined : "[0-9]{6}"} data-validation-message={backup ? undefined : "Enter the 6-digit code from your authenticator app."} maxLength={backup ? 50 : 6} /><button type="button" className="text-button" onClick={() => { setBackup(v => !v); setCode(""); }}>{backup ? "Use your authenticator app instead" : "Use a backup code instead"}</button></div> : null}
           <button className="button button-primary w-full" type="submit" disabled={busy}>{busy ? <><Spinner />Working</> : action}</button>

@@ -34,7 +34,7 @@ process.env.ARTIFACT_DIR = path.join(directory, ".data", "artifacts");
 const store = await createStore();
 try {
   await store.migrate();
-  const auth = createAuth(store.db), password = `synthetic-fixture-${randomUUID()}`;
+  const auth = createAuth(store.db), password = `Synthetic-fixture-1-${randomUUID()}`;
   async function fixtureAccount(role: "author" | "reviewer" | "participant", label = role as string): Promise<Viewer> {
     const email = `fixture-${label}@example.test`, codename = `fixture_${label}`;
     const registered = await auth.api.signUpEmail({ body: { email, password, name: "Synthetic integration fixture" } });

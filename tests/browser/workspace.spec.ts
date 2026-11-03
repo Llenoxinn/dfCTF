@@ -413,11 +413,16 @@ test("a password reset link works in an authenticated browser and refreshes the 
   });
   await page.goto("/?reset=1&token=valid-reset-token");
   await expect(page.getByRole("heading", { name: "Choose a new password", exact: true })).toBeVisible();
-  await page.getByLabel("New password", { exact: true }).fill("a different long passphrase");
+  const password = page.getByLabel("New password", { exact: true });
+  await password.fill("a different long passphrase");
+  await page.getByRole("button", { name: "Update password", exact: true }).click();
+  await expect(page.locator(".validation-popover")).toContainText("at least one uppercase letter, one lowercase letter, one number, and one symbol");
+  expect(body).toBeUndefined();
+  await password.fill("Abcdef1!");
   await page.getByRole("button", { name: "Update password", exact: true }).click();
   await expect(page.getByText("Password updated. Sign in with your new password.", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Sign in to dfCTF", exact: true })).toBeVisible();
-  expect(body).toEqual({ token: "valid-reset-token", newPassword: "a different long passphrase" });
+  expect(body).toEqual({ token: "valid-reset-token", newPassword: "Abcdef1!" });
   expect(page.url()).not.toContain("valid-reset-token");
 });
 

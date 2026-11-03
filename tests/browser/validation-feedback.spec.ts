@@ -48,12 +48,18 @@ for (const theme of ["dark", "light"] as const) {
     await submit.click();
     await expect(card).toContainText("Password");
     await expect(password).toBeFocused();
-    await expect(password).toHaveAccessibleDescription(/At least 15 characters.*This field is required/);
+    await expect(password).toHaveAccessibleDescription(/Use 8–128 characters.*This field is required/);
     await password.fill("short");
     await submit.click();
-    await expect(card).toContainText("Use at least 15 characters.");
+    await expect(card).toContainText("Use at least 8 characters.");
     expect(submissions).toBe(0);
-    await password.fill("a long and valid registration password");
+    for (const invalid of ["lower1!a", "UPPER1!A", "Abcdefg!", "Abcdefg1", "Abcdef1 "]) {
+      await password.fill(invalid);
+      await submit.click();
+      await expect(card).toContainText("at least one uppercase letter, one lowercase letter, one number, and one symbol");
+      expect(submissions).toBe(0);
+    }
+    await password.fill("Abcdef1!");
     await expect(card).toBeHidden();
     await expect(password).toHaveAttribute("aria-describedby", "password-help");
     await submit.click();
@@ -76,7 +82,10 @@ test("validation follows auth mode changes and explains an invalid authenticator
   await page.getByRole("group", { name: "Choose an option" }).getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(card).toBeHidden();
   await page.getByLabel("Email", { exact: true }).fill("player@example.test");
-  await page.getByLabel("Password", { exact: true }).fill("a correct sign-in password");
+  const password = page.getByLabel("Password", { exact: true });
+  await expect(password).toHaveAttribute("minlength", "1");
+  await expect(password).not.toHaveAttribute("pattern");
+  await password.fill("a correct sign-in password");
   await page.locator("form").getByRole("button", { name: "Sign in", exact: true }).click();
   const code = page.getByLabel("Authenticator code", { exact: true });
   await code.fill("123");

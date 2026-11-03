@@ -19,7 +19,7 @@ async function account(email:string,codename:string,role:Viewer["role"]) {
   let [record]=await db.select().from(user).where(eq(user.email,email));
   if(!record){
     await db.insert(allowlist).values({id:randomUUID(),email}).onConflictDoNothing();
-    const password=`dfCTF-${randomBytes(16).toString("base64url")}`;
+    const password=`dfCTF-1-${randomBytes(16).toString("base64url")}`;
     const result=await auth.api.signUpEmail({body:{name:"Private learner",email,password}});
     await db.update(user).set({emailVerified:true,codename,codenameKey:codenameKey(codename),role}).where(eq(user.id,result.user.id));
     [record]=await db.select().from(user).where(eq(user.id,result.user.id));
