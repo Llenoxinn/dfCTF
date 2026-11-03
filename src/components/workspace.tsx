@@ -373,7 +373,7 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
   const newlyCaptured = result?.status === "correct";
   const captureFeedback = useCallback((node: HTMLDivElement | null) => {
     if (!node || !newlyCaptured) return;
-    node.scrollIntoView({ block: "nearest", behavior: "instant" });
+    node.closest(".submit")?.scrollIntoView({ block: "nearest", behavior: "instant" });
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // Run once on the new solve; changing tabs must not replay the celebration.
     const animation = node.animate(reduced ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: "translateY(12px)" }, { opacity: 1, transform: "translateY(0)" }], {
