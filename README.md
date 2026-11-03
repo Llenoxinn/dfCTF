@@ -12,6 +12,21 @@ The application is a custom Next.js 16 modular monolith with React 19, TypeScrip
 
 See the [side project plan](docs/MVP.md) for current scope, the next small release, and known limitations. [PRODUCT.md](PRODUCT.md) describes the product and its constraints.
 
+## Features
+
+- **Practice library**: reviewed challenges across seven categories, server-side flag validation, cooldowns instead of penalties, and explanations unlocked on solve.
+- **Leaderboards**: weekly standings (Asia/Manila week) and all-time totals, with first blood and solver lists per challenge.
+- **Competitions**: timed built-in events with separate scoring, or links to an external CTFd host.
+- **Tutorials & Resources**: a public reading library with learning paths, glossary terms, and synced progress for signed-in players.
+- **Player pages**: Profile with an exportable player card, Progress, and Socials with friend requests.
+- **Staff tools**: Authoring with independent review before publication, two-factor staff sessions, and account access controls.
+
+## Contents
+
+[Run locally](#run-locally) · [Learner flow](#try-the-learner-flow) · [Your account](#your-account) · [Staff flow](#try-the-staff-flow) · [Competitions](#host-a-competition) · [Account access](#manage-account-access) · [Social sign-in](#configure-social-sign-in) · [Commands](#development-commands) · [Deploy](#deploy-and-review-scope)
+
+## Contributing
+
 To report a bug, suggest a feature, or flag a visual UI problem, follow the [contributing and issue template guide](.github/CONTRIBUTING.md). The site footer links to the same issue templates, plus **Send feedback** (`/support`) for account help or private reports, and the **Privacy** page.
 
 ## Run locally
@@ -47,7 +62,14 @@ The app and database scripts load `.env.local`. Leave `LOCAL_MAIL=1` for local d
 
 Open **Rules / Mechanics** from the public site or the signed-in Rules tab. On phones, **Sections** stays below the header while reading; open it to jump to a topic, or close it with Escape or **Close sections**. The rules prohibit LLM-assisted solving, attacks or abuse of the platform, answer sharing, and plagiarized challenges. Three field notes form the flag for **Read the fine print**. Re-run `npm run seed` with the local app stopped to add it to an existing development database. On a deployment, staff can choose **Authoring → Rules challenge** to create its draft and briefing file, then use the usual independent review and publication flow.
 
-Open **Resources** from the navigation or tools FAQ for the public [Tutorials & Resources library](http://127.0.0.1:3000/resources), or use the signed-in Resources tab. Search its 15 topics and tool guides (grouped as Beginner or Intermediate), filter by starting level or stated platform, or follow one of six learning paths. Each topic has its own page with learning goals, optional prerequisites, previous/next navigation, and a gradual order: introduction, basic ideas, a first skill, recommended tools, deeper guides, a recap, then optional practice. **Mark topic read** sits at the end of each topic. The topic index uses the LineSidebar. Click underlined technical terms for plain-language explanations. Commands and exercises stay collapsed until requested.
+### Tutorials & Resources
+
+Open **Resources** from the navigation or tools FAQ for the public [Tutorials & Resources library](http://127.0.0.1:3000/resources), or use the signed-in Resources tab.
+
+- Search 15 topics and tool guides (grouped as Beginner or Intermediate), filter by starting level or stated platform, or follow one of six learning paths.
+- Each topic has its own page with learning goals, optional prerequisites, and previous/next navigation. Lessons run from an introduction and basic ideas to a first skill, recommended tools, deeper guides, a recap, then optional practice.
+- **Mark topic read** sits at the end of each topic, and a sidebar index lists the topic's sections.
+- Click underlined technical terms for plain-language explanations. Commands and exercises stay collapsed until requested.
 
 After you start reading, **Your learning** replaces the welcome panel at the top of the library: the topic you were reading and the section you stopped at, your current path, topics marked read, bookmarks, and where progress is saved. Each learning path shows which topics are read, which one you are reading, and which comes next.
 
