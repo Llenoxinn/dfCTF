@@ -4,9 +4,17 @@ import path from "node:path";
 
 test("real owner profile edits persist, reflect canonical scores, and remain isolated from another account",async({page})=>{
   const fixture=JSON.parse(await readFile(path.join(process.env.DFCTF_INTEGRATION_DIR!,"fixture.json"),"utf8")) as {challengeId:string;flag:string;learners:{learner:string;otherLearner:string;password:string}};
+  // Keep this synthetic client out of preceding suites' rolling sign-in budget.
+  // Development trusts this header; production still requires its proxy-stamped X-Real-IP.
+  await page.setExtraHTTPHeaders({Origin:"http://127.0.0.1:3200","X-dfCTF-Request":"1","X-Forwarded-For":"192.0.2.31"});
   expect((await page.request.get("/api/v1/profile")).status()).toBe(401);
   async function signIn(email:string){
-    await page.goto("/?auth=signin");await page.getByLabel("Email",{exact:true}).fill(email);await page.getByLabel("Password",{exact:true}).fill(fixture.learners.password);await page.locator("form").getByRole("button",{name:"Sign in",exact:true}).click();
+    await page.goto("/?auth=signin");await page.getByLabel("Email",{exact:true}).fill(email);await page.getByLabel("Password",{exact:true}).fill(fixture.learners.password);
+    const [response]=await Promise.all([
+      page.waitForResponse(response=>new URL(response.url()).pathname==="/api/auth/sign-in/email"&&response.request().method()==="POST"),
+      page.locator("form").getByRole("button",{name:"Sign in",exact:true}).click(),
+    ]);
+    expect(response.status(),"The profile fixture must sign in before opening the dashboard.").toBe(200);
     await page.getByRole("navigation",{name:"Main",exact:true}).getByRole("link",{name:"Profile",exact:true}).click();
     await expect(page.getByRole("heading",{name:"Profile",exact:true})).toBeVisible();
   }

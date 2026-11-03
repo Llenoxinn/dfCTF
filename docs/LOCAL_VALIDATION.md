@@ -16,6 +16,13 @@ The integration suite starts the real application on `127.0.0.1:3200`. It copies
 
 The helper creates its temporary folder beside the checkout, refuses populated folders, and writes a unique ownership marker before creating fixtures. The test app uses Turbopack with that parent as its explicit root, so linked dependencies stay inside the root and Webpack's development-manifest rewrite race does not affect these tests. Cleanup runs in the test reporter after Playwright stops its server process tree. It requires the current run's marker, unlinks the dependency junction or symlink, and removes only the owned temporary folder. A missing or stale ownership marker leaves the folder untouched.
 
+Profile and Socials integration clients use distinct documentation-only IPs in
+the development server's `X-Forwarded-For` header. This keeps unrelated tests out
+of the same rolling login-rate-limit bucket on faster CI workers. Profile
+sign-in also asserts the real HTTP response before waiting for navigation, so a
+login failure is reported directly. Application rate limits and production
+proxy-header validation remain enabled.
+
 ## Coverage
 
 - Draft editing: unsaved-change warnings for app navigation, Back/Forward, fragment history, reload, and full document navigation; failed saves retain the warning, while successful saves clear it.
