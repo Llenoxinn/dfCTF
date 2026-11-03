@@ -124,6 +124,13 @@ Provider configuration is included, but a real social sign-in round trip require
 
 ## Development commands
 
+The signed-in **Profile** tab provides owner-only display details, scoped practice
+statistics, capture history, and a customizable player card. **Download PNG**
+creates a 2400 × 1350 image locally. Card preferences stay in this browser per
+account; account security remains in Settings. Apply migration
+`0005_player_profiles` with `npm run db:migrate` before deploying this feature.
+See [Profile data sources, privacy, and export design](docs/PROFILE.md).
+
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Development server on `127.0.0.1:3000` |

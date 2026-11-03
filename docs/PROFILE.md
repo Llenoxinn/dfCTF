@@ -56,3 +56,29 @@ editable. The export module is loaded on demand, freezes the selected SVG for a
 single export, bounds font/image waits, prevents concurrent requests, and frees
 temporary object URLs. Profile edits remain owner-only until the user shares a
 downloaded card; they do not publish a profile page.
+
+## Verification and rollout
+
+Verification uses explicitly synthetic players, challenges, and scores. Browser
+coverage includes owner editing and validation, keyboard focus restoration,
+scope changes, account-isolated preferences, reset, expired sessions, failed
+image decoding and retry, overlapping clicks, and changes during an export.
+Downloaded PNG signatures and 2400 × 1350 dimensions are asserted at device
+pixel ratio 2, including a narrow viewport. Actual populated, empty, and long
+Unicode PNGs were opened and visually inspected across the three themes.
+
+The final verification passed TypeScript, 171 unit tests in 18 files, 77 browser
+tests, and four real local integration flows. The Profile integration flow
+persists edits, submits a valid fixture solve, compares the owner's statistics
+with the official board, and checks sign-out and second-account isolation.
+
+The production build also checks its server-file manifests to exclude local
+databases, credentials, and private development files. There is no standalone
+lint script in this repository; TypeScript, the existing test suites, and the
+production build are the configured checks.
+
+Before deploying, apply `0005_player_profiles` using the existing migration
+connection and verify the new table, RLS, and two solve indexes. The migration
+is additive and existing profile rows are optional. Local verification does not
+apply migrations to a shared database. At this handoff, the shared-database
+snapshot and upgrade are pending the owner's explicit approval.

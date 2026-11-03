@@ -10,6 +10,7 @@ export default function PrivacyPage() {
       <h2>Information we store and why</h2>
       <p>dfCTF is maintained by DFC Developers. We store your email address, verification status, public codename, account role, and account creation details to provide access and manage the platform. Email/password accounts store a password hash. If you enable two-factor authentication, we also store the information needed to verify it and manage backup codes.</p>
       <p>Signing in with Google or GitHub supplies a provider account identifier, email, and profile fields returned by that provider. The account connection can include encrypted provider tokens. The provider handles its own password; dfCTF does not receive that password.</p>
+      <p>You may save an optional display name, bio, website, and GitHub profile link in the owner-only Profile dashboard. These fields do not create a public profile page. You choose whether to include optional details in a downloaded player card; sharing that image makes its chosen details and practice statistics visible to its recipients.</p>
       <p>We store challenge attempts as digests and outcomes, solve times, points, competition registrations, and staff actions to operate scoring and review activity. Signed-in learning progress includes reading positions, bookmarks, and topics marked read.</p>
       <p>Sessions can record your IP address, browser information, and expiry time. Rate-limit records, request identifiers, and service logs help protect accounts and investigate errors. Do not upload personal or confidential evidence as challenge material.</p>
     </section>
@@ -20,6 +21,7 @@ export default function PrivacyPage() {
     <section>
       <h2>Cookies and browser storage</h2>
       <p>Session cookies keep you signed in, and a theme cookie saves your appearance preference. Browser storage saves resource bookmarks, reading positions, and topics marked read. Guest progress stays in that browser. Signed-in progress also syncs with your account and can be cached locally while waiting to sync.</p>
+      <p>Player-card themes, accents, and field choices are saved in this browser separately for each account. They do not sync between devices. PNG creation happens in your browser without uploading profile details to a rendering service.</p>
       <p>Clearing browser storage removes local reading data and pending changes; it does not delete your server account or previously synced progress. Shared devices should use separate browser profiles, and you should sign out when finished.</p>
     </section>
     <section>
