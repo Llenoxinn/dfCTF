@@ -480,8 +480,20 @@ a.card:active { transform: scale(.98); }
 .profile { position: relative; }
 .profile-button { display: inline-flex; align-items: center; gap: 10px; padding: 4px 8px 4px 4px; border-radius: var(--r); font-size: .8125rem; color: var(--text); transition: background-color 150ms ease; }
 .profile-button svg:last-child { color: var(--muted); }
+.profile-context { font-size: .6875rem; color: var(--accent-text); }
+.profile-text { min-width: 0; }
+.profile-name { overflow: hidden; text-overflow: ellipsis; max-width: 24ch; }
 .menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; display: grid; min-width: 180px; padding: 6px; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 4px; box-shadow: 0 12px 32px -12px rgb(0 0 0 / .5); transform-origin: top right; animation: menu-in 150ms var(--ease-out); }
 .menu button { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r); text-align: left; font-size: .875rem; }
+.account-navigation { width: min(268px,calc(100vw - 32px)); min-width: 0; max-height: calc(100dvh - 80px); overflow-y: auto; overscroll-behavior: contain; }
+.account-nav-group { display: grid; padding: 6px 0; }
+.account-nav-group + .account-nav-group, .account-nav-signout { border-top: 1px solid var(--line); }
+.account-nav-label { padding: 6px 10px; color: var(--faint); font: 500 .6875rem/1.4 var(--font-code); letter-spacing: .08em; }
+.account-navigation a, .account-navigation button { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 10px; border-radius: var(--r); text-align: left; font-size: .875rem; }
+.account-navigation a[aria-current="page"] { color: var(--accent-text); background: var(--bg); box-shadow: inset 2px 0 var(--accent-text); }
+.account-current { font-size: .6875rem; color: var(--muted); }
+.account-nav-signout { padding-top: 6px; }.account-nav-signout button { justify-content: start; width: 100%; }
+@media (hover: hover) and (pointer: fine) { .account-navigation a:hover { background: var(--line); } }
 @keyframes menu-in { from { opacity: 0; transform: scale(.97); } }
 @media (hover: hover) and (pointer: fine) { .tab:hover { color: var(--text); } .tab:hover > span { background: var(--surface-2); } .profile-button:hover, .menu button:hover { background: var(--surface-2); } .menu button:hover { background: var(--line); } }
 .app-main { max-width: var(--page); margin: 0 auto; padding: 36px 32px 72px; display: grid; gap: 28px; outline: none; }
@@ -1156,6 +1168,15 @@ dl.resource-area-notes { display: grid; gap: 20px; }
   .feed li { grid-template-columns: 44px minmax(0, 1fr) 52px; }
   .feed li > :nth-child(3), .feed li > :nth-child(4) { display: none; }
   .hide-sm { display: none; }
+}
+@media (max-width: 600px) {
+  .app-bar > .profile { min-width: 0; max-width: calc(100% - 110px); }
+  .profile-button { max-width: 100%; }
+  .profile-button > svg { flex-shrink: 0; }
+  .profile-button .standing-pill b { display: none; }
+  .tabs { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); padding: 0; }
+  .tab { justify-content: center; min-width: 0; font-size: .75rem; letter-spacing: -.01em; }
+  .tab > span { padding: 8px 2px; }
 }
 @media (max-width: 560px) {
   .editor .files li { flex-wrap: wrap; }

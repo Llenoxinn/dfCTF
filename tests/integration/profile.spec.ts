@@ -15,7 +15,8 @@ test("real owner profile edits persist, reflect canonical scores, and remain iso
       page.locator("form").getByRole("button",{name:"Sign in",exact:true}).click(),
     ]);
     expect(response.status(),"The profile fixture must sign in before opening the dashboard.").toBe(200);
-    await page.getByRole("navigation",{name:"Main",exact:true}).getByRole("link",{name:"Profile",exact:true}).click();
+    await page.getByRole("button",{name:/^Account menu for/}).click();
+    await page.getByRole("navigation",{name:"Account",exact:true}).getByRole("link",{name:"Profile",exact:true}).click();
     await expect(page.getByRole("heading",{name:"Profile",exact:true})).toBeVisible();
   }
   await signIn(fixture.learners.learner);

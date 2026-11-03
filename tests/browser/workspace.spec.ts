@@ -37,6 +37,38 @@ function challenge(id: string, title: string): ChallengeDetail {
   };
 }
 
+test("compact navigation keeps personal pages and staff tools in an accessible account disclosure",async({page})=>{
+  await mockWorkspace(page);await page.setViewportSize({width:1440,height:1000});await page.goto("/?view=practice");
+  const main=page.getByRole("navigation",{name:"Main",exact:true}),account=page.getByRole("button",{name:"Account menu for test_author",exact:true});
+  await expect(main.getByRole("link")).toHaveText(["Challenges","Leaderboard","Competitions","Resources"]);
+  await account.click();const menu=page.getByRole("navigation",{name:"Account",exact:true});
+  await expect(menu.getByRole("group",{name:"Staff tools",exact:true}).getByRole("link",{name:"Authoring",exact:true})).toHaveAttribute("href","/?view=authoring");
+  await expect(menu.getByRole("group",{name:"Your space",exact:true}).getByRole("link")).toHaveText(["Profile","Socials","Progress"]);
+  await page.screenshot({path:"test-results/account-navigation-desktop.png",animations:"disabled"});
+  await page.keyboard.press("Tab");await expect(menu.getByRole("link",{name:"Profile",exact:true})).toBeFocused();
+  await page.keyboard.press("Escape");await expect(account).toBeFocused();await expect(menu).toHaveCount(0);
+  await account.click();await menu.getByRole("link",{name:"Progress",exact:true}).click();await expect(page.getByRole("heading",{name:"Progress",exact:true})).toBeVisible();
+  await expect(page.locator(".profile-context")).toHaveText("Progress");await account.click();await expect(menu.getByRole("link",{name:"Progress",exact:true})).toHaveAttribute("aria-current","page");
+  await page.keyboard.press("Escape");await page.goBack();await expect(main.getByRole("link",{name:"Challenges",exact:true})).toHaveAttribute("aria-current","page");
+});
+
+test("player navigation fits narrow screens, hides staff tools and remains usable in light mode",async({page})=>{
+  const {bootstrap,board}=await mockWorkspace(page);bootstrap.user!.role="participant";bootstrap.user!.codename="long_player_codename_2026";
+  board.viewer={codename:bootstrap.user!.codename,rank:2,points:50,solves:1,gap:null};
+  await page.setViewportSize({width:320,height:680});await page.goto("/?view=practice");
+  const account=page.getByRole("button",{name:"Account menu for long_player_codename_2026",exact:true}),nav=page.getByRole("navigation",{name:"Main",exact:true});
+  await expect(nav.getByRole("link")).toHaveCount(4);expect(await nav.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+  const brandBounds=await page.getByRole("link",{name:"dfCTF home",exact:true}).boundingBox(),accountBounds=await account.boundingBox();
+  expect(Math.abs((brandBounds!.y+brandBounds!.height/2)-(accountBounds!.y+accountBounds!.height/2))).toBeLessThan(3);
+  await account.click();const menu=page.getByRole("navigation",{name:"Account",exact:true});
+  await expect(menu.getByRole("link",{name:"Authoring",exact:true})).toHaveCount(0);
+  const bounds=await menu.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(320);expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(680);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:"test-results/account-navigation-mobile-dark.png",animations:"disabled"});
+  await page.context().addCookies([{name:"dfctf-theme",value:"light",domain:"127.0.0.1",path:"/"}]);await page.reload();await account.click();await expect(page.locator("html")).toHaveAttribute("data-theme","light");await page.screenshot({path:"test-results/account-navigation-mobile-light.png",animations:"disabled"});
+  await menu.getByRole("link",{name:"Rules",exact:true}).click();await expect(page.getByRole("heading",{name:"Rules / Mechanics",exact:true})).toBeVisible();
+});
+
 test("slash focuses visible search without typing and leaves modified keys, composition, and hidden search alone", async ({ page }) => {
   await mockWorkspace(page);
   await page.setViewportSize({ width: 1600, height: 1000 });
@@ -195,7 +227,7 @@ test("a late submission cannot solve or reveal a walkthrough on the next challen
   // The challenge is a modal, so the header behind it is inert until the dialog closes.
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "This week", exact: true }).click();
+  await page.getByRole("region", { name: "This week’s challenge", exact: true }).getByRole("link", { name: "Open challenge", exact: true }).click();
   await expect(page.getByRole("heading", { name: next.title, exact: true })).toBeVisible();
   await page.getByLabel("Flag", { exact: true }).fill("dfCTF{next_case}");
   const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === "/api/v1/progress");
