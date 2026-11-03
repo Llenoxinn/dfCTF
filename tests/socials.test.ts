@@ -77,6 +77,12 @@ describe("player discovery and connections",()=>{
     expect((await listPlayers(store.db,b.id,{kind:"incoming"},now)).items).toEqual([]);
     const later=new Date(now.getTime()+8*86_400_000);expect(await changeFriendship(store.db,a.id,b.codename!,"request",later)).toEqual({relationship:"outgoing"});
   });
+  it("limits repeated requests instead of allowing unlimited notification spam",async()=>{
+    const a=await player(),b=await player();
+    for(let i=0;i<20;i++)await changeFriendship(store.db,a.id,b.codename!,"request",now);
+    await expect(changeFriendship(store.db,a.id,b.codename!,"request",now)).rejects.toMatchObject({status:429});
+    expect(await relationship(store.db,b.id,a.id)).toBe("incoming");
+  });
   it("paginates searchable directory rows, omits inactive accounts and private display names",async()=>{
     const owner=await player(),prefix=`dir_${randomUUID().slice(0,5)}`;
     const players=[];for(let i=0;i<23;i++)players.push(await player(`${prefix}_${String(i).padStart(2,"0")}`));

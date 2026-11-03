@@ -18,4 +18,9 @@ describe("sign-in destinations", () => {
     expect(authDestination("?view=competitions&competition=event&challenge=round")).toBe("/?view=competitions&challenge=round&competition=event");
     expect(destinationLabel("/?view=practice&challenge=selected")).toBe("the selected challenge");
   });
+  it("preserves signed-in player destinations without accepting arbitrary profile identifiers",()=>{
+    expect(authDestination("?view=socials&player=packet_fox")).toBe("/?view=socials&player=packet_fox");
+    expect(destinationLabel("/?view=socials&player=packet_fox")).toBe("packet_fox's player profile");
+    expect(safeReturnTo("/?view=socials&player=https://other.test&token=secret")).toBe("/?view=socials");
+  });
 });
