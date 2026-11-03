@@ -70,7 +70,11 @@ describe("authoritative owner profile", () => {
   });
   it("paginates equal timestamps without duplicates and rejects a cursor from another scope", async () => {
     const owner = await player();
-    for (let i=0;i<15;i++) await capture(owner,{ at:new Date(now.getTime()-1000),award:0 });
+    for (let i=0;i<15;i++) {
+      const row=await capture(owner,{ at:new Date(now.getTime()-1000),award:0 });
+      // Preserve database precision in cursors, even though displayed JS dates use milliseconds.
+      await store.db.execute(sql`update ${solves} set created_at=created_at+(${i+1}::int*interval '1 microsecond') where id=${row.solveId}`);
+    }
     const first = await profileActivity(store.db,owner.id,"all",now);
     expect(first.items).toHaveLength(12); expect(first.nextCursor).toBeTruthy();
     const next = await profileActivity(store.db,owner.id,"all",now,first.nextCursor!);

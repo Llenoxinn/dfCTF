@@ -1,4 +1,4 @@
-import { and, eq, ne, gte, lte, desc, asc, sql } from "drizzle-orm";
+import { and, eq, gte, lte, desc, sql } from "drizzle-orm";
 import type { Database } from "./db";
 import { challenges, challengeVersions, solves, xpLedger, user } from "./schema";
 import { CATEGORIES, type Category, type Community, type Difficulty, type Leaderboard, type SolveEvent, type Standing } from "@/lib/types";

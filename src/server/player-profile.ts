@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "./db";
 import { challenges, challengeVersions, playerProfiles, solves, xpLedger } from "./schema";
