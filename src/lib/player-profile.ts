@@ -1,7 +1,7 @@
 import type { Category } from "./types";
 
 export type ProfileScope = "all" | "week";
-export type ProfileIdentity = { codename: string; displayName: string; bio: string; websiteUrl: string; githubUrl: string };
+export type ProfileIdentity = { codename: string; displayName: string; bio: string; websiteUrl: string; githubUrl: string; shareProfile: boolean };
 export type ProfileStats = { rank: number | null; points: number; solved: number; firstBloods: number };
 export type ProfileMilestone = { id: "first-capture" | "ten-captures" | "first-blood"; label: string; condition: string };
 export type ProfileActivity = { challengeId: string; title: string; category: Category; at: string; points: number; firstBlood: boolean };

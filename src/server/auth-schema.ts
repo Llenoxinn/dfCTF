@@ -1,4 +1,5 @@
 import { bigint, boolean, index, integer, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 const date = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -14,7 +15,7 @@ export const user = pgTable("auth_user", {
   codenameKey: text("codename_key").unique(),
   role: text("role", { enum: ["participant", "author", "reviewer", "admin"] }).notNull().default("participant"),
   twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
-}).enableRLS();
+}, table => [index("auth_user_player_directory").on(sql`lower(${table.codename}) collate "C"`)]).enableRLS();
 
 export const session = pgTable("auth_session", {
   id: text("id").primaryKey(),

@@ -17,13 +17,14 @@ export const profileInput = z.object({
   bio: z.string().trim().max(180, "Use at most 180 characters.").refine(value=>value.isWellFormed()&&!/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\ufffe\uffff]/.test(value),"Use valid Unicode text without control characters."),
   websiteUrl: httpsUrl,
   githubUrl: httpsUrl.refine(value => { if (!value) return true; try { const url = new URL(value); return url.hostname === "github.com" && !url.port && !url.search && !url.hash && /^\/[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?\/?$/i.test(url.pathname); } catch { return false; } }, "Use a GitHub profile URL, such as https://github.com/your-name."),
+  shareProfile: z.boolean().optional(),
 }).strict();
 
-const emptyIdentity = { displayName: "", bio: "", websiteUrl: "", githubUrl: "" };
+const emptyIdentity = { displayName: "", bio: "", websiteUrl: "", githubUrl: "", shareProfile: false };
 export async function savePlayerProfile(db: Database, owner: Viewer, input: z.infer<typeof profileInput>) {
   const values = profileInput.parse(input);
-  await db.insert(playerProfiles).values({ userId: owner.id, ...values }).onConflictDoUpdate({ target: playerProfiles.userId, set: { ...values, updatedAt: new Date() } });
-  return { codename: owner.codename!, ...values };
+  const [saved] = await db.insert(playerProfiles).values({ userId: owner.id, ...values }).onConflictDoUpdate({ target: playerProfiles.userId, set: { ...values, updatedAt: new Date() } }).returning({ displayName: playerProfiles.displayName, bio: playerProfiles.bio, websiteUrl: playerProfiles.websiteUrl, githubUrl: playerProfiles.githubUrl, shareProfile: playerProfiles.shareProfile });
+  return { codename: owner.codename!, ...saved };
 }
 
 const firstSolves = sql`select distinct on (challenge_id) id from solves order by challenge_id,created_at,id`;
@@ -57,11 +58,11 @@ export async function profileActivity(db: Database, ownerId: string, scope: Prof
   };
 }
 
-export async function getPlayerProfile(db: Database, owner: Viewer, scope: ProfileScope, now = new Date()): Promise<PlayerProfile> {
+export async function getPlayerProfile(db: Database, owner: Pick<Viewer, "id" | "codename">, scope: ProfileScope, now = new Date()): Promise<PlayerProfile> {
   if (!owner.codename) throw new HttpError(409, "CODENAME_REQUIRED", "Choose a codename before opening Profile.");
   return db.transaction(async tx => {
     const [profile, standing, totals, categories, activity] = await Promise.all([
-      tx.select({ displayName: playerProfiles.displayName, bio: playerProfiles.bio, websiteUrl: playerProfiles.websiteUrl, githubUrl: playerProfiles.githubUrl }).from(playerProfiles).where(eq(playerProfiles.userId,owner.id)).limit(1),
+      tx.select({ displayName: playerProfiles.displayName, bio: playerProfiles.bio, websiteUrl: playerProfiles.websiteUrl, githubUrl: playerProfiles.githubUrl, shareProfile: playerProfiles.shareProfile }).from(playerProfiles).where(eq(playerProfiles.userId,owner.id)).limit(1),
       practiceStanding(tx,owner.id,now,scope === "week" ? weekStart(now) : undefined),
       tx.execute(sql`select count(*) as solved,coalesce(sum(${xpLedger.amount}),0) as points,
         count(*) filter (where firsts.id is not null) as first_bloods

@@ -10,8 +10,23 @@ export const playerProfiles = pgTable("player_profiles", {
   bio: text("bio").notNull().default(""),
   websiteUrl: text("website_url").notNull().default(""),
   githubUrl: text("github_url").notNull().default(""),
+  shareProfile: boolean("share_profile").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
+
+export const friendships = pgTable("friendships", {
+  lowUserId: text("low_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  highUserId: text("high_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  requestedBy: text("requested_by").notNull().references(() => user.id, { onDelete: "cascade" }),
+  status: text("status", { enum: ["pending", "accepted", "declined"] }).notNull().default("pending"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  primaryKey({ columns: [table.lowUserId, table.highUserId] }),
+  index("friendships_recipient").on(table.highUserId),
+  check("friendship_pair", sql`${table.lowUserId} collate "C" < ${table.highUserId} collate "C"`),
+  check("friendship_requester", sql`${table.requestedBy} in (${table.lowUserId}, ${table.highUserId})`),
+  check("friendship_status", sql`${table.status} in ('pending','accepted','declined')`),
+]).enableRLS();
 
 export const learningProgress = pgTable("learning_progress", {
   userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
