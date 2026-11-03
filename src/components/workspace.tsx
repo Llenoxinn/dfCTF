@@ -15,6 +15,7 @@ import Authoring from "./authoring";
 import AccountSecurity from "./account-security";
 import Competitions, { type CompetitionRoute } from "./competitions";
 import Landing from "./landing";
+import SiteFooter from "./site-footer";
 import RulesContent from "./rules-content";
 import { LearningProgressProvider } from "./resource-progress";
 import { Content } from "./content";
@@ -228,6 +229,7 @@ export default function Workspace() {
         : <Library challenges={challenges} progress={progress} board={board} query={query} setQuery={setQuery} searchInput={searchInput} open={openChallenge} />}
       {selected && activeView !== "competitions" ? <ChallengeView key={selected} id={selected} back={closeChallenge} onSolved={loadData} /> : null}
     </main>
+    <SiteFooter />
   </div>;
 }
 

@@ -11,6 +11,7 @@ import AsciiField from "./ascii-field";
 import FaultyTerminal from "./faulty-terminal";
 import GradientASCII from "./gradient-ascii";
 import SiteHeader from "./site-header";
+import { SiteLinks } from "./site-footer";
 import { ChallengeCard } from "./cards";
 import Counter from "./counter";
 import { busiestDay, Countdown, DitherArt, Heatmap, HeatLegend, Ticker } from "./viz";
@@ -358,7 +359,7 @@ export default function Landing({ signIn, createAccount, enter, requestSignIn }:
         })}</div>)}
         <div className="grid content-start justify-items-start gap-1"><h2 className="mb-2 text-[13px] font-semibold text-fg">Account</h2>{signedIn ? <><button className="link-button min-h-8" onClick={createAccount}>Open challenges</button><button className="link-button min-h-8" onClick={signIn}>Leaderboard</button></> : <><button className="link-button min-h-8" onClick={signIn}>Sign in</button><button className="link-button min-h-8" onClick={createAccount}>Create account</button></>}</div>
       </nav>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-6 text-[13px] text-faint lg:col-span-2"><span>© {new Date().getFullYear()} DFC Developers</span><span>All challenge content is fictional. Only test systems you have permission to attack.</span><a className="link-button sm:ml-auto" href="#landing-main">Back to top</a></div>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-6 text-[13px] text-faint lg:col-span-2"><span>© {new Date().getFullYear()} DFC Developers</span><span>All challenge content is fictional. Only test systems you have permission to attack.</span><SiteLinks /><a className="link-button sm:ml-auto" href="#landing-main">Back to top</a></div>
     </footer>
   </div></EnterContext.Provider>;
 }

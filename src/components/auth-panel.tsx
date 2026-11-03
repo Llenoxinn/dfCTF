@@ -7,6 +7,7 @@ import type { Bootstrap, Community } from "@/lib/types";
 import { destinationLabel } from "@/lib/auth-navigation";
 import AsciiField from "./ascii-field";
 import DecryptedText from "./decrypted-text";
+import { SiteLinks } from "./site-footer";
 import { api, Icon, Loading, Notice, Spinner, Wordmark } from "./ui";
 
 export type AuthMode = "signin" | "signup" | "forgot" | "reset" | "mfa";
@@ -131,6 +132,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
         </> : null}
         {mode === "forgot" || mode === "reset" || mode === "mfa" ? <button className="text-button back-link" onClick={() => changeMode("signin")}><Icon name="back" size={16} />Back to sign in</button> : null}
         {mode === "signin" ? <p className="fine">New here? Create an account, verify your email, and pick a codename. It takes about a minute.</p> : null}
+        <SiteLinks />
         {bootstrap.localMail ? <div className="dev-box"><p>Verification and password-reset emails are saved locally in development. Account records use the database configured for this app.</p><LocalInbox /></div> : null}
       </div>
     </main>

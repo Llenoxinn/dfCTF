@@ -13,6 +13,7 @@ export default function RulesContent() {
         {RULE_SECTIONS.map(section => <section key={section.id} id={section.id} aria-labelledby={`${section.id}-title`}>
           <h2 id={`${section.id}-title`}>{section.title}</h2>
           {section.paragraphs.map(text => <p key={text}>{text}</p>)}
+          {section.id === "scope" || section.id === "allowed-tools" ? <p><a className="link-button" href="/support">Contact the maintainers privately</a> for help or a report.</p> : null}
           {"note" in section ? <p className="rules-note">Field note <code>{section.note}</code></p> : null}
         </section>)}
         <section className="rules-checkpoint" aria-labelledby="checkpoint-title">
