@@ -25,11 +25,12 @@ import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, 
 
 // The guides are long, so their text loads only when the Resources tab opens.
 const ResourcesContent = dynamic(() => import("./resources-content"), { loading: () => <Loading label="Opening the guides" backdrop /> });
+const PlayerProfileDashboard = dynamic(() => import("./player-profile"), { loading: () => <Loading label="Opening Profile" /> });
 
-type View = "home" | "practice" | "leaderboard" | "progress" | "competitions" | "authoring" | "rules" | "resources" | "settings";
+type View = "home" | "practice" | "leaderboard" | "profile" | "progress" | "competitions" | "authoring" | "rules" | "resources" | "settings";
 // Settings lives in the profile menu; home is the landing page behind the wordmark.
 const TABS: { id: View; label: string; staff?: boolean }[] = [
-  { id: "practice", label: "Challenges" }, { id: "leaderboard", label: "Leaderboard" }, { id: "progress", label: "Progress" },
+  { id: "practice", label: "Challenges" }, { id: "leaderboard", label: "Leaderboard" }, { id: "profile", label: "Profile" }, { id: "progress", label: "Progress" },
   { id: "competitions", label: "Competitions" }, { id: "authoring", label: "Authoring", staff: true }, { id: "rules", label: "Rules" },
   { id: "resources", label: "Resources" },
 ];
@@ -212,12 +213,13 @@ export default function Workspace() {
       })}</nav>
       <span className="spacer" />
       {board?.weekEndsAt ? <WeekChip endsAt={board.weekEndsAt} onOpen={e => inPlace(e, () => navigate("leaderboard"))} /> : null}
-      <ProfileMenu codename={codename} points={progress?.totalXp ?? 0} rank={board?.viewer?.rank} onSettings={() => navigate("settings")} onSignOut={signOut} />
+      <ProfileMenu codename={codename} points={progress?.totalXp ?? 0} rank={board?.viewer?.rank} onProfile={() => navigate("profile")} onSettings={() => navigate("settings")} onSignOut={signOut} />
     </header>
     <main className="app-main" id="main-content" tabIndex={-1}>
       {bootError ? <Notice type="error">{bootError}</Notice> : null}
       {dataError ? <Notice type="error">{dataError} <button className="text-button" onClick={loadData}>Try again</button></Notice> : null}
       {activeView === "settings" ? <Settings bootstrap={bootstrap} refresh={refresh} signOut={signOut} board={board} progress={progress} />
+        : activeView === "profile" ? <PlayerProfileDashboard key={user.id} userId={user.id} refreshKey={`${progress?.totalXp??0}:${progress?.solvedCount??0}`} open={id=>id?openChallenge(id):navigate("practice")} settings={()=>navigate("settings")} refreshSession={refresh}/>
         : activeView === "authoring" ? <Authoring bootstrap={bootstrap} goSettings={() => navigate("settings")} registerLeaveGuard={registerLeaveGuard} />
         : activeView === "rules" ? <RulesContent />
         : activeView === "resources" ? <LearningProgressProvider key={bootstrap.user.id} userId={bootstrap.user.id}><ResourcesContent /></LearningProgressProvider>
@@ -238,7 +240,7 @@ function Screen({ children }: { children: ReactNode }) {
   return <div className="center-screen"><AsciiField className="screen-ascii" ox={0.5} oy={1.08} rx={0.75} ry={0.7} fadeFrom={-1} fadeTo={0} />{children}</div>;
 }
 
-function ProfileMenu({ codename, points, rank, onSettings, onSignOut }: { codename: string; points: number; rank?: number; onSettings: () => void; onSignOut: () => void }) {
+function ProfileMenu({ codename, points, rank, onProfile, onSettings, onSignOut }: { codename: string; points: number; rank?: number; onProfile:()=>void; onSettings: () => void; onSignOut: () => void }) {
   const [open, setOpen] = useState(false); const root = useRef<HTMLDivElement>(null); const button = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -252,7 +254,7 @@ function ProfileMenu({ codename, points, rank, onSettings, onSignOut }: { codena
   // A disclosure, not role="menu": two plain buttons need no arrow-key model.
   return <div className="profile" ref={root}>
     <button ref={button} type="button" className="profile-button" aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} size={32} you /><span className="profile-text"><span className="mono profile-name">{codename}</span><span className="standing-pill">{rank ? <b>#{rank} this week</b> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></span><Icon name="down" size={14} /></button>
-    {open ? <div className="menu" id="profile-actions"><button type="button" onClick={() => { setOpen(false); onSettings(); }}>Settings</button><button type="button" onClick={() => { setOpen(false); onSignOut(); }}><Icon name="exit" size={15} />Sign out</button></div> : null}
+    {open ? <div className="menu" id="profile-actions"><button type="button" onClick={() => { setOpen(false); onProfile(); }}>Profile</button><button type="button" onClick={() => { setOpen(false); onSettings(); }}>Settings</button><button type="button" onClick={() => { setOpen(false); onSignOut(); }}><Icon name="exit" size={15} />Sign out</button></div> : null}
   </div>;
 }
 
