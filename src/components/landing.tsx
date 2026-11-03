@@ -59,7 +59,7 @@ const pageOf = (href: string) => href === "/rules" ? "rules" : href === "/resour
 
 const FAQ: [string, ReactNode][] = [
   ["What is a CTF?", "Capture the flag is a security game. Each challenge hides a short secret string, the flag, inside something: a file, a web page, a program. Your job is to find it. On dfCTF every flag looks like dfCTF{...}."],
-  ["Do I need experience?", "No. Every category has easy starters, and each solve unlocks a walkthrough that explains the intended approach."],
+  ["Do I need experience?", "No. Start with an Easy challenge and use the Resources library to learn the basics. Each solve unlocks a walkthrough that explains the intended approach."],
   ["What tools do I need?", <>A laptop, a terminal, and a text editor. Some challenges are easier with free tools like Wireshark or CyberChef, and the description says when. Start with <PageLink className="resource-topic-link" to="resources">Tutorials & Resources<span className="resource-link-arrow" aria-hidden="true">↗</span></PageLink> for tool guides and beginner references.</>],
   ["Is this legal?", "Yes. Every target is fictional and built for practice. You download files and work on your own machine; you never attack a real system."],
   ["How do points work?", "Each challenge has a point value. Your first correct flag earns it once. Wrong answers never cost points."],
@@ -248,7 +248,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
       <section id="how" aria-labelledby="how-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead id="how-title" title="Your first flag in four steps.">Every challenge works the same way, from the easiest warm-up to the hardest binary.</SectionHead>
+        <SectionHead id="how-title" title="Your first flag in four steps.">The same workflow applies across categories. Check each challenge’s difficulty and estimated time before you start.</SectionHead>
         <ol className="grid gap-px border-t border-line bg-line sm:grid-cols-2 lg:grid-cols-4">{STEPS.map(([title, body], i) => <li key={title} className="grid content-start gap-3 bg-bg px-5 py-9 sm:px-8">
           <h3 className={`text-xl font-semibold tracking-[-0.015em] ${i === 3 ? "text-accent-ink" : ""}`}>{title}</h3>
           <p className="text-[15px] leading-relaxed text-muted">{body}</p>
@@ -308,7 +308,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
       <section id="categories" aria-labelledby="cat-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead id="cat-title" title="Pick a lane. Or try them all.">Seven categories, each with easy starters and hard finishers. Nothing is locked behind anything else.</SectionHead>
+        <SectionHead id="cat-title" title="Pick a lane. Or try them all.">Explore seven categories. The counts below show the published challenges and difficulty levels currently available in each.</SectionHead>
         <ul className="grid gap-px border-t border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
           {CATEGORIES.map((category, i) => { const c = data?.totals.categories.find(x => x.category === category); const total = c ? c.easy + c.medium + c.hard : 0; return <li key={category} className="flex min-w-0 flex-col bg-bg">
             <DitherArt width={320} height={72} density={TEXTURES[i]} className="tile-art h-[72px] w-full border-b border-line" />
