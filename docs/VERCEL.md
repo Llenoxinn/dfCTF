@@ -24,6 +24,10 @@ For Supabase, set the URL query parameters to `sslmode=verify-full` and `sslroot
 
 Google and GitHub are optional. Enable a provider only with both its client ID and secret, then register `https://YOUR-STAGING-HOST/api/auth/callback/google` or `/github` and test the full callback. Changing the hostname requires updating `APP_URL` and the callbacks together. Other automatic deployment URLs are not additional trusted application origins.
 
+Use the [OAuth setup guide](OAUTH.md) for the current public callback addresses,
+Vercel Key/Value fields, and `redirect_uri_mismatch` troubleshooting. An enabled
+button confirms only credential presence, not a successful provider login.
+
 ## Migrations, existing files, and staff
 
 Run database commands from a trusted operator checkout or release job with the **staging** configuration explicitly supplied. Existing environment variables take precedence over `.env.local`; do not accidentally target the developer database. Vercel functions have no persistent administrative shell. Keep privileged commands out of public HTTP routes and do not run migrations independently in each function or concurrently in preview builds.

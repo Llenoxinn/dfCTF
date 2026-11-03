@@ -107,6 +107,10 @@ Run database CLIs with the local app stopped when using PGlite. On a deployment,
 
 ## Configure social sign-in
 
+See the [Google/GitHub setup and callback troubleshooting guide](docs/OAUTH.md).
+Run `npm run auth:check` to print the callback URLs for the configured `APP_URL`
+without revealing credentials.
+
 Email/password sign-in works locally without provider credentials. Google and GitHub buttons appear in the sign-in form and become available when that provider's client ID and client secret are configured. Register an OAuth application with the selected provider and configure the matching pair in `.env.local` or the deployment's secret store:
 
 | Provider | Variables | Callback for this local setup |

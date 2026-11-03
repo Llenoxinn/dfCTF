@@ -20,6 +20,7 @@
     "seed": "tsx scripts/seed.ts",
     "demo": "tsx scripts/demo.ts",
     "admin": "tsx scripts/admin.ts",
+    "auth:check": "node scripts/check-oauth.mjs",
     "check": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
