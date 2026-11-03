@@ -4,6 +4,7 @@ import ResourceReader from "@/components/resource-reader";
 import { RESOURCE_GUIDES } from "@/lib/resources";
 import { LEARNING_PATHS } from "@/lib/resource-learning";
 import { LESSON_PLANS } from "@/lib/resource-lesson-plan";
+import { publicPageMetadata } from "@/lib/metadata";
 
 type Props = { params: Promise<{ topic: string }>; searchParams: Promise<{ path?: string | string[] }> };
 
@@ -11,7 +12,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { topic } = await params;
   const guide = RESOURCE_GUIDES.find(guide => guide.id === topic);
   if (!guide) notFound();
-  return { title: `${guide.title} · Tutorials & Resources · dfCTF`, description: guide.summary };
+  return publicPageMetadata(`/resources/${guide.id}`, `${guide.title} · Tutorials & Resources · dfCTF`, guide.summary);
 }
 
 export default async function TopicPage({ params, searchParams }: Props) {

@@ -11,6 +11,7 @@ import AsciiField from "./ascii-field";
 import FaultyTerminal from "./faulty-terminal";
 import GradientASCII from "./gradient-ascii";
 import SiteHeader from "./site-header";
+import { SiteLinks } from "./site-footer";
 import { ChallengeCard } from "./cards";
 import Counter from "./counter";
 import { busiestDay, Countdown, DitherArt, Heatmap, HeatLegend, Ticker } from "./viz";
@@ -59,7 +60,7 @@ const pageOf = (href: string) => href === "/rules" ? "rules" : href === "/resour
 
 const FAQ: [string, ReactNode][] = [
   ["What is a CTF?", "Capture the flag is a security game. Each challenge hides a short secret string, the flag, inside something: a file, a web page, a program. Your job is to find it. On dfCTF every flag looks like dfCTF{...}."],
-  ["Do I need experience?", "No. Every category has easy starters, and each solve unlocks a walkthrough that explains the intended approach."],
+  ["Do I need experience?", "No. Start with an Easy challenge and use the Resources library to learn the basics. Each solve unlocks a walkthrough that explains the intended approach."],
   ["What tools do I need?", <>A laptop, a terminal, and a text editor. Some challenges are easier with free tools like Wireshark or CyberChef, and the description says when. Start with <PageLink className="resource-topic-link" to="resources">Tutorials & Resources<span className="resource-link-arrow" aria-hidden="true">↗</span></PageLink> for tool guides and beginner references.</>],
   ["Is this legal?", "Yes. Every target is fictional and built for practice. You download files and work on your own machine; you never attack a real system."],
   ["How do points work?", "Each challenge has a point value. Your first correct flag earns it once. Wrong answers never cost points."],
@@ -158,7 +159,7 @@ function WeeklyNote({ title, endsAt }: { title: string; endsAt: string }) {
 }
 
 /** The public home page in one framed column. Signed-in players reach it from the wordmark; `enter` then replaces the sign-in actions. */
-export default function Landing({ signIn, createAccount, enter }: { signIn: () => void; createAccount: () => void; enter?: Enter }) {
+export default function Landing({ signIn, createAccount, enter, requestSignIn }: { signIn: () => void; createAccount: () => void; enter?: Enter; requestSignIn?: (destination: string) => void }) {
   const [data, setData] = useState<Community | null>(null);
   const [faq, setFaq] = useState(0);
   const [error, setError] = useState("");
@@ -182,6 +183,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
   const board = (range === "week" ? data?.top : data?.topAll) ?? [];
   const signedIn = !!enter;
   const start = signedIn ? "Open challenges" : "Start solving";
+  const openBoard = () => requestSignIn ? requestSignIn("/?view=leaderboard") : signIn();
 
   // Live numbers. Activity days run Monday-first, so the last partial week is this week.
   const days = data?.activity.days ?? [];
@@ -248,7 +250,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
       <section id="how" aria-labelledby="how-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead id="how-title" title="Your first flag in four steps.">Every challenge works the same way, from the easiest warm-up to the hardest binary.</SectionHead>
+        <SectionHead id="how-title" title="Your first flag in four steps.">The same workflow applies across categories. Check each challenge’s difficulty and estimated time before you start.</SectionHead>
         <ol className="grid gap-px border-t border-line bg-line sm:grid-cols-2 lg:grid-cols-4">{STEPS.map(([title, body], i) => <li key={title} className="grid content-start gap-3 bg-bg px-5 py-9 sm:px-8">
           <h3 className={`text-xl font-semibold tracking-[-0.015em] ${i === 3 ? "text-accent-ink" : ""}`}>{title}</h3>
           <p className="text-[15px] leading-relaxed text-muted">{body}</p>
@@ -257,7 +259,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
       <section id="leaderboard" aria-labelledby="lb-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead id="lb-title" title="Every flag moves you up the board." side={<button className="button button-secondary" onClick={signIn}>See the full leaderboard</button>}>Earn points for new solves. Compare this week’s standings, follow the all-time board, and see when players are capturing flags.</SectionHead>
+        <SectionHead id="lb-title" title="Every flag moves you up the board." side={<button className="button button-secondary" onClick={openBoard}>{signedIn ? "See the full leaderboard" : "Sign in for full leaderboard"}</button>}>Earn points for new solves. Compare this week’s standings, follow the all-time board, and see when players are capturing flags.</SectionHead>
         <div className="grid gap-px border-t border-line bg-line lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="min-w-0 bg-bg">
             <div className="flex min-h-14 flex-wrap items-center gap-2.5 border-b border-line px-4 py-2.5 sm:px-6"><h3 className="text-base font-semibold">Standings</h3><InfoTip text="Points earned in this range. Ties go to whoever reached the score first." /><span className="spacer" /><div className="segmented small" role="group" aria-label="Range">{([["week", "This week"], ["all", "All time"]] as const).map(([v, l]) => <button key={v} type="button" aria-pressed={range === v} onClick={() => setRange(v)}>{l}</button>)}</div></div>
@@ -283,13 +285,13 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
       <section id="this-week" aria-labelledby="week-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead id="week-title" title="This week’s featured challenge.">When a weekly challenge is published, you’ll find it here. Solve it before Sunday 23:59 Philippine time to earn points on that week’s board.</SectionHead>
+        <SectionHead id="week-title" title="Featured this week.">Featured challenges appear when they’re ready. Every eligible practice solve earns points on the week’s board, which resets on Monday at 00:00 Philippine time.</SectionHead>
         <div className="grid gap-px border-t border-line bg-line lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="flex min-w-0 flex-col gap-6 bg-bg p-4 sm:p-6">
-            <p className="label-dot">{data?.weekly ? "This week closes in" : "The week closes in"}</p>
-            <Countdown endsAt={endsAt} />
-            {data?.weekly ? <div className="mt-auto grid gap-4 [&_.card]:w-full"><ChallengeCard title={data.weekly.title} category={data.weekly.category} xp={data.weekly.xp} difficulty={data.weekly.difficulty} solveCount={data.weekly.solveCount} state="weekly" /><button className="button button-primary justify-self-start" onClick={enter ? () => enter("practice", data.weekly!.id) : signIn}>Open this week’s challenge</button></div>
-              : <div className="mt-auto grid justify-items-start gap-3 rounded-xs border border-dashed border-line-strong p-5"><p className="font-semibold">No weekly challenge yet</p><p className="text-sm text-muted">The next one appears here when it drops. Until then, the whole board is open.</p><button className="button button-secondary" onClick={createAccount}>{start}</button></div>}
+            {data?.weekly ? <><p className="label-dot">This week closes in</p><Countdown endsAt={endsAt} /></> : null}
+            {data?.weekly ? <div className="mt-auto grid gap-4 [&_.card]:w-full"><ChallengeCard title={data.weekly.title} category={data.weekly.category} xp={data.weekly.xp} difficulty={data.weekly.difficulty} solveCount={data.weekly.solveCount} state="weekly" /><button className="button button-primary justify-self-start" onClick={() => enter ? enter("practice", data.weekly!.id) : requestSignIn ? requestSignIn(`/?view=practice&challenge=${encodeURIComponent(data.weekly!.id)}`) : signIn()}>Open this week’s challenge</button></div>
+              : !data ? <p className="text-sm text-muted">{error ? "The featured challenge is temporarily unavailable." : "Checking for a featured challenge…"}</p>
+              : <div className="mt-auto grid justify-items-start gap-3 rounded-xs border border-dashed border-line-strong p-5"><p className="font-semibold">No featured challenge this week</p><p className="text-sm text-muted">There’s no scheduled release to wait for. Explore the practice library; its eligible solves still count toward this week’s standings.</p><button className="button button-secondary" onClick={createAccount}>{start}</button></div>}
           </div>
           <section aria-labelledby="recent-title" className="flex min-w-0 flex-col bg-bg">
             <div className="flex min-h-14 items-center gap-2.5 border-b border-line px-4 sm:px-6"><h3 id="recent-title" className="text-base font-semibold">Recent solves</h3><InfoTip text="The most recent correct flags across dfCTF. First blood is the first solve of a challenge." /></div>
@@ -308,7 +310,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
 
       <section id="categories" aria-labelledby="cat-title" className="relative border-t border-line">
         <Marks />
-        <SectionHead id="cat-title" title="Pick a lane. Or try them all.">Seven categories, each with easy starters and hard finishers. Nothing is locked behind anything else.</SectionHead>
+        <SectionHead id="cat-title" title="Pick a lane. Or try them all.">Explore seven categories. The counts below show the published challenges and difficulty levels currently available in each.</SectionHead>
         <ul className="grid gap-px border-t border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
           {CATEGORIES.map((category, i) => { const c = data?.totals.categories.find(x => x.category === category); const total = c ? c.easy + c.medium + c.hard : 0; return <li key={category} className="flex min-w-0 flex-col bg-bg">
             <DitherArt width={320} height={72} density={TEXTURES[i]} className="tile-art h-[72px] w-full border-b border-line" />
@@ -343,7 +345,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
       <section aria-labelledby="closing-title" className={`${PAD} relative isolate flex min-h-[420px] items-center overflow-hidden border-t border-line py-20`}>
         <Marks />
         <FaultyTerminal className="absolute inset-0 -z-10" />
-        <div className="grid max-w-lg gap-6"><h2 id="closing-title" className="text-[clamp(2.5rem,4.6vw,3.5rem)] font-medium leading-[1.04] tracking-[-0.04em]">Pick a challenge.<br />Start solving.</h2><p className="text-lg text-muted">Create an account in a minute. Easy challenges take about fifteen minutes, and a wrong answer never costs points.</p><div className="cta-row"><button className="button button-primary button-large" onClick={createAccount}>{start}</button><button className="button button-secondary button-large" onClick={signIn}>See the leaderboard</button></div></div>
+        <div className="grid max-w-lg gap-6"><h2 id="closing-title" className="text-[clamp(2.5rem,4.6vw,3.5rem)] font-medium leading-[1.04] tracking-[-0.04em]">Pick a challenge.<br />Start solving.</h2><p className="text-lg text-muted">Create an account in a minute. Easy challenges take about fifteen minutes, and a wrong answer never costs points.</p><div className="cta-row"><button className="button button-primary button-large" onClick={createAccount}>{start}</button><button className="button button-secondary button-large" onClick={openBoard}>{signedIn ? "See the leaderboard" : "Sign in for leaderboard"}</button></div></div>
       </section>
     </main>
 
@@ -357,7 +359,7 @@ export default function Landing({ signIn, createAccount, enter }: { signIn: () =
         })}</div>)}
         <div className="grid content-start justify-items-start gap-1"><h2 className="mb-2 text-[13px] font-semibold text-fg">Account</h2>{signedIn ? <><button className="link-button min-h-8" onClick={createAccount}>Open challenges</button><button className="link-button min-h-8" onClick={signIn}>Leaderboard</button></> : <><button className="link-button min-h-8" onClick={signIn}>Sign in</button><button className="link-button min-h-8" onClick={createAccount}>Create account</button></>}</div>
       </nav>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-6 text-[13px] text-faint lg:col-span-2"><span>© {new Date().getFullYear()} DFC Developers</span><span>All challenge content is fictional. Only test systems you have permission to attack.</span><a className="link-button sm:ml-auto" href="#landing-main">Back to top</a></div>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-6 text-[13px] text-faint lg:col-span-2"><span>© {new Date().getFullYear()} DFC Developers</span><span>All challenge content is fictional. Only test systems you have permission to attack.</span><SiteLinks /><a className="link-button sm:ml-auto" href="#landing-main">Back to top</a></div>
     </footer>
   </div></EnterContext.Provider>;
 }

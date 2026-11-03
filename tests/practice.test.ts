@@ -19,11 +19,12 @@ import path from "node:path";
 let store:Awaited<ReturnType<typeof createStore>>,directory:string;
 const author:Viewer={id:randomUUID(),email:"author@example.test",codename:"author_one",emailVerified:true,role:"author",twoFactorEnabled:true};
 const reviewer:Viewer={...author,id:randomUUID(),email:"reviewer@example.test",codename:"reviewer_one",role:"reviewer"};
+const admin:Viewer={...author,id:randomUUID(),email:"admin@example.test",codename:"admin_one",role:"admin"};
 const learner:Viewer={...author,id:randomUUID(),email:"learner@example.test",codename:"learner_one",role:"participant",twoFactorEnabled:false};
 const flag="dfCTF{test_evidence_d8f19a27}";
 function draft(title:string){return challengeInput.parse({title,summary:"A fictional training exercise.",description:"Inspect the training file and recover its flag.",solution:"Open the supplied file and copy the flag including its wrapper.",flag,category:"General skills",difficulty:"Easy",xp:50,estimatedMinutes:5,tags:["training"]});}
 async function ready(title:string){const record=await createChallenge(store.db,author,draft(title));await saveArtifact(store.db,author,record.id,"evidence.txt",Buffer.from(flag));await editChallenge(store.db,author,record.id,{status:"review"});await publishChallenge(store.db,reviewer,record.id,flag);return record;}
-beforeAll(async()=>{directory=await mkdtemp(path.join(os.tmpdir(),"dfctf-practice-"));process.env.ARTIFACT_DIR=directory;store=await createStore(undefined,true);await store.migrate();for(const v of [author,reviewer,learner])await store.db.insert(user).values({...v,name:"Private account"});});
+beforeAll(async()=>{directory=await mkdtemp(path.join(os.tmpdir(),"dfctf-practice-"));process.env.ARTIFACT_DIR=directory;store=await createStore(undefined,true);await store.migrate();for(const v of [author,reviewer,admin,learner])await store.db.insert(user).values({...v,name:"Private account"});});
 afterAll(async()=>{await store?.close();await rm(directory,{recursive:true,force:true});delete process.env.ARTIFACT_DIR;});
 describe("private practice integrity",()=>{
   it("downloads database-backed files without a local copy and supports legacy local files",async()=>{
@@ -120,7 +121,7 @@ describe("private practice integrity",()=>{
     await publishChallenge(store.db,reviewer,c.id,corrected);
     expect(await challengeDetail(store.db,learner,c.id)).toMatchObject({status:"published",title:"Corrected by reviewer"});
     expect((await store.db.select().from(auditEvents).where(eq(auditEvents.targetId,c.id))).filter(e=>e.actorId===reviewer.id).map(e=>e.action)).toEqual(["challenge.edit","artifact.remove","artifact.upload","challenge.publish"]);
-    for(const viewer of [reviewer,{...reviewer,role:"admin" as const}]) {
+    for(const viewer of [reviewer]) {
       await expect(editChallenge(store.db,viewer,c.id,{title:"Late edit"})).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
       await expect(saveArtifact(store.db,viewer,c.id,"late.txt",Buffer.from("Late edit"))).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
       await expect(removeArtifact(store.db,viewer,c.id,file.id)).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
@@ -180,8 +181,60 @@ describe("private practice integrity",()=>{
     await expect(publishChallenge(store.db,{...author,role:"admin"},c.id,corrected)).rejects.toMatchObject({code:"SELF_REVIEW"});
     await publishChallenge(store.db,reviewer,c.id,corrected);
     await expect(editChallenge(store.db,author,c.id,{status:"draft"})).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
-    await expect(editChallenge(store.db,{...reviewer,role:"admin"},c.id,{title:"Published edit"})).rejects.toMatchObject({code:"IMMUTABLE_VERSION"});
+    await expect(editChallenge(store.db,{...reviewer,role:"admin"},c.id,{title:"Published edit"})).resolves.toMatchObject({status:"review"});
     expect((await store.db.select().from(auditEvents).where(eq(auditEvents.targetId,c.id))).filter(e=>e.action==="challenge.withdraw_review")).toHaveLength(2);
+  });
+  it("revises every published field without rewriting solved versions, and requires another reviewer",async()=>{
+    const c=await ready("Administrator revision");
+    const original=await challengeDetail(store.db,admin,c.id,true);
+    const revisedFlag="dfCTF{administrator_revision}";
+    const patch={title:"Revised title",description:"A completely revised fictional challenge description.",solution:"A completely revised walkthrough for the new fictional evidence.",category:"Forensics" as const,difficulty:"Hard" as const,tags:["revised"],xp:125,estimatedMinutes:30,flag:revisedFlag,flagFormat:"dfCTF{revised_answer}",visibility:"competition" as const};
+    await expect(editChallenge(store.db,admin,c.id,patch)).resolves.toMatchObject({status:"review"});
+    const detail=await challengeDetail(store.db,admin,c.id,true);
+    const {flag:secret,...expected}=patch;
+    expect(detail).toMatchObject({...expected,version:2,status:"review",canPublish:false,authorId:author.id});
+    expect(detail).not.toHaveProperty("flag");
+    expect(detail.files[0].id).not.toBe(original.files[0].id);
+    expect(await (await downloadArtifact(store.db,admin,c.id,detail.files[0].id,true)).text()).toBe(flag);
+    await expect(challengeDetail(store.db,learner,c.id)).rejects.toMatchObject({status:404});
+    await expect(publishChallenge(store.db,admin,c.id,revisedFlag)).rejects.toMatchObject({code:"SELF_REVIEW"});
+    await expect(publishChallenge(store.db,reviewer,c.id,flag)).rejects.toMatchObject({code:"REVIEW_FLAG_INCORRECT"});
+    await publishChallenge(store.db,reviewer,c.id,revisedFlag);
+    const versions=await store.db.select().from(challengeVersions).where(eq(challengeVersions.challengeId,c.id));
+    expect(versions.find(v=>v.version===1)).toMatchObject({title:original.title,xp:50,locked:true});
+    expect(versions.find(v=>v.version===2)).toMatchObject({title:patch.title,xp:125,locked:true});
+    expect(await downloadArtifact(store.db,admin,c.id,detail.files[0].id,true)).toBeInstanceOf(Response);
+  });
+  it("requires fresh review for file-only revisions, preserves old files, and supports archived problems",async()=>{
+    const c=await ready("File-only revision");
+    const original=await challengeDetail(store.db,admin,c.id,true);
+    await removeArtifact(store.db,admin,c.id,original.files[0].id);
+    expect(await challengeDetail(store.db,admin,c.id,true)).toMatchObject({version:2,status:"review",files:[],canPublish:false});
+    expect(await store.db.select().from(artifacts).where(eq(artifacts.id,original.files[0].id))).toHaveLength(1);
+    const added=await saveArtifact(store.db,admin,c.id,"replacement.txt",Buffer.from(flag));
+    await expect(publishChallenge(store.db,admin,c.id,flag)).rejects.toMatchObject({code:"SELF_REVIEW"});
+    await publishChallenge(store.db,reviewer,c.id,flag);
+    await editChallenge(store.db,admin,c.id,{status:"archived"});
+    await saveArtifact(store.db,admin,c.id,"extra.txt",Buffer.from("New fictional evidence"));
+    const revised=await challengeDetail(store.db,admin,c.id,true);
+    expect(revised).toMatchObject({version:3,status:"review",canPublish:false});
+    expect(revised.files.map(f=>f.name).sort()).toEqual(["extra.txt","replacement.txt"]);
+    expect(await store.db.select().from(artifacts).where(eq(artifacts.id,added.id))).toHaveLength(1);
+    await publishChallenge(store.db,reviewer,c.id,flag);
+  });
+  it("keeps a learner's existing solve and points through repeated revisions",async()=>{
+    const c=await ready("Solved revision history"), player={...learner,id:randomUUID(),email:"revision-player@example.test",codename:"revision_player"};
+    await store.db.insert(user).values({...player,name:"Revision player"});
+    await submitFlag(store.db,player,c.id,flag);
+    const before=await getProgress(store.db,player.id);
+    for(let version=2;version<=3;version++) {
+      await editChallenge(store.db,admin,c.id,{title:`Revised history ${version}`,xp:200});
+      await expect(submitFlag(store.db,player,c.id,flag)).rejects.toMatchObject({status:404});
+      await publishChallenge(store.db,reviewer,c.id,flag);
+    }
+    expect(await getProgress(store.db,player.id)).toMatchObject({totalXp:50,solvedCount:1,recentSolves:before.recentSolves});
+    expect(await submitFlag(store.db,player,c.id,flag)).toMatchObject({status:"already_solved",xp:0});
+    expect(await store.db.select().from(solves).where(eq(solves.challengeId,c.id))).toHaveLength(1);
   });
   it("persists a solve once under simultaneous correct requests",async()=>{
     const c=await ready("Concurrency award");const responses=await Promise.all([submitFlag(store.db,learner,c.id,flag),submitFlag(store.db,learner,c.id,flag)]);

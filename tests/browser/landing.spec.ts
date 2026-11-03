@@ -59,6 +59,31 @@ test("loading data is distinct from a successfully loaded empty leaderboard", as
   await expect(page.getByRole("region", { name: "Solves across dfCTF", exact: true }).locator(".stat strong .counter__sr")).toHaveText("0");
 });
 
+test("mobile navigation exposes all sections and account actions without horizontal scrolling", async ({ page }) => {
+  await anonymous(page);
+  await page.route("**/api/v1/community", route => route.fulfill({ json: community() }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const header = page.locator("header").first();
+  const menu = header.getByRole("button", { name: "Menu", exact: true });
+  await expect(header.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(header.getByRole("navigation", { name: "Sections", exact: true })).toBeHidden();
+  await menu.click();
+  const nav = header.getByRole("navigation", { name: "Sections", exact: true });
+  await expect(nav.getByRole("link")).toHaveCount(6);
+  await expect(nav.getByRole("link", { name: "Resources", exact: true })).toBeVisible();
+  await expect(nav.getByRole("button", { name: "Start solving", exact: true })).toBeVisible();
+  expect(await nav.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.screenshot({ path: "test-results/navigation-mobile.png" });
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeFocused();
+  await expect(nav).toBeHidden();
+  await menu.click();
+  await nav.getByRole("link", { name: "Categories", exact: true }).click();
+  await expect(nav).toBeHidden();
+  await expect(page).toHaveURL(/#categories$/);
+});
+
 test("the closing cursor effect follows foreground text and buttons without blocking selection or clicks", async ({ page }) => {
   await anonymous(page);
   await page.route("**/api/v1/community", route => route.fulfill({ json: community() }));
@@ -95,7 +120,7 @@ test("the closing cursor effect follows foreground text and buttons without bloc
   await expect(page).toHaveURL(/auth=signup/);
   await expect(page.locator("form").getByRole("button", { name: "Create account", exact: true })).toBeVisible();
   await page.goBack();
-  await closing.getByRole("button", { name: "See the leaderboard", exact: true }).click();
+  await closing.getByRole("button", { name: "Sign in for leaderboard", exact: true }).click();
   await expect(page).toHaveURL(/auth=signin/);
   await expect(page.locator("form").getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
 });

@@ -4,13 +4,16 @@ import ValidatedForm from "./validated-form";
 
 import { FormEvent, useEffect, useState } from "react";
 import type { Bootstrap, Community } from "@/lib/types";
+import { destinationLabel } from "@/lib/auth-navigation";
+import { socialSignInError } from "@/lib/social-errors";
 import AsciiField from "./ascii-field";
 import DecryptedText from "./decrypted-text";
+import { SiteLinks } from "./site-footer";
 import { api, Icon, Loading, Notice, Spinner, Wordmark } from "./ui";
 
 export type AuthMode = "signin" | "signup" | "forgot" | "reset" | "mfa";
 
-export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", back }: { bootstrap: Bootstrap; refresh: () => Promise<void>; initialMode?: AuthMode; back?: () => void }) {
+export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", returnTo, back }: { bootstrap: Bootstrap; refresh: () => Promise<void>; initialMode?: AuthMode; returnTo?: string | null; back?: () => void }) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,7 +34,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
     if (resetToken && (params.get("reset") === "1" || window.location.pathname.includes("reset"))) { setToken(resetToken); setMode("reset"); }
     if (params.has("verified")) setMessage("Your email is verified. Sign in to continue.");
     if (params.get("passwordReset") === "1") setMessage("Password updated. Sign in with your new password.");
-    if (params.get("error")) setError("This link could not be used. Request a new email and try again.");
+    if (params.get("error")) setError(params.get("oauthError") === "1" ? socialSignInError(params.get("error")) : "This link could not be used. Request a new email and try again.");
   }, []);
 
   useEffect(() => { setMode(m => m === "reset" || m === "mfa" ? m : initialMode); }, [initialMode]);
@@ -54,7 +57,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
         await api("/api/v1/auth/mfa/verify", { method: "POST", body: JSON.stringify({ code, method: backup ? "backup" : "totp" }) });
         await refresh();
       } else {
-        const result = await api<{ twoFactorRedirect?: boolean }>(`/api/auth/${mode === "signup" ? "sign-up" : "sign-in"}/email`, { method: "POST", body: JSON.stringify({ email, password, ...(mode === "signup" ? { name: email.split("@")[0] } : {}), callbackURL: window.location.origin }) });
+        const result = await api<{ twoFactorRedirect?: boolean }>(`/api/auth/${mode === "signup" ? "sign-up" : "sign-in"}/email`, { method: "POST", body: JSON.stringify({ email, password, ...(mode === "signup" ? { name: email.split("@")[0] } : {}), callbackURL: `${window.location.origin}${returnTo ?? "/"}` }) });
         if (result.twoFactorRedirect) { setMode("mfa"); setPassword(""); }
         else if (mode === "signup") {
           // Better Auth also returns success for existing emails to protect account privacy.
@@ -69,7 +72,8 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
   async function social(provider: "google" | "github") {
     setBusy(true); setError("");
     try {
-      const result = await api<{ url?: string }>("/api/auth/sign-in/social", { method: "POST", body: JSON.stringify({ provider, callbackURL: window.location.origin }) });
+      const errorParams = new URLSearchParams({ auth: "signin", oauthError: "1", ...(returnTo ? { returnTo } : {}) });
+      const result = await api<{ url?: string }>("/api/auth/sign-in/social", { method: "POST", body: JSON.stringify({ provider, callbackURL: `${window.location.origin}${returnTo ?? "/"}`, errorCallbackURL: `${window.location.origin}/?${errorParams}` }) });
       if (result.url) window.location.assign(result.url); else throw new Error("The provider did not return a sign-in link.");
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to connect."); setBusy(false); }
   }
@@ -89,7 +93,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
     <aside className="auth-brand" aria-label="About dfCTF">
       <AsciiField className="auth-ascii" ox={0.6} oy={1.05} rx={0.7} ry={0.6} fadeFrom={-1} fadeTo={0} />
       <div className="auth-brand-top">{brand}</div>
-      <div className="auth-pitch"><h1><DecryptedText text={"Read between\nthe bytes."} animateOn="view" sequential revealDirection="start" speed={45} characters="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&*+=?@$<>/" scrambleColor="var(--accent-text)" /></h1><p>Every file keeps a secret. Seven categories to crack, a fresh featured challenge each week, and a walkthrough waiting behind every solve. A wrong guess costs nothing but a second look.</p>
+      <div className="auth-pitch"><h1><DecryptedText text={"Read between\nthe bytes."} animateOn="view" sequential revealDirection="start" speed={45} characters="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&*+=?@$<>/" scrambleColor="var(--accent-text)" /></h1><p>Every file keeps a secret. Explore seven categories, compete on weekly standings, and unlock a walkthrough after each solve. Featured challenges appear when they’re ready. A wrong guess costs nothing but a second look.</p>
         {weekly ? <span className="live-chip"><i aria-hidden="true" />This week<span className="mono muted">{weekly.title}, {weekly.xp} pts</span></span> : null}</div>
     </aside>
     <main className="auth-main" id="main-content">
@@ -98,6 +102,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
         {back && (mode === "signin" || mode === "signup") ? <button className="text-button back-link" onClick={back}><Icon name="back" size={16} />Home</button> : null}
         <h2>{title}</h2>
         <p className="muted">{subtitle}</p>
+        {returnTo ? <p className="fine" role="status">Sign in or create an account to open {destinationLabel(returnTo)}. We’ll keep your place.</p> : null}
         {mode === "signin" || mode === "signup" ? <div className="segmented block" role="group" aria-label="Choose an option">
           <button type="button" aria-pressed={mode === "signin"} onClick={() => changeMode("signin")}>Sign in</button>
           <button type="button" aria-pressed={mode === "signup"} onClick={() => changeMode("signup")}>Create account</button>
@@ -129,6 +134,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
         </> : null}
         {mode === "forgot" || mode === "reset" || mode === "mfa" ? <button className="text-button back-link" onClick={() => changeMode("signin")}><Icon name="back" size={16} />Back to sign in</button> : null}
         {mode === "signin" ? <p className="fine">New here? Create an account, verify your email, and pick a codename. It takes about a minute.</p> : null}
+        <SiteLinks />
         {bootstrap.localMail ? <div className="dev-box"><p>Verification and password-reset emails are saved locally in development. Account records use the database configured for this app.</p><LocalInbox /></div> : null}
       </div>
     </main>

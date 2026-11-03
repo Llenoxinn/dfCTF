@@ -6,6 +6,7 @@ export function canManageChallengeDraft(viewer: Editor, challenge: Challenge) {
 }
 
 export function canEditChallengeContent(viewer: Editor, challenge: Challenge) {
+  if (viewer.role === "admin") return true;
   if (challenge.status === "draft") return canManageChallengeDraft(viewer, challenge);
   return challenge.status === "review" && challenge.authorId !== viewer.id &&
     (viewer.role === "reviewer" || viewer.role === "admin");

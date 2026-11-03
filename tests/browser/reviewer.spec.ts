@@ -1,14 +1,14 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { ChallengeDetail } from "../../src/lib/types";
 
-async function mockReview(page: Page, selfReview = false) {
-  const user = { id: selfReview ? "author-id" : "reviewer-id", email: "reviewer@example.test", codename: "test_reviewer", emailVerified: true, role: "reviewer", twoFactorEnabled: true };
+async function mockReview(page: Page, selfReview = false, administrator = false) {
+  const user = { id: selfReview ? "author-id" : "reviewer-id", email: "reviewer@example.test", codename: "test_reviewer", emailVerified: true, role: administrator ? "admin" : "reviewer", twoFactorEnabled: true };
   const detail: ChallengeDetail & { authorId: string; canPublish: boolean } = {
     id: "review-id", slug: "review-fixture", title: "Review fixture", summary: "A fictional review exercise.",
     description: "Inspect the fictional evidence and recover its flag.", solution: "Read the fictional file and recover its complete training flag.",
     flagFormat: "dfCTF{...}", category: "General skills", difficulty: "Easy", tags: [], xp: 50, estimatedMinutes: 5,
-    solved: false, attempted: false, solveCount: 0, status: "review", author: "test_author", authorId: "author-id", version: 1,
-    canPublish: !selfReview, files: [{ id: "old-file", name: "original.txt", size: 8, sha256: "a".repeat(64) }],
+    solved: false, attempted: false, solveCount: 0, status: administrator ? "published" : "review", author: "test_author", authorId: "author-id", version: 1,
+    canPublish: !selfReview && !administrator, files: [{ id: "old-file", name: "original.txt", size: 8, sha256: "a".repeat(64) }],
   };
   const state = { failSave: false, saves: 0, uploads: 0, removals: 0, publications: [] as unknown[] };
   await page.route("**/api/**", async route => {
@@ -24,6 +24,7 @@ async function mockReview(page: Page, selfReview = false) {
         state.saves++;
         if (state.failSave) { await route.fulfill({ status: 503, json: { error: { message: "Review save temporarily unavailable." } } }); return; }
         Object.assign(detail, request.postDataJSON());
+        if (administrator) { detail.status = "review"; detail.version = 2; }
       }
       response = detail;
     } else if (path.endsWith("/files/old-file") && request.method() === "DELETE") {
@@ -36,7 +37,7 @@ async function mockReview(page: Page, selfReview = false) {
     await route.fulfill({ json: response });
   });
   await page.goto("/?view=authoring");
-  await page.getByRole("row", { name: /Review fixture/ }).click();
+  if (!administrator) await page.getByRole("row", { name: /Review fixture/ }).click();
   return state;
 }
 
@@ -77,10 +78,57 @@ test("reviewers edit and save in review, replace files, then test-solve and publ
   expect(state).toMatchObject({ saves: 2, uploads: 1, removals: 1, publications: [{ flag: "dfCTF{fictional_review}" }] });
 });
 
+test("administrator row actions appear on hover, open the full editor, and save for independent review", async ({ page }, testInfo) => {
+  const state = await mockReview(page, false, true);
+  const row = page.getByRole("row", { name: /Review fixture/ });
+  const actions = page.getByRole("button", { name: "Actions for Review fixture", exact: true });
+  await page.getByRole("heading", { name: "Authoring", exact: true }).hover();
+  await expect(actions).toHaveCSS("opacity", "0");
+  await row.hover();
+  await expect(actions).toHaveCSS("opacity", "1");
+  await actions.click();
+  await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("administrator-edit-menu.png") });
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Edit", exact: true })).not.toBeVisible();
+  await page.getByRole("heading", { name: "Authoring", exact: true }).click();
+  await expect(actions).toHaveCSS("opacity", "0");
+  await row.getByRole("button", { name: "Review fixture", exact: true }).focus();
+  await page.keyboard.press("Tab");
+  await expect(actions).toBeFocused();
+  await expect(actions).toHaveCSS("opacity", "1");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeFocused();
+  await page.keyboard.press("Enter");
+  for (const label of [/^Title/, "Walkthrough", "Points", "Minutes", "Tags", "Replace the correct flag"]) await expect(page.getByLabel(label)).toBeEditable();
+  for (const label of ["Availability", "Category"]) await expect(page.getByLabel(label)).toBeEnabled();
+  await expect(page.locator('input[type="file"]')).toBeEnabled();
+  await page.getByLabel(/^Title/).fill("Administrator revised fixture");
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.locator(".title-row")).toContainText("In review");
+  await expect(page.getByText("Changes saved and awaiting independent review. Another reviewer must test-solve and approve them before publishing.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Verify and publish", exact: true })).toHaveCount(0);
+  expect(state.saves).toBe(1);
+});
+
+test("administrator edit actions remain reachable on a narrow touch screen", async ({ browser }) => {
+  const context = await browser.newContext({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  try {
+    const page = await context.newPage();
+    await mockReview(page, false, true);
+    const actions = page.getByRole("button", { name: "Actions for Review fixture", exact: true });
+    await expect(actions).toHaveCSS("opacity", "1");
+    await actions.tap();
+    await page.getByRole("button", { name: "Edit", exact: true }).tap();
+    await expect(page.getByLabel(/^Title/)).toBeEditable();
+  } finally { await context.close(); }
+});
+
 test("a reviewer who originally authored the challenge cannot edit or self-publish it", async ({ page }) => {
   await mockReview(page, true);
   await expect(page.getByLabel(/^Title/)).not.toBeEditable();
   await expect(page.getByRole("button", { name: "Save changes", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Verify and publish", exact: true })).toHaveCount(0);
-  await expect(page.getByText("Waiting for an independent reviewer. Authors can’t publish their own challenges.")).toBeVisible();
+  await expect(page.getByText("Waiting for an independent reviewer. Authors and administrators who edited this version can’t approve it.")).toBeVisible();
 });

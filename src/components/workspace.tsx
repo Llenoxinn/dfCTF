@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import type { Bootstrap, ChallengeDetail, ChallengeSummary, Leaderboard, Progress, Viewer } from "@/lib/types";
 import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
+import { authDestination, safeReturnTo } from "@/lib/auth-navigation";
 import { countdownParts } from "@/lib/week";
 import AsciiField from "./ascii-field";
 import AuthPanel, { LocalInbox, type AuthMode } from "./auth-panel";
@@ -14,6 +15,7 @@ import Authoring from "./authoring";
 import AccountSecurity from "./account-security";
 import Competitions, { type CompetitionRoute } from "./competitions";
 import Landing from "./landing";
+import SiteFooter from "./site-footer";
 import RulesContent from "./rules-content";
 import { LearningProgressProvider } from "./resource-progress";
 import { Content } from "./content";
@@ -59,6 +61,7 @@ export default function Workspace() {
   const [selected, setSelected] = useState("");
   const [competitionRoute,setCompetitionRoute] = useState<CompetitionRoute>({eventId:"",challengeId:""});
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
+  const [returnTo, setReturnTo] = useState<string | null>(null);
   const [challenges, setChallenges] = useState<ChallengeSummary[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [board, setBoard] = useState<Leaderboard | null>(null);
@@ -96,10 +99,13 @@ export default function Workspace() {
       historyIndex.current = nextIndex;
       historyState.current = window.history.state;
       const params = new URLSearchParams(window.location.search);
-      const requested = params.get("view");
+      const destination = authDestination(window.location.search);
+      setReturnTo(destination);
+      const target = destination ? new URLSearchParams(destination.split("?")[1]) : params;
+      const requested = target.get("view");
       setView(VIEWS.includes(requested as View) ? requested as View : "practice");
-      setSelected(requested === "competitions" ? "" : params.get("challenge") ?? "");
-      setCompetitionRoute({eventId:params.get("competition")??"",challengeId:requested==="competitions"?params.get("challenge")??"":""});
+      setSelected(requested === "competitions" ? "" : target.get("challenge") ?? "");
+      setCompetitionRoute({eventId:target.get("competition")??"",challengeId:requested==="competitions"?target.get("challenge")??"":""});
       const auth = params.get("auth");
       const linkFlow = params.has("token") || params.has("verified") || params.has("error");
       setAuthMode(params.get("reset") === "1" && params.has("token") ? "reset" : auth === "signup" ? "signup" : auth === "signin" || linkFlow ? "signin" : null);
@@ -117,6 +123,11 @@ export default function Workspace() {
   }, []);
 
   const ready = !!bootstrap?.user && bootstrap.hasAccess && !!bootstrap.user.codename;
+  useEffect(() => {
+    if (!ready || !authMode || authMode === "reset") return;
+    window.history.replaceState(window.history.state, "", returnTo ?? hrefFor(view));
+    setAuthMode(null); setReturnTo(null);
+  }, [ready, authMode, returnTo, view]);
   useEffect(() => { if (ready) void loadData(); }, [ready, loadData]);
   useEffect(() => {
     if (!ready) return;
@@ -156,10 +167,16 @@ export default function Workspace() {
     const params=new URLSearchParams({view:"competitions",...(eventId?{competition:eventId}:{}),...(challengeId?{challenge:challengeId}:{})});
     pushLocation(`/?${params}`);if(moved)window.scrollTo({top:0,behavior:"instant"});
   }
-  function openAuth(mode: AuthMode | null) {
+  function openAuth(mode: AuthMode | null, destination?: string) {
     if (leaveGuard.current && !leaveGuard.current()) return;
     setAuthMode(mode);
-    pushLocation(mode ? `/?auth=${mode}` : "/");
+    const target = mode ? safeReturnTo(destination ?? null) : null;
+    setReturnTo(target);
+    if (target) {
+      const params = new URLSearchParams(target.split("?")[1]);
+      setView(params.get("view") as View); setSelected(params.get("challenge") ?? "");
+    } else if (mode) { setView("practice"); setSelected(""); }
+    pushLocation(mode ? `/?${new URLSearchParams({ auth: mode, ...(target ? { returnTo: target } : {}) })}` : "/");
     window.scrollTo({ top: 0, behavior: "instant" });
   }
   async function signOut() {
@@ -170,7 +187,7 @@ export default function Workspace() {
 
   if (bootError && !bootstrap) return <Screen><Wordmark size="lg" /><div className="gate-card"><Notice type="error">{bootError}</Notice><button className="button button-primary" onClick={refresh}>Try again</button></div></Screen>;
   if (!bootstrap) return <Screen><Wordmark size="lg" /><Loading label="Opening dfCTF" /></Screen>;
-  if (authMode === "reset" || !bootstrap.user) return authMode ? <AuthPanel key={authMode === "reset" ? "reset" : "account"} bootstrap={bootstrap} refresh={refresh} initialMode={authMode} back={() => openAuth(null)} /> : <Landing signIn={() => openAuth("signin")} createAccount={() => openAuth("signup")} />;
+  if (authMode === "reset" || !bootstrap.user) return authMode || returnTo ? <AuthPanel key={authMode === "reset" ? "reset" : "account"} bootstrap={bootstrap} refresh={refresh} initialMode={authMode ?? "signin"} returnTo={returnTo} back={() => openAuth(null)} /> : <Landing signIn={() => openAuth("signin")} createAccount={() => openAuth("signup")} requestSignIn={destination => openAuth("signin", destination)} />;
   if (!bootstrap.hasAccess) return <AccessGate bootstrap={bootstrap} refresh={refresh} signOut={signOut} />;
   if (!bootstrap.user.codename) return <Onboarding user={bootstrap.user} refresh={refresh} />;
   if (view === "home") return <Landing signIn={() => navigate("leaderboard")} createAccount={() => navigate("practice")} enter={navigate} />;
@@ -212,6 +229,7 @@ export default function Workspace() {
         : <Library challenges={challenges} progress={progress} board={board} query={query} setQuery={setQuery} searchInput={searchInput} open={openChallenge} />}
       {selected && activeView !== "competitions" ? <ChallengeView key={selected} id={selected} back={closeChallenge} onSolved={loadData} /> : null}
     </main>
+    <SiteFooter />
   </div>;
 }
 
@@ -268,7 +286,8 @@ function Library({ challenges, progress, board, query, setQuery, searchInput, op
   const [mode, setMode] = useState<"board" | "list">("board");
   const [sort, setSort] = useState<"points" | "solves" | "newest">("points");
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const destination = authDestination(window.location.search);
+    const params = new URLSearchParams(destination?.split("?")[1] ?? window.location.search);
     const category = params.get("category"), difficulty = params.get("difficulty");
     if (CATEGORIES.some(value => value === category)) setCat(category!);
     if (DIFFICULTIES.some(value => value === difficulty)) setLevels(new Set([difficulty!]));

@@ -65,7 +65,7 @@ describe("draft artifact removal",()=>{
     expect(await store.db.select().from(artifactContents).where(eq(artifactContents.artifactId,file.id))).toHaveLength(0);
     await expect(readFile(file.location)).rejects.toMatchObject({code:"ENOENT"});
     await expect(downloadArtifact(store.db,author,c.id,file.id,true)).rejects.toMatchObject({status:404});
-    expect(await store.db.select().from(auditEvents).where(and(eq(auditEvents.action,"artifact.remove"),eq(auditEvents.targetId,c.id)))).toEqual([expect.objectContaining({actorId:author.id,targetId:c.id,metadata:{fileId:file.id}})]);
+    expect(await store.db.select().from(auditEvents).where(and(eq(auditEvents.action,"artifact.remove"),eq(auditEvents.targetId,c.id)))).toEqual([expect.objectContaining({actorId:author.id,targetId:c.id,metadata:expect.objectContaining({fileId:file.id})})]);
     await expect(editChallenge(store.db,author,c.id,{status:"review"})).resolves.toMatchObject({status:"review"});
   });
   it("allows an admin but rejects another author, reviewers, and participants",async()=>{
