@@ -265,10 +265,16 @@ function ProfileMenu({ codename, points, rank, current, staff, navigate, onSignO
     window.addEventListener("pointerdown", close); window.addEventListener("keydown", close);
     return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", close); };
   }, [open]);
-  // A disclosure containing grouped navigation links; standard Tab/Shift+Tab works throughout.
-  return <div className="profile" ref={root} data-open={open || undefined}>
+  // Arrow keys, Home and End move between rows as a convenience; Tab/Shift+Tab still walk the disclosure normally.
+  const moveFocus = (e: ReactKeyboardEvent<HTMLElement>) => {
+    const rows = [...e.currentTarget.querySelectorAll<HTMLElement>("a, button")], at = rows.indexOf(document.activeElement as HTMLElement);
+    const next = e.key === "ArrowDown" ? (at + 1) % rows.length : e.key === "ArrowUp" ? (at - 1 + rows.length) % rows.length : e.key === "Home" ? 0 : e.key === "End" ? rows.length - 1 : -1;
+    if (next < 0) return; e.preventDefault(); rows[next]?.focus();
+  };
+  // A disclosure containing grouped navigation links. It closes once focus leaves it, so it never lingers behind the page.
+  return <div className="profile" ref={root} data-open={open || undefined} onBlur={e => { if (open && e.relatedTarget && !root.current?.contains(e.relatedTarget as Node)) setOpen(false); }}>
     <button ref={button} type="button" className="profile-button" aria-label={`Account menu for ${codename}`} aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} size={32} you /><span className="profile-text"><span className="mono profile-name">{codename}</span>{activeLabel?<span className="profile-context">{activeLabel}</span>:null}<span className="standing-pill">{rank ? <b>#{rank} this week</b> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></span><Icon name="down" size={14} className="profile-chevron" /></button>
-    {open ? <nav className="menu account-navigation" id="profile-actions" aria-label="Account">
+    {open ? <nav className="menu account-navigation" id="profile-actions" aria-label="Account" onKeyDown={moveFocus}>
       <div className="account-identity"><Identicon name={codename} size={40} you /><div><strong className="mono">{codename}</strong><span>{staff ? <span className="account-role">Staff</span> : null}{rank ? <span>#{rank} this week</span> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></div></div>
       {groups.map(group=>{const single=group.tone==="staff"&&group.items.length===1;
         return <div className={`account-nav-group account-nav-${group.tone}`} role="group" aria-label={group.label} key={group.label}>
