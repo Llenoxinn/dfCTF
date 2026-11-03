@@ -32,6 +32,9 @@ test("players join, solve through the event API, and see event points without ch
   await page.getByRole("link",{name:/Private competition evidence/}).click();
   await page.getByLabel("Flag",{exact:true}).fill("dfCTF{event_evidence}");await page.getByRole("button",{name:"Submit flag",exact:true}).click();
   await expect(page.getByText("Your competition score is now",{exact:false})).toContainText("250");expect(submissions).toBe(1);
+  await expect(page.locator(".capture-heading")).toContainText("Flag captured!");
+  await expect(page.locator(".capture-points")).toHaveText("+250 points earned");
+  await expect(page.locator(".capture-announcement")).toHaveText("Flag captured! 250 points earned.");
   await expect(page.locator(".standing-pill")).toContainText("0 pts");
   await page.getByRole("button",{name:"Back to competition",exact:true}).click();
   await expect(page.getByRole("table")).toContainText("250");
