@@ -55,8 +55,8 @@ export default function RulesNavigation({ items }: { items: LineSidebarItem[] })
           {items.map(item => <li key={item.href}><a href={item.href} tabIndex={0} onClick={event => {
             if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
             disclosure.current!.open = false;
-            // Move focus after the browser follows the fragment link.
-            requestAnimationFrame(() => document.getElementById(item.href.slice(1))?.focus({ preventScroll: true }));
+            // A deferred focus can steal it from the user's next keyboard action.
+            document.getElementById(item.href.slice(1))?.focus({ preventScroll: true });
           }}>{item.label}</a></li>)}
         </ul></nav>
       </div>
