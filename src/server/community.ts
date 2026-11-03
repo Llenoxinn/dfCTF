@@ -3,6 +3,7 @@ import type { Database } from "./db";
 import { challenges, challengeVersions, solves, xpLedger, user } from "./schema";
 import { CATEGORIES, type Category, type Community, type Difficulty, type Leaderboard, type SolveEvent, type Standing } from "@/lib/types";
 import { currentWeekly, DAY_MS, dayKey, dayStart, weekEnd, weekStart } from "@/lib/week";
+import { topPracticeStandings } from "./practice-standing";
 
 export type SolveRow = { userId: string; codename: string | null; challengeId: string; at: Date; points: number };
 type Ranked = Standing & { userId: string; reachedAt: number };
@@ -87,14 +88,7 @@ async function solveCounts(db: Database) {
 const plain = ({ rank, codename, points, solves }: Standing): Standing => ({ rank, codename, points, solves });
 
 async function topStandings(db: Database, now: Date, since?: Date): Promise<Standing[]> {
-  const points = sql<number>`sum(coalesce(${xpLedger.amount}, 0))`;
-  // Keep exact ties consistent with rankStandings: JavaScript Date precision and binary codename order.
-  const reachedAt = sql`date_trunc('milliseconds', coalesce(max(case when ${xpLedger.amount} > 0 then ${solves.createdAt} end), min(${solves.createdAt})))`;
-  const rows = await db.select({ codename: user.codename, points, solves: sql<number>`count(*)` })
-    .from(solves).innerJoin(user, eq(user.id, solves.userId)).leftJoin(xpLedger, eq(xpLedger.solveId, solves.id))
-    .where(and(ne(user.codename, ""), lte(solves.createdAt, now), since ? gte(solves.createdAt, since) : undefined))
-    .groupBy(solves.userId, user.codename).orderBy(desc(points), asc(reachedAt), asc(sql`${user.codename} COLLATE "C"`)).limit(5);
-  return rows.map((r, i) => ({ rank: i + 1, codename: r.codename!, points: Number(r.points), solves: Number(r.solves) }));
+  return topPracticeStandings(db, now, since);
 }
 
 /** Public data for the landing page: codenames and challenge titles only. */
