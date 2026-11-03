@@ -5,6 +5,7 @@ import ValidatedForm from "./validated-form";
 import { FormEvent, useEffect, useState } from "react";
 import type { Bootstrap, Community } from "@/lib/types";
 import { destinationLabel } from "@/lib/auth-navigation";
+import { socialSignInError } from "@/lib/social-errors";
 import AsciiField from "./ascii-field";
 import DecryptedText from "./decrypted-text";
 import { SiteLinks } from "./site-footer";
@@ -33,7 +34,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
     if (resetToken && (params.get("reset") === "1" || window.location.pathname.includes("reset"))) { setToken(resetToken); setMode("reset"); }
     if (params.has("verified")) setMessage("Your email is verified. Sign in to continue.");
     if (params.get("passwordReset") === "1") setMessage("Password updated. Sign in with your new password.");
-    if (params.get("error")) setError("This link could not be used. Request a new email and try again.");
+    if (params.get("error")) setError(params.get("oauthError") === "1" ? socialSignInError(params.get("error")) : "This link could not be used. Request a new email and try again.");
   }, []);
 
   useEffect(() => { setMode(m => m === "reset" || m === "mfa" ? m : initialMode); }, [initialMode]);
@@ -71,7 +72,8 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
   async function social(provider: "google" | "github") {
     setBusy(true); setError("");
     try {
-      const result = await api<{ url?: string }>("/api/auth/sign-in/social", { method: "POST", body: JSON.stringify({ provider, callbackURL: `${window.location.origin}${returnTo ?? "/"}` }) });
+      const errorParams = new URLSearchParams({ auth: "signin", oauthError: "1", ...(returnTo ? { returnTo } : {}) });
+      const result = await api<{ url?: string }>("/api/auth/sign-in/social", { method: "POST", body: JSON.stringify({ provider, callbackURL: `${window.location.origin}${returnTo ?? "/"}`, errorCallbackURL: `${window.location.origin}/?${errorParams}` }) });
       if (result.url) window.location.assign(result.url); else throw new Error("The provider did not return a sign-in link.");
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to connect."); setBusy(false); }
   }

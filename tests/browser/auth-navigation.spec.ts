@@ -51,3 +51,20 @@ test("the full leaderboard explains sign-in and returns to the leaderboard", asy
   await expect(page).toHaveURL("/?view=leaderboard");
   await expect(page.getByRole("navigation", { name: "Main", exact: true }).getByRole("link", { name: "Leaderboard", exact: true })).toHaveAttribute("aria-current", "page");
 });
+
+test("a declined social callback offers recovery without exposing the provider description", async ({ page }) => {
+  await mockSignIn(page);
+  await page.goto("/?auth=signin&oauthError=1&error=access_denied&error_description=private-provider-detail&returnTo=%2F%3Fview%3Dleaderboard");
+  await expect(page.getByRole("alert")).toContainText("Social sign-in was cancelled or declined.");
+  await expect(page.getByRole("alert")).not.toContainText("private-provider-detail");
+  await expect(page.getByRole("status")).toContainText("the full leaderboard");
+  const requestPromise = page.waitForRequest("**/api/auth/sign-in/social");
+  await page.route("**/api/auth/sign-in/social", route => route.fulfill({ status: 503, json: { error: { message: "Temporarily unavailable" } } }));
+  await page.getByRole("button", { name: "Continue with GitHub", exact: true }).click();
+  const request = (await requestPromise).postDataJSON();
+  expect(request.callbackURL).toBe("http://127.0.0.1:3100/?view=leaderboard");
+  const errorURL = new URL(request.errorCallbackURL);
+  expect(errorURL.searchParams.get("returnTo")).toBe("/?view=leaderboard");
+  expect(errorURL.searchParams.get("oauthError")).toBe("1");
+  await expect(page.getByRole("button", { name: "Continue with GitHub", exact: true })).toBeEnabled();
+});
