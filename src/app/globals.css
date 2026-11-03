@@ -642,9 +642,12 @@ a.card:active { transform: scale(.98); }
 .rules-main { max-width: 1160px; margin: 0 auto; padding: 56px 32px 80px; }
 .rules-main .page-head { margin-bottom: 40px; }
 .rules-main .page-head p { max-width: 65ch; }
+.rules-heading h1 { overflow-wrap: anywhere; }
 .rules-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 48px; align-items: start; }
 /* The index is a LineSidebar, like Resources: it follows you down the page and lights the section on screen. */
-.rules-index { position: sticky; top: 92px; max-height: calc(100dvh - 116px); overflow: hidden auto; padding-right: 8px; }
+.rules-navigation { position: sticky; top: calc(var(--rules-header-height, 64px) + 28px); min-width: 0; }
+.rules-index { max-height: calc(100dvh - var(--rules-header-height, 64px) - 52px); overflow: hidden auto; padding-right: 8px; }
+.rules-sections { display: none; }
 .rules-copy { min-width: 0; max-width: 72ch; }
 .rules-copy section { scroll-margin-top: 96px; padding: 0 0 32px; margin-bottom: 32px; border-bottom: 1px solid var(--line); }
 .rules-copy h2 { font-size: 1.375rem; margin-bottom: 16px; }
@@ -964,12 +967,20 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .competition-scoreboard th:last-child, .competition-scoreboard td:last-child { text-align: right; }
 @media (max-width: 700px) {
   .rules-main { padding: 32px 16px 56px; }
-  .rules-layout { grid-template-columns: 1fr; gap: 32px; }
-  /* One column: the index scrolls away with the page as a plain list, without markers. */
-  .rules-index { position: static; max-height: none; overflow: visible; }
-  .rules-index.line-sidebar--markers { padding-left: 0; }
-  .rules-index .line-sidebar__marker, .rules-index .line-sidebar__item::after { display: none; }
-  .rules-index .line-sidebar__list { padding: 0; }
+  .rules-layout { display: block; }
+  .rules-navigation { top: calc(var(--rules-header-height, 128px) + 8px); z-index: 10; margin-bottom: 32px; }
+  .rules-navigation > .rules-index { display: none; }
+  .rules-sections { display: block; position: relative; background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--r); }
+  .rules-sections > summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 48px; padding: 12px 16px; font-weight: 600; list-style: none; cursor: pointer; touch-action: manipulation; user-select: none; }
+  .rules-sections > summary::-webkit-details-marker { display: none; }
+  .rules-sections[open] > summary svg { transform: rotate(180deg); }
+  .rules-sections:not([open]) > .rules-sections-panel { display: none; }
+  .rules-sections-panel { position: absolute; top: calc(100% + 8px); left: -1px; right: -1px; display: flex; flex-direction: column; max-height: calc(100dvh - var(--rules-header-height, 128px) - var(--rules-control-height, 48px) - 32px); padding: 8px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r); box-shadow: 0 12px 32px -12px rgb(0 0 0 / .5); }
+  .rules-sections-close { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; padding: 8px; }
+  .rules-sections-panel nav { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .rules-sections-panel ul { list-style: none; padding: 0; margin: 0; }
+  .rules-sections-panel a { display: flex; align-items: center; min-height: 44px; padding: 10px 8px; line-height: 1.5; overflow-wrap: anywhere; touch-action: manipulation; }
+  .rules-copy section { scroll-margin-top: calc(var(--rules-header-height, 128px) + var(--rules-control-height, 48px) + 24px); }
   .first-blood time { width: 100%; margin-left: 48px; }
   .competition-list li { align-items: start; flex-direction: column; gap: 16px; }
   .competition-scoreboard th, .competition-scoreboard td { padding: 12px; }
