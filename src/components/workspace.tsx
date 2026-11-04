@@ -254,7 +254,6 @@ function Screen({ children }: { children: ReactNode }) {
 function ProfileMenu({ codename, points, rank, current, staff, navigate, onSignOut }: { codename: string; points: number; rank?: number; current:View;staff:boolean;navigate:(view:View)=>void;onSignOut:()=>void }) {
   const [open, setOpen] = useState(false); const root = useRef<HTMLDivElement>(null); const button = useRef<HTMLButtonElement>(null);
   const groups=ACCOUNT_GROUPS.filter(group=>!group.staff||staff);
-  const activeLabel=groups.flatMap(group=>group.items).find(item=>item.id===current)?.label;
   useEffect(() => {
     if (!open) return;
     const close = (e: Event) => {
@@ -266,7 +265,7 @@ function ProfileMenu({ codename, points, rank, current, staff, navigate, onSignO
   }, [open]);
   // A disclosure containing grouped navigation links; standard Tab/Shift+Tab works throughout.
   return <div className="profile" ref={root}>
-    <button ref={button} type="button" className="profile-button" aria-label={`Account menu for ${codename}`} aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} size={32} you /><span className="profile-text"><span className="mono profile-name">{codename}</span>{activeLabel?<span className="profile-context">{activeLabel}</span>:null}<span className="standing-pill">{rank ? <b>#{rank} this week</b> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></span><Icon name="down" size={14} /></button>
+    <button ref={button} type="button" className="profile-button" aria-label={`Account menu for ${codename}`} aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} size={32} you /><span className="profile-text"><span className="mono profile-name">{codename}</span><span className="standing-pill">{rank ? <b>#{rank} this week</b> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></span><Icon name="down" size={14} /></button>
     {open ? <nav className="menu account-navigation" id="profile-actions" aria-label="Account">{groups.map(group=><div className="account-nav-group" role="group" aria-label={group.label} key={group.label}><span className="account-nav-label" aria-hidden="true">{group.label}</span>{group.items.map(item=><a key={item.id} href={hrefFor(item.id)} aria-current={current===item.id?"page":undefined} onClick={event=>inPlace(event,()=>{setOpen(false);button.current?.focus();navigate(item.id);})}>{item.label}{current===item.id?<span className="account-current" aria-hidden="true">Current</span>:null}</a>)}</div>)}<div className="account-nav-signout"><button type="button" onClick={()=>{setOpen(false);onSignOut();}}><Icon name="exit" size={15}/>Sign out</button></div></nav> : null}
   </div>;
 }
