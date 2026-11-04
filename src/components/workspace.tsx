@@ -21,7 +21,7 @@ import RulesContent from "./rules-content";
 import { LearningProgressProvider } from "./resource-progress";
 import { Content } from "./content";
 import { ChallengeCard, type CardState } from "./cards";
-import { Heatmap, Radar, RaceChart, SolveGrid } from "./viz";
+import { Heatmap, Radar, radarLabel, RaceChart, SolveGrid } from "./viz";
 import { api, CopyButton, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Modal, Notice, Pips, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
 
 // The guides are long, so their text loads only when the Resources tab opens.
@@ -563,7 +563,7 @@ function LeaderboardView({ initial, progress, viewer, openPlayer }: { initial: L
         <section className="panel" aria-labelledby="you-title"><div className="panel-head"><h2 id="you-title">Your standing</h2><InfoTip text="Your rank and points in this range, and how your solves spread across the seven categories." /><span className="spacer" /><span className="mono muted">{viewer}</span></div>
           <div className="you-stats"><div><strong className="accent">{data.viewer ? `#${data.viewer.rank}` : "unranked"}</strong><span>rank</span></div><div><strong>{(data.viewer?.points ?? 0).toLocaleString()}</strong><span>points</span></div><div><strong>{data.viewer?.solves ?? 0}</strong><span>solves</span></div></div>
           <p className="muted panel-pad tight">{data.viewer?.gap ? <>{data.viewer.gap.points.toLocaleString()} pts behind #{data.viewer.rank - 1} <span className="mono">{data.viewer.gap.codename}</span>.</> : data.viewer ? "You’re at the top. Hold it." : "Solve a challenge to get on the board."}</p>
-          {progress ? <Radar values={progress.categories.map(c => ({ label: c.category === "Web exploitation" ? "Web" : c.category === "Binary exploitation" ? "Binary" : c.category === "General skills" ? "General" : c.category === "Steganography" ? "Steg" : c.category === "Miscellaneous" ? "Misc" : c.category, solved: c.solved, total: c.total }))} /> : null}
+          {progress ? <Radar values={progress.categories.map(c => ({ label: radarLabel(c.category), solved: c.solved, total: c.total }))} /> : null}
         </section>
         <section className="panel" aria-labelledby="who-title"><div className="panel-head"><h2 id="who-title">Who solved what</h2><InfoTip text="One square per challenge, easiest to hardest. Pixel density shows how many players solved it; empty squares have no solves yet. Yellow outlines are yours." /></div><div className="panel-pad"><SolveGrid challenges={data.challenges} /></div></section>
       </div>

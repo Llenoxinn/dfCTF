@@ -54,6 +54,9 @@ export function busiestDay(days: number[], start: string) {
   return best < 0 ? null : { label: dayLabel(start, best), count: days[best] };
 }
 
+const RADAR_LABELS: Record<string, string> = { "Web exploitation": "Web", "Binary exploitation": "Binary", "General skills": "General", Steganography: "Steg", Miscellaneous: "Misc" };
+export const radarLabel = (category: string) => RADAR_LABELS[category] ?? category;
+
 /** Your solves per category as a dithered polygon. */
 export function Radar({ values }: { values: { label: string; solved: number; total: number }[] }) {
   const S = 360, R = 120, cx = S / 2, cy = 172, n = values.length;

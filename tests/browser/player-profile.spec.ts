@@ -83,7 +83,8 @@ test("the hero pattern is stable and the map and goals reflect proven results",a
   await expect(categories).toContainText("2 of 4 solved");
   const forensics=categories.getByRole("listitem").filter({hasText:"Forensics"});
   await expect(forensics).toContainText("2/4");await expect(forensics).toContainText("160 pts");
-  await expect(forensics.locator(".pf-squares i")).toHaveCount(4);await expect(forensics.locator(".pf-squares i.on")).toHaveCount(2);
+  await expect(forensics.locator(".meter i")).toHaveCount(12);await expect(forensics.locator(".meter i.on")).toHaveCount(6);
+  await expect(categories.getByRole("img",{name:/Forensics 2 of 4/})).toBeVisible();
   await expect(categories.getByRole("listitem").filter({hasText:"OSINT"})).toContainText("None");
   const goals=page.getByRole("region",{name:"Milestones",exact:true});
   await expect(goals).toContainText("2 of 3 earned");
