@@ -256,7 +256,10 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
             {canWithdraw ? <button type="button" className="button button-secondary" disabled={busy || dirty} onClick={() => transition("draft")}>Return to draft</button> : null}
           </> : detail?.status === "published" ? <>
             <Notice type="success">{detail.visibility === "competition" ? "Reviewed and ready for a competition. Hidden from the practice library." : "Live on the board."}</Notice>
-            {role === "admin" ? <button type="button" className="button button-secondary" disabled={busy} onClick={() => { if (window.confirm("Archive this challenge? Players will no longer be able to open it.")) void transition("archived"); }}><Icon name="archive" size={16} />Archive challenge</button> : null}
+            {role === "admin" ? <>
+              <button type="button" className="button button-secondary" disabled={busy || dirty} aria-describedby={dirty ? "archive-unsaved-hint" : undefined} onClick={() => { if (window.confirm("Archive this challenge? Players will no longer be able to open it.")) void transition("archived"); }}><Icon name="archive" size={16} />Archive challenge</button>
+              {dirty ? <p className="fine" id="archive-unsaved-hint">Save or discard your unsaved edits before archiving.</p> : null}
+            </> : null}
           </> : <Notice>{detail?.status === "draft" ? "The author is still writing this draft. Review opens once it’s sent for review." : "This challenge is archived."}</Notice>}
         </div></section>
       </aside>
