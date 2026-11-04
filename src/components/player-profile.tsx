@@ -12,10 +12,11 @@ function relative(at:string){const days=(Date.now()-new Date(at).getTime())/8640
 function ProfileEditor({ identity, userId, saved, close, expired }: { identity: ProfileIdentity; userId:string; saved:(identity:ProfileIdentity)=>void;close:()=>void;expired:()=>void }) {
   const [fields,setFields]=useState({displayName:identity.displayName,bio:identity.bio,websiteUrl:identity.websiteUrl,githubUrl:identity.githubUrl,shareProfile:identity.shareProfile??false});
   const [busy,setBusy]=useState(false),[error,setError]=useState(""),[invalid,setInvalid]=useState<Record<string,string[]>>({});
+  useEffect(()=>{const field=Object.keys(invalid).find(key=>invalid[key]?.length);if(field)document.getElementById(`profile-edit-${field}`)?.focus();},[invalid]);
   async function save(event:FormEvent){
     event.preventDefault();setBusy(true);setError("");setInvalid({});
     try{saved(await api<ProfileIdentity>("/api/v1/profile",{method:"PATCH",headers:{"X-dfCTF-Account":userId},body:JSON.stringify(fields)}));}
-    catch(err){if(err instanceof ApiError && (err.status===401||err.status===403)){expired();return;}setError(err instanceof Error?err.message:"Your profile could not be saved. Retry.");if(err instanceof ApiError && err.details && typeof err.details==="object" && "fieldErrors" in err.details){const errors=err.details.fieldErrors as Record<string,string[]>;setInvalid(errors);requestAnimationFrame(()=>document.getElementById(`profile-edit-${Object.keys(errors)[0]}`)?.focus());}}
+    catch(err){if(err instanceof ApiError && (err.status===401||err.status===403)){expired();return;}setError(err instanceof Error?err.message:"Your profile could not be saved. Retry.");if(err instanceof ApiError && err.details && typeof err.details==="object" && "fieldErrors" in err.details){setInvalid(err.details.fieldErrors as Record<string,string[]>);}}
     finally{setBusy(false);}
   }
   function change(field: "displayName"|"bio"|"websiteUrl"|"githubUrl",value:string){setFields(old=>({...old,[field]:value}));setInvalid(old=>({...old,[field]:[]}));}
