@@ -1,4 +1,4 @@
-import { and, eq, gt, asc, desc, sql, count, sum, inArray } from "drizzle-orm";
+import { and, eq, asc, desc, sql, count, sum, inArray } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import type { Database } from "./db";
 import { challenges, challengeVersions, artifacts, artifactContents, solves, submissions, xpLedger, rateLimits, auditEvents, user, competitionChallenges, competitions } from "./schema";
@@ -61,7 +61,7 @@ export async function prepareChallengeRevision(db:Executor,viewer:Viewer,id:stri
   const fileIds=new Map<string,string>();
   if(viewer.role!=="admin"||!["published","archived"].includes(row.challenge.status))return {...row,fileIds};
   const linked=await db.select({id:competitions.id}).from(competitions).innerJoin(competitionChallenges,eq(competitionChallenges.competitionId,competitions.id))
-    .where(and(eq(competitionChallenges.challengeId,id),eq(competitions.status,"published"),gt(competitions.endsAt,new Date()))).limit(1);
+    .where(and(eq(competitionChallenges.challengeId,id),eq(competitions.status,"published"))).limit(1);
   if(linked.length)throw new HttpError(409,"COMPETITION_LOCKED","Archive the published competition before editing one of its challenges.");
   const {id:previousId,createdAt:previousCreatedAt,...content}=row.version;
   const versionId=randomUUID(),version=row.version.version+1;
@@ -154,8 +154,8 @@ export async function editChallenge(db:Database,viewer:Viewer,id:string,input:Pa
     if(!managesDraft&&!(viewer.role==="reviewer"&&c.authorId!==viewer.id&&c.status!=="draft"&&!input.status))throw new HttpError(404,"NOT_FOUND","This challenge is unavailable for editing.");
     if(input.status==="archived"&&c.status==="published") {
       const linked=await tx.select({id:competitions.id}).from(competitions).innerJoin(competitionChallenges,eq(competitionChallenges.competitionId,competitions.id))
-        .where(and(eq(competitionChallenges.challengeId,id),eq(competitions.status,"published"),gt(competitions.endsAt,new Date()))).limit(1);
-      if(linked.length)throw new HttpError(409,"COMPETITION_LOCKED","This challenge belongs to a published competition that has not ended. Archive the event first if it must be withdrawn.");
+        .where(and(eq(competitionChallenges.challengeId,id),eq(competitions.status,"published"))).limit(1);
+      if(linked.length)throw new HttpError(409,"COMPETITION_LOCKED","This challenge belongs to a published competition. Archive the event first if it must be withdrawn.");
       await tx.update(challenges).set({status:"archived",updatedAt:new Date()}).where(eq(challenges.id,id));await audit(tx,viewer.id,"challenge.archive",id);return {id,status:"archived"};
     }
     if(input.status==="draft"&&c.status==="review"&&!v.locked) {
