@@ -24,8 +24,8 @@ export type PlayerProfile = {
 };
 
 const MILESTONES: (ProfileMilestone & { goal: string; earned: (stats: ProfileStats) => boolean; target?: (stats: ProfileStats) => { value: number; max: number } })[] = [
-  { id: "first-capture", label: "First capture", condition: "At least one valid capture in this scope.", goal: "Solve any practice challenge.", earned: stats => stats.solved >= 1 },
-  { id: "ten-captures", label: "Ten captures", condition: "At least ten distinct captures in this scope.", goal: "Solve ten different practice challenges.", earned: stats => stats.solved >= 10, target: stats => ({ value: Math.min(stats.solved, 10), max: 10 }) },
+  { id: "first-capture", label: "First solve", condition: "At least one valid solve in this scope.", goal: "Solve any practice challenge.", earned: stats => stats.solved >= 1 },
+  { id: "ten-captures", label: "Ten solves", condition: "At least ten distinct solves in this scope.", goal: "Solve ten different practice challenges.", earned: stats => stats.solved >= 10, target: stats => ({ value: Math.min(stats.solved, 10), max: 10 }) },
   { id: "first-blood", label: "First Blood", condition: "At least one earliest solve, with timestamp ties resolved by solve ID, in this scope.", goal: "Be the first player to solve a challenge.", earned: stats => stats.firstBloods >= 1 },
 ];
 

@@ -41,7 +41,7 @@ export function renderProfileCard(card: PublicProfileCard, preferences: CardPref
   const text=(x:number,y:number,value:unknown,size=20,fill=palette.text,extra="")=>`<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" ${extra}>${xml(value)}</text>`;
   const display=prefs.showDisplayName && card.displayName ? card.displayName : card.codename;
   const names=lines(display,20), hasName=display!==card.codename;
-  const stats:[string,string][]=[["RANK",card.rank===null?"Unranked":`#${card.rank.toLocaleString("en")}`],["AWARDED XP",card.points.toLocaleString("en")],["CAPTURES",card.solved.toLocaleString("en")],...(prefs.showFirstBloods?[["FIRST BLOODS",card.firstBloods.toLocaleString("en")] as [string,string]]:[])];
+  const stats:[string,string][]=[["RANK",card.rank===null?"Unranked":`#${card.rank.toLocaleString("en")}`],["POINTS",card.points.toLocaleString("en")],["SOLVES",card.solved.toLocaleString("en")],...(prefs.showFirstBloods?[["FIRST BLOODS",card.firstBloods.toLocaleString("en")] as [string,string]]:[])];
   const badges=card.milestones.filter(m=>prefs.milestones.includes(m.id)).slice(0,2);
   const snapshot=new Intl.DateTimeFormat("en",{timeZone:"Asia/Manila",day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(card.asOf));
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}" font-family="Arial, sans-serif">

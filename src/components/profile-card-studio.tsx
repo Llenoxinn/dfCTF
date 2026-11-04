@@ -41,7 +41,7 @@ export default function ProfileCardStudio({ userId, card, scope, onBusy }: { use
   }
   return <div className="profile-studio-grid">
       <div className="profile-preview-area">
-        <figure className="profile-card-preview"><img src={source} width={1200} height={675} alt={`Player card for ${card.codename}, ${card.scope}. Rank ${card.rank===null?"unranked":card.rank}, ${card.points} awarded XP, ${card.solved} captures.`} /></figure>
+        <figure className="profile-card-preview"><img src={source} width={1200} height={675} alt={`Player card for ${card.codename}, ${card.scope}. Rank ${card.rank===null?"unranked":card.rank}, ${card.points} points, ${card.solved} solves.`} /></figure>
         <p className="fine">Downloads as a 2400 × 1350 PNG in the same design as this preview. Your email, account identifiers, and private challenge details are excluded.</p>
       </div>
       <div className="profile-card-controls">
@@ -53,7 +53,7 @@ export default function ProfileCardStudio({ userId, card, scope, onBusy }: { use
           <label><input type="checkbox" checked={preferences.showFirstBloods} onChange={e=>update({showFirstBloods:e.target.checked})}/>First Blood count</label>
         </fieldset>
         <fieldset disabled={busy || !ready} className="profile-control-group"><legend>Milestones <span className="muted">(up to 2)</span></legend>
-          {card.milestones.length?card.milestones.map(m=><label key={m.id}><input type="checkbox" checked={preferences.milestones.includes(m.id)} disabled={!preferences.milestones.includes(m.id)&&preferences.milestones.filter(id=>card.milestones.some(m=>m.id===id)).length>=2} onChange={e=>update({milestones:e.target.checked?[...preferences.milestones.filter(id=>card.milestones.some(m=>m.id===id)),m.id]:preferences.milestones.filter(id=>id!==m.id)})}/>{m.label}</label>):<p className="fine">Your first valid capture in this scope unlocks a milestone.</p>}
+          {card.milestones.length?card.milestones.map(m=><label key={m.id}><input type="checkbox" checked={preferences.milestones.includes(m.id)} disabled={!preferences.milestones.includes(m.id)&&preferences.milestones.filter(id=>card.milestones.some(m=>m.id===id)).length>=2} onChange={e=>update({milestones:e.target.checked?[...preferences.milestones.filter(id=>card.milestones.some(m=>m.id===id)),m.id]:preferences.milestones.filter(id=>id!==m.id)})}/>{m.label}</label>):<p className="fine">Your first valid solve in this scope unlocks a milestone.</p>}
         </fieldset>
         <p className="fine">{storage?"Card preferences are saved in this browser for this account.":"Browser storage is unavailable. These preferences apply only to this session."}</p>
         <div className="profile-export-actions"><button type="button" className="button button-primary" disabled={busy || !ready} onClick={download}>{busy?<Spinner/>:<Icon name="download" size={17}/>} {busy?"Preparing PNG":"Download PNG"}</button><button type="button" className="text-button" disabled={busy || !ready} onClick={()=>update(parseCardPreferences(DEFAULT_CARD))}>Reset card</button></div>
