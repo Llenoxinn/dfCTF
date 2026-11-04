@@ -1312,20 +1312,17 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .profile-section-head p { margin-top: 8px; max-width: 65ch; line-height: 1.6; }
 .profile-section-head .tag { white-space: nowrap; }
 .profile-studio-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(280px,320px); }
-.profile-preview-area { min-width: 0; display: grid; align-content: center; gap: 16px; padding: 32px; background: var(--bg); }
+.profile-preview-area { min-width: 0; display: grid; align-content: start; gap: 16px; padding: 32px; background: var(--bg); }
 .profile-card-preview { margin: 0; width: 100%; aspect-ratio: 16/9; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
 .profile-card-preview img { display: block; width: 100%; height: auto; }
 .profile-preview-area .fine { line-height: 1.7; }
 .profile-card-controls { border-left: 1px solid var(--line); display: grid; gap: 20px; align-content: start; padding: 24px; background: var(--surface); }
 .profile-control-group { border: 0; padding: 0; min-width: 0; margin: 0; display: grid; gap: 8px; }
 .profile-control-group legend { font-size: .8125rem; font-weight: 600; margin-bottom: 10px; padding: 0; }
-.profile-control-group > label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 44px; font-size: .8125rem; }
+.profile-control-group > label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 32px; font-size: .8125rem; }
+@media (pointer: coarse) { .profile-control-group > label { min-height: 44px; } }
 .profile-control-group input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent-text); }
 .profile-control-group small { color: var(--muted); }
-.profile-choice-row { display: flex; flex-wrap: wrap; gap: 6px; }
-.profile-choice { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 8px 10px; font-size: .75rem; border: 1px solid var(--line-strong); border-radius: var(--r); color: var(--muted); }
-.profile-choice[aria-pressed="true"] { color: var(--text); border-color: var(--accent-text); background: var(--surface-2); box-shadow: inset 0 -2px var(--accent-text); }
-.profile-choice i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid currentColor; }
 .profile-color { display: grid; gap: 12px; }
 .profile-color .react-colorful { width: 100%; height: 188px; }
 .profile-color .react-colorful__saturation { border-radius: var(--r) var(--r) 0 0; border-bottom: 0; }
