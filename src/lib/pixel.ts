@@ -53,7 +53,7 @@ export function identiconPath(name: string, size: number) {
 export function codenameField(name: string, width: number, height: number) {
   const waves = [0, 1, 2].map(i => {
     const h = hashString(`${name}:field:${i}`);
-    return { x: 1 + (h & 7), y: 1 + ((h >>> 3) & 3), phase: ((h >>> 5) % 628) / 100 };
+    return { x: 1 + (h & 3), y: (h >>> 2) & 1, phase: ((h >>> 3) % 628) / 100 };
   });
   return (x: number, y: number) => {
     const sum = waves.reduce((total, w) => total + Math.sin(w.x * (x / width) * Math.PI * 2 + w.y * (y / height) * Math.PI * 2 + w.phase), 0);

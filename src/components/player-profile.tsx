@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { codenameField } from "@/lib/pixel";
 import type { PlayerProfile, ProfileActivityPage, ProfileIdentity, ProfileScope } from "@/lib/player-profile";
-import { api, ApiError, Empty, Icon, Identicon, Loading, Modal, Notice, Spinner } from "./ui";
+import { api, ApiError, Empty, Icon, Identicon, InfoTip, Loading, Modal, Notice, Spinner } from "./ui";
 import ValidatedForm from "./validated-form";
 import ProfileCardStudio from "./profile-card-studio";
+import { DitherArt } from "./viz";
 
 const date=(at:string)=>new Intl.DateTimeFormat("en",{timeZone:"Asia/Manila",day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(at));
 function relative(at:string){const days=(Date.now()-new Date(at).getTime())/86400000;return new Intl.RelativeTimeFormat("en",{numeric:"auto"}).format(-Math.max(0,Math.floor(days>=1?days:days*24)),days>=1?"day":"hour");}
@@ -33,6 +35,12 @@ function ProfileEditor({ identity, userId, saved, close, expired }: { identity: 
   </Modal>;
 }
 
+const BAND_WIDTH=1200,BAND_HEIGHT=240;
+function ProfileBand({codename}:{codename:string}){
+  const density=useMemo(()=>codenameField(codename,BAND_WIDTH,BAND_HEIGHT),[codename]);
+  return <DitherArt className="pf-band" width={BAND_WIDTH} height={BAND_HEIGHT} cell={6} density={density}/>;
+}
+
 export default function PlayerProfileDashboard({userId,refreshKey,open,settings,refreshSession}:{userId:string;refreshKey:unknown;open:(id:string)=>void;settings:()=>void;refreshSession:()=>Promise<void>}) {
   const [scope,setScope]=useState<ProfileScope>("all"),[profile,setProfile]=useState<PlayerProfile|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[expired,setExpired]=useState(false);
   const [editing,setEditing]=useState(false),[sharing,setSharing]=useState(false),[message,setMessage]=useState(""),[moreBusy,setMoreBusy]=useState(false),[moreError,setMoreError]=useState(""),[exporting,setExporting]=useState(false),[retry,setRetry]=useState(0);
@@ -53,16 +61,21 @@ export default function PlayerProfileDashboard({userId,refreshKey,open,settings,
   }
   function saved(identity:ProfileIdentity){setProfile(old=>old?{...old,identity,card:{...old.card,codename:identity.codename,displayName:identity.displayName,bio:identity.bio}}:old);setEditing(false);setMessage("Profile saved.");}
   return <div className="player-profile">
-    <div className="page-head"><div><span className="profile-kicker">PLAYER / DASHBOARD</span><h1>Profile</h1><p>Your identity, practice standing, and next milestones.</p></div><div className="profile-page-actions"><label className="select-inline"><span>Practice scope</span><select aria-label="Practice scope" value={scope} disabled={exporting||editing} onChange={e=>setScope(e.target.value as ProfileScope)}><option value="all">All time</option><option value="week">This week · PHT</option></select></label><button type="button" className="button button-secondary" disabled={loading||exporting||editing} onClick={()=>setRetry(n=>n+1)}>Refresh profile</button></div></div>
+    <div className="page-head"><h1>Profile</h1><div className="profile-page-actions"><label className="select-inline"><span>Practice scope</span><select aria-label="Practice scope" value={scope} disabled={exporting||editing} onChange={e=>setScope(e.target.value as ProfileScope)}><option value="all">All time</option><option value="week">This week · PHT</option></select></label><button type="button" className="button button-secondary" disabled={loading||exporting||editing} onClick={()=>setRetry(n=>n+1)}>Refresh profile</button></div></div>
     {loading?<Loading label="Loading your profile"/>:error?<Notice type="error">{error} <button type="button" className="text-button" onClick={()=>expired?void refreshSession():setRetry(n=>n+1)}>{expired?"Check sign-in":"Retry profile"}</button></Notice>:profile?<>
       {message?<Notice type="success">{message}</Notice>:null}
-      <section className="profile-identity" aria-labelledby="player-identity-title">
-        <div className="profile-avatar"><Identicon name={profile.identity.codename} size={88} you/></div>
-        <div className="profile-identity-copy"><span className="profile-kicker">PLAYER IDENTITY</span><h2 id="player-identity-title" className="mono">@{profile.identity.codename}</h2>{profile.identity.displayName?<p className="profile-display-name">{profile.identity.displayName}</p>:null}{profile.identity.bio?<p className="profile-bio">{profile.identity.bio}</p>:<p className="muted">Add a short bio to make this space yours.</p>}<div className="profile-links">{profile.identity.websiteUrl?<a href={profile.identity.websiteUrl} rel="noopener noreferrer nofollow">Website <Icon name="link" size={14}/></a>:null}{profile.identity.githubUrl?<a href={profile.identity.githubUrl} rel="noopener noreferrer nofollow">GitHub <Icon name="link" size={14}/></a>:null}</div></div>
-        <div className="profile-identity-actions"><button type="button" className="button button-primary" disabled={exporting} onClick={()=>setSharing(true)}>Share card</button><button type="button" className="button button-secondary" disabled={exporting} onClick={()=>setEditing(true)}>Edit profile</button><button type="button" className="text-button" disabled={exporting} onClick={settings}>Account settings</button><span className="fine">Profile details: {profile.identity.shareProfile?"shared with signed-in players":"only you"}</span></div>
+      <section className="pf-hero" aria-labelledby="player-identity-title">
+        <ProfileBand codename={profile.identity.codename}/>
+        <div className="pf-hero-main">
+          <div className="pf-who"><div className="pf-avatar"><Identicon name={profile.identity.codename} size={88} you/></div><h2 id="player-identity-title" className="mono">@{profile.identity.codename}</h2>{profile.identity.displayName?<p className="pf-name">{profile.identity.displayName}</p>:null}{profile.identity.bio?<p className="pf-bio">{profile.identity.bio}</p>:<p className="pf-bio muted">Add a short bio to make this space yours.</p>}{profile.identity.websiteUrl||profile.identity.githubUrl?<div className="pf-links">{profile.identity.websiteUrl?<a href={profile.identity.websiteUrl} rel="noopener noreferrer nofollow">Website <Icon name="link" size={14}/></a>:null}{profile.identity.githubUrl?<a href={profile.identity.githubUrl} rel="noopener noreferrer nofollow">GitHub <Icon name="link" size={14}/></a>:null}</div>:null}</div>
+          <section className="pf-stats" aria-label={`${profile.scope.label} statistics`}>{([["Rank",profile.stats.rank===null?"Unranked":`#${profile.stats.rank.toLocaleString()}`],["Points",profile.stats.points.toLocaleString()],["Solves",profile.stats.solved.toLocaleString()],["First Bloods",profile.stats.firstBloods.toLocaleString()]] as const).map(([label,value])=><div className={`pf-stat${profile.stats.rank===null&&label==="Rank"?" pf-unranked":""}`} key={label}><span className="stat-label">{label}</span><strong>{value}</strong></div>)}</section>
+        </div>
+        <div className="pf-hero-foot">
+          <button type="button" className={`button ${profile.stats.solved?"button-primary":"button-secondary"}`} disabled={exporting} onClick={()=>setSharing(true)}>Share card</button><button type="button" className="button button-secondary" disabled={exporting} onClick={()=>setEditing(true)}>Edit profile</button><button type="button" className="text-button" disabled={exporting} onClick={settings}>Account settings</button><span className="fine">Profile details: {profile.identity.shareProfile?"shared with signed-in players":"only you"}</span>
+          <span className="spacer"/>
+          <span className="pf-scope fine">{profile.scope.period}<InfoTip text="Totals keep historical practice results. Competition scores stay on their event scoreboards." label="About these totals"/>Updated <time dateTime={profile.asOf}>{date(profile.asOf)} PHT</time></span>
+        </div>
       </section>
-      <section className="profile-stat-grid" aria-label={`${profile.scope.label} statistics`}>{([["Rank",profile.stats.rank===null?"Unranked":`#${profile.stats.rank.toLocaleString()}`],["Awarded XP",profile.stats.points.toLocaleString()],["Captures",profile.stats.solved.toLocaleString()],["First Bloods",profile.stats.firstBloods.toLocaleString()]] as const).map(([label,value])=><div className="profile-stat" key={label}><span className="stat-label">{label}</span><strong>{value}</strong></div>)}</section>
-      <p className="profile-scope-note"><strong>{profile.scope.label}</strong> · {profile.scope.period}. Totals retain historical practice results; competition scores stay on their event scoreboards. <span>Updated <time dateTime={profile.asOf}>{date(profile.asOf)} PHT</time>.</span></p>
       <div className="profile-detail-grid">
         <section className="panel profile-category-panel" aria-labelledby="profile-categories-title"><div className="profile-section-head"><div><span className="profile-kicker">YOUR RANGE</span><h2 id="profile-categories-title">Category performance</h2><p className="fine">Captures in this scope / currently published practice challenges. XP is the amount actually awarded, not today’s challenge value.</p></div></div><ul className="profile-categories">{profile.categories.map(c=><li key={c.category}><div><strong>{c.category}</strong><span>{c.solved} / {c.total} captured</span></div><progress max={c.total||1} value={c.solved} aria-label={`${c.category}: ${c.solved} of ${c.total} currently published challenges captured in this scope`}/><p className="fine">{c.total?`${Math.round(c.solved/c.total*100)}% of the available category`:"No published challenges in this category"}<span>{c.points.toLocaleString()} awarded XP</span></p></li>)}</ul></section>
         <section className="panel" aria-labelledby="profile-milestones-title"><div className="profile-section-head"><div><span className="profile-kicker">PROVEN PROGRESS</span><h2 id="profile-milestones-title">Milestones</h2><p className="fine">Derived from your valid results in {profile.scope.label.toLowerCase()}. These are personal milestones, not official awards.</p></div></div>{profile.milestones.length?<ul className="profile-milestones">{profile.milestones.map(m=><li key={m.id}><span className="profile-milestone-icon" aria-hidden="true">+</span><div><h3>{m.label}</h3><p>{m.condition}</p></div></li>)}</ul>:<Empty title="Your first capture starts here" action={<button type="button" className="button button-secondary" onClick={()=>open("")}>Browse challenges</button>}>Complete one valid practice challenge in this scope to reach your first milestone.</Empty>}</section>
