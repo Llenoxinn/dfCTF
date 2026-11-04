@@ -221,7 +221,7 @@ export default function Workspace() {
   }
   async function signOut() {
     if (leaveGuard.current && !leaveGuard.current()) return;
-    try { await api("/api/auth/sign-out", { method: "POST", body: "{}" }); setChallenges([]); setProgress(null); setBoard(null); pushLocation("/"); setAuthMode(null); await refresh(); }
+    try { await api("/api/auth/sign-out", { method: "POST", body: "{}" }); setChallenges([]); setProgress(null); setBoard(null); pushLocation("/"); setAuthMode(null); setReturnTo(null); await refresh(); }
     catch (err) { setBootError(err instanceof Error ? err.message : "Could not sign out. Please try again."); }
   }
 

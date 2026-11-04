@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import type { Bootstrap, ChallengeDetail, Leaderboard } from "../../src/lib/types";
+import type { Bootstrap, ChallengeDetail, Community, Leaderboard } from "../../src/lib/types";
 
 async function mockWorkspace(page: Page, handle?: (route: Route, url: URL) => Promise<boolean>) {
   const bootstrap: Bootstrap = {
@@ -22,7 +22,7 @@ async function mockWorkspace(page: Page, handle?: (route: Route, url: URL) => Pr
     else if (url.pathname === "/api/v1/leaderboard") response = board;
     else if (["/api/auth/list-accounts", "/api/auth/list-sessions"].includes(url.pathname)) response = [];
     else if (url.pathname === "/api/auth/get-session") response = { session: { id: "test-session" } };
-    else if (url.pathname === "/api/v1/community") response = { weekly: null };
+    else if (url.pathname === "/api/v1/community") response = { weekly: null, recent: [], top: [], topAll: [], activity: { start: new Date().toISOString(), days: [0] }, totals: { challenges: 0, categories: [] } } satisfies Community;
     else throw new Error(`Unexpected test request: ${route.request().method()} ${url.pathname}`);
     await route.fulfill({ json: response });
   });
@@ -76,6 +76,30 @@ test.describe("weekly reset details",()=>{
       await page.touchscreen.tap(2,2);await expect(tip).toBeHidden();await expect(page).toHaveURL(/view=practice$/);
     }
   });
+});
+
+test("sign-out clears a protected destination only after success and preserves later intentional sign-in routes",async({page})=>{
+  let fail=true;
+  const {bootstrap}=await mockWorkspace(page,async(route,url)=>{
+    if(url.pathname!=="/api/auth/sign-out")return false;
+    if(fail){await route.fulfill({status:503,json:{error:{message:"Sign-out temporarily unavailable."}}});return true;}
+    bootstrap.user=null;bootstrap.hasAccess=false;bootstrap.staffVerified=false;
+    await route.fulfill({json:{success:true}});return true;
+  });
+  await page.goto("/?view=practice");await expect(page.getByRole("heading",{name:"Challenges",exact:true})).toBeVisible();
+  const account=page.getByRole("button",{name:/^Account menu for/});
+  await account.click();await page.getByRole("navigation",{name:"Account",exact:true}).getByRole("button",{name:"Sign out",exact:true}).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Sign-out temporarily unavailable.");
+  await expect(page).toHaveURL(/view=practice$/);await expect(account).toBeVisible();
+  fail=false;await account.click();await page.getByRole("navigation",{name:"Account",exact:true}).getByRole("button",{name:"Sign out",exact:true}).click();
+  await expect(page).toHaveURL("http://127.0.0.1:3100/");
+  await expect(page.getByRole("navigation",{name:"Sections",exact:true})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Sign in to dfCTF",exact:true})).toHaveCount(0);
+  await page.getByRole("button",{name:"Sign in for full leaderboard",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Sign in to dfCTF",exact:true})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:"the full leaderboard"})).toBeVisible();
+  await expect(page).toHaveURL(/returnTo=.*leaderboard/);
+  await page.goto("/?view=practice");await expect(page.getByRole("status").filter({hasText:"the challenge library"})).toBeVisible();
 });
 
 test("compact navigation keeps personal pages and staff tools in an accessible account disclosure",async({page})=>{
