@@ -164,7 +164,7 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
   }
 
   async function save(event: FormEvent) {
-    event.preventDefault(); if (busy || !editable) return; setError(""); setMessage(""); setFieldErrors({});
+    event.preventDefault(); if (busy || !editable || (detail && !dirty)) return; setError(""); setMessage(""); setFieldErrors({});
     const payload = { ...form, tags: form.tags.split(",").map(t => t.trim()).filter(Boolean), ...(currentId !== "new" && !form.flag ? { flag: undefined } : {}) };
     const validation = (currentId === "new" ? challengeContentInput : challengeContentInput.partial()).safeParse(payload);
     if (!validation.success) { showValidation(validation.error.flatten().fieldErrors); return; }
@@ -210,7 +210,7 @@ function ChallengeEditor({ id, role, viewerId, close, registerLeaveGuard }: { id
     <button className="text-button back-link" onClick={() => { if (confirmLeave()) close(); }} disabled={busy}><Icon name="back" size={16} />Back to authoring</button>
     <div className="page-head">
       <div><div className="title-row"><h1>{currentId === "new" ? "New challenge" : form.title || "Untitled challenge"}</h1><StatusBadge status={detail?.status ?? "draft"} /></div><p className="muted">{editable ? "A clear description, purposeful files, and a satisfying discovery." : "Read the challenge, solve it yourself, and use the publishing controls."}</p></div>
-      {editable && !loading ? <div className="head-actions"><span className="fine">{busy ? "Saving" : detail && !dirty ? "All changes saved" : currentId === "new" ? "Not saved yet" : "Unsaved changes"}</span><button type="submit" form="challenge-editor" className="button button-secondary" disabled={busy}>{editingDraft ? "Save draft" : "Save changes"}</button>{editingDraft && currentId !== "new" ? <button type="button" className="button button-primary" onClick={() => transition("review")} disabled={busy || dirty} title={dirty ? "Save your changes first" : "Send for an independent review"}>Send for review</button> : null}</div> : null}
+      {editable && !loading ? <div className="head-actions"><span className="fine">{busy ? "Saving" : detail && !dirty ? "All changes saved" : currentId === "new" ? "Not saved yet" : "Unsaved changes"}</span><button type="submit" form="challenge-editor" className="button button-secondary" disabled={busy || (!!detail && !dirty)}>{editingDraft ? "Save draft" : "Save changes"}</button>{editingDraft && currentId !== "new" ? <button type="button" className="button button-primary" onClick={() => transition("review")} disabled={busy || dirty} title={dirty ? "Save your changes first" : "Send for an independent review"}>Send for review</button> : null}</div> : null}
     </div>
     {error ? <Notice type="error">{error}</Notice> : null}{message ? <Notice type="success">{message}</Notice> : null}
     {role === "admin" && (detail?.status === "published" || detail?.status === "archived") ? <Notice>Saving edits or removing a file sends this challenge back to review and takes it off the board until another reviewer approves it.</Notice> : null}

@@ -112,6 +112,21 @@ test("administrator row actions appear on hover, open the full editor, and save 
   expect(state.saves).toBe(1);
 });
 
+test("an unchanged published challenge cannot be saved back to review", async ({ page }) => {
+  const state = await mockReview(page, false, true);
+  await page.getByRole("button", { name: "Review fixture", exact: true }).click();
+  const title = page.getByLabel(/^Title/), save = page.getByRole("button", { name: "Save changes", exact: true });
+  await expect(title).toHaveValue("Review fixture");
+  await expect(save).toBeDisabled();
+  await title.press("Enter");
+  await expect(page.locator(".title-row")).toContainText("Live");
+  await title.fill("Administrator revised fixture");
+  await expect(save).toBeEnabled();
+  await title.fill("Review fixture");
+  await expect(save).toBeDisabled();
+  expect(state.saves).toBe(0);
+});
+
 test("administrator edit actions remain reachable on a narrow touch screen", async ({ browser }) => {
   const context = await browser.newContext({ hasTouch: true, viewport: { width: 390, height: 844 } });
   try {

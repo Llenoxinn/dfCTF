@@ -101,7 +101,8 @@ test("invalid flags, whitespace, tags, empty numbers and out-of-range values get
 for (const existing of [false, true]) {
   test(`server validation highlights fields and allows a corrected ${existing ? "existing" : "new"} draft to be saved`, async ({ page }) => {
     const state = await openEditor(page, existing);
-    if (!existing) await fillRequired(page);
+    if (existing) await page.getByLabel(/^Description/).fill("Inspect the supplied fictional evidence file.");
+    else await fillRequired(page);
     state.errors = { description: ["Clarify the objective in this description."] };
     await page.getByRole("button", { name: "Preview", exact: true }).click();
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
