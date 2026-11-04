@@ -49,8 +49,8 @@ Socials player view has its own layout and still says "XP" and "captures".
 ## Card and export
 
 The card opens on demand from Share card, in a dialog that cannot close during an
-export. The card is a 1200 × 675 SVG with a responsive image preview. The same renderer
-is rasterized locally to a 2400 × 1350 PNG. It uses an explicit background,
+export. The card is a 1200 Ã— 675 SVG with a responsive image preview. The same renderer
+is rasterized locally to a 2400 Ã— 1350 PNG. It uses an explicit background,
 one consistent system monospace family resolved by the same browser for both images, and
 the platform's deterministic inline identicon. No remote avatars, image proxy,
 third-party renderer, or new export dependency is needed. There is no avatar
@@ -62,7 +62,7 @@ points, capture/First Blood counts, proven milestones, and snapshot time can
 enter the renderer. Email, auth IDs, tokens, submissions, flags, private challenge
 metadata, and audit records are excluded. XML is escaped and text is bounded.
 
-Dark and Light card themes, three curated accents, optional fields, and up to two proven
+Dark and Light card themes, six preset accents or any custom color from the picker (validated as hex before rendering), optional fields, and up to two proven
 milestones can be selected. Preferences are saved only in this browser under an
 account-specific key; storage failures are disclosed. Factual values are never
 editable. The export module is loaded on demand, freezes the selected SVG for a
@@ -76,7 +76,7 @@ Verification uses explicitly synthetic players, challenges, and scores. Browser
 coverage includes owner editing and validation, keyboard focus restoration,
 scope changes, account-isolated preferences, reset, expired sessions, failed
 image decoding and retry, overlapping clicks, and changes during an export.
-Downloaded PNG signatures and 2400 × 1350 dimensions are asserted at device
+Downloaded PNG signatures and 2400 Ã— 1350 dimensions are asserted at device
 pixel ratio 2, including a narrow viewport. Actual populated, empty, and long
 Unicode PNGs were opened and visually inspected across the three themes.
 
