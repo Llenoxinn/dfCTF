@@ -3,8 +3,8 @@ import type { ChallengeDetail, ChallengeStatus } from "../../src/lib/types";
 
 const discardMessage = "Discard unsaved changes? Your draft edits will be lost.";
 
-async function mockDraft(page: Page, status: ChallengeStatus = "draft") {
-  const user = { id: "test-author", email: "author@example.test", codename: "test_author", emailVerified: true, role: "author", twoFactorEnabled: true };
+async function mockDraft(page: Page, status: ChallengeStatus = "draft", role = "author") {
+  const user = { id: "test-author", email: "author@example.test", codename: "test_author", emailVerified: true, role, twoFactorEnabled: true };
   const detail: ChallengeDetail & { authorId: string } = {
     id: "test-draft", slug: "test-draft", title: "Training challenge", summary: "A fictional challenge for testing.",
     description: "Inspect the supplied fictional training file.", solution: "Read the fictional training evidence and explain the intended approach.",
@@ -47,6 +47,35 @@ async function openDraft(page: Page) {
   await page.getByRole("row", { name: /Training challenge/ }).click();
   await expect(page.getByLabel(/^Description/)).toHaveValue("Inspect the supplied fictional training file.");
 }
+
+test("Archive explains unsaved edits, re-enables when reverted, and reports errors or success after confirmation",async({page})=>{
+  const state=await mockDraft(page,"published","admin");
+  const prompts:string[]=[];
+  page.on("dialog",async dialog=>{prompts.push(dialog.message());await dialog.accept();});
+  await page.goto("/?view=authoring");await openDraft(page);
+  const archive=page.getByRole("button",{name:"Archive challenge",exact:true});
+  const description=page.getByLabel(/^Description/);
+  await expect(archive).toBeEnabled();
+  await description.fill("Unsaved changes must be resolved before archiving.");
+  await expect(archive).toBeDisabled();
+  await expect(archive).toHaveAccessibleDescription("Save or discard your unsaved edits before archiving.");
+  await expect(page.getByText("Save or discard your unsaved edits before archiving.",{exact:true})).toBeVisible();
+  expect(prompts).toEqual([]);
+  await description.fill("Inspect the supplied fictional training file.");
+  await expect(archive).toBeEnabled();
+  await description.fill("Save this fictional description before archiving the challenge.");
+  await expect(archive).toBeDisabled();
+  await page.getByRole("button",{name:"Save changes",exact:true}).click();
+  await expect(page.getByText("All changes saved",{exact:true})).toBeVisible();
+  await expect(archive).toBeEnabled();
+  state.failSave=true;await archive.click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Draft save temporarily unavailable.");
+  await expect(archive).toBeEnabled();
+  state.failSave=false;await archive.click();
+  await expect(page.getByText("Archived. The challenge is no longer on the board.",{exact:true})).toBeVisible();
+  await expect(archive).toHaveCount(0);
+  expect(prompts).toEqual(Array(2).fill("Archive this challenge? Players will no longer be able to open it."));
+});
 
 test("account-menu destinations respect the unsaved-draft guard and restore focus on cancellation",async({page})=>{
   await mockDraft(page);await page.goto("/?view=authoring");await openDraft(page);
