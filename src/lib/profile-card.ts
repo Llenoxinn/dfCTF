@@ -3,21 +3,40 @@ import type { PublicProfileCard } from "./player-profile";
 
 export const CARD_WIDTH = 1200, CARD_HEIGHT = 675;
 export const CARD_THEMES = ["dark", "light"] as const;
-export const CARD_ACCENTS = ["gold", "mint", "cyan"] as const;
-export type CardPreferences = { theme: typeof CARD_THEMES[number]; accent: typeof CARD_ACCENTS[number]; showDisplayName: boolean; showBio: boolean; showFirstBloods: boolean; milestones: string[] };
-export const DEFAULT_CARD: CardPreferences = { theme:"dark",accent:"gold",showDisplayName:true,showBio:true,showFirstBloods:true,milestones:["first-capture","first-blood"] };
+/** A null accent follows the theme's own gold. Any other accent is a validated #rrggbb the player chose. */
+export type CardPreferences = { theme: typeof CARD_THEMES[number]; accent: string | null; showDisplayName: boolean; showBio: boolean; showFirstBloods: boolean; milestones: string[] };
+export const DEFAULT_CARD: CardPreferences = { theme:"dark",accent:null,showDisplayName:true,showBio:true,showFirstBloods:true,milestones:["first-capture","first-blood"] };
+const PALETTES = {
+  dark:{bg:"#101113",surface:"#191b1e",text:"#ece8df",muted:"#aaa79f",line:"#36393d",accent:"#ffd23f"},
+  light:{bg:"#f5f3ec",surface:"#eae8df",text:"#17181b",muted:"#55564e",line:"#c8c7be",accent:"#795600"},
+};
+const LEGACY_ACCENTS: Record<string, Record<CardPreferences["theme"], string>> = { mint:{dark:"#78d6b1",light:"#126346"}, cyan:{dark:"#70d4ef",light:"#086781"} };
 
 export function parseCardPreferences(value: unknown): CardPreferences {
   const raw = value && typeof value === "object" ? value as Partial<CardPreferences> : {};
   const savedTheme = (raw as { theme?: string }).theme;
+  const theme = savedTheme === "light" || savedTheme === "paper" ? "light" : "dark";
+  const accent = typeof raw.accent === "string" ? raw.accent : "";
   return {
-    theme: savedTheme === "light" || savedTheme === "paper" ? "light" : "dark",
-    accent: CARD_ACCENTS.includes(raw.accent!) ? raw.accent! : DEFAULT_CARD.accent,
+    theme,
+    accent: /^#[0-9a-f]{6}$/i.test(accent) ? accent.toLowerCase() : LEGACY_ACCENTS[accent]?.[theme] ?? null,
     showDisplayName: typeof raw.showDisplayName === "boolean" ? raw.showDisplayName : true,
     showBio: typeof raw.showBio === "boolean" ? raw.showBio : true,
     showFirstBloods: typeof raw.showFirstBloods === "boolean" ? raw.showFirstBloods : true,
     milestones: Array.isArray(raw.milestones) ? [...new Set(raw.milestones.filter(id=>["first-capture","ten-captures","first-blood"].includes(id)))].slice(0,2) : [...DEFAULT_CARD.milestones],
   };
+}
+
+export function cardAccent(preferences: Pick<CardPreferences,"theme"|"accent">) { return preferences.accent ?? PALETTES[preferences.theme].accent; }
+
+function luminance(hex: string) {
+  const [r,g,b]=[1,3,5].map(i=>{const c=parseInt(hex.slice(i,i+2),16)/255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4;});
+  return .2126*r+.7152*g+.0722*b;
+}
+/** The accent's lowest contrast against the card surfaces it is drawn on. */
+export function cardAccentContrast(preferences: Pick<CardPreferences,"theme"|"accent">) {
+  const accent=luminance(cardAccent(preferences)), palette=PALETTES[preferences.theme];
+  return Math.min(...[palette.bg,palette.surface].map(surface=>{const other=luminance(surface);return (Math.max(accent,other)+.05)/(Math.min(accent,other)+.05);}));
 }
 
 const graphemes = (value: string) => [...new Intl.Segmenter(undefined,{granularity:"grapheme"}).segment(value)].map(part=>part.segment);
@@ -33,11 +52,7 @@ function lines(value: string, max: number, count = 2) {
 /** Shared preview/export renderer. No external resources, HTML, or user-supplied SVG. */
 export function renderProfileCard(card: PublicProfileCard, preferences: CardPreferences): string {
   const prefs=parseCardPreferences(preferences);
-  const palette = {
-    dark:{bg:"#101113",surface:"#191b1e",text:"#ece8df",muted:"#aaa79f",line:"#36393d"},
-    light:{bg:"#f5f3ec",surface:"#eae8df",text:"#17181b",muted:"#55564e",line:"#c8c7be"},
-  }[prefs.theme];
-  const accent = (prefs.theme === "light" ? {gold:"#795600",mint:"#126346",cyan:"#086781"} : {gold:"#ffd23f",mint:"#78d6b1",cyan:"#70d4ef"})[prefs.accent];
+  const palette = PALETTES[prefs.theme], accent = cardAccent(prefs);
   const text=(x:number,y:number,value:unknown,size=20,fill=palette.text,extra="")=>`<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" ${extra}>${xml(value)}</text>`;
   const display=prefs.showDisplayName && card.displayName ? card.displayName : card.codename;
   const names=lines(display,20), hasName=display!==card.codename;

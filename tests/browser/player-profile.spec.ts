@@ -111,6 +111,17 @@ for(const width of [320,390,768,1440]){
   });
 }
 
+test("the accent picker accepts any color by keyboard and warns about low contrast",async({page})=>{
+  await mockProfile(page);await page.goto("/?view=profile");await openCard(page);
+  const hex=page.getByLabel("Hex value",{exact:true});await expect(hex).toHaveValue("#ffd23f");
+  await hex.fill("#ff00aa");expect(await svg(page)).toContain("#ff00aa");
+  await page.getByRole("slider",{name:"Hue",exact:true}).focus();await page.keyboard.press("ArrowRight");
+  await expect(hex).not.toHaveValue("#ff00aa");
+  const warning=page.getByText("This color is hard to read on the dark card.",{exact:false});await expect(warning).toHaveCount(0);
+  await hex.fill("#101113");await expect(warning).toBeVisible();
+  await page.getByRole("button",{name:"Reset card",exact:true}).click();await expect(hex).toHaveValue("#ffd23f");await expect(warning).toHaveCount(0);
+});
+
 test("the player card opens on demand and returns focus when closed",async({page})=>{
   await mockProfile(page);await page.goto("/?view=profile");
   const share=page.getByRole("button",{name:"Share card",exact:true});
@@ -126,14 +137,14 @@ test("the player card opens on demand and returns focus when closed",async({page
 test("customization persists per owner, exports a real matching PNG and resets",async({page})=>{
   const mock=await mockProfile(page);await page.setViewportSize({width:1440,height:1000});await page.goto("/?view=profile");
   await openCard(page);
-  await page.getByRole("button",{name:"Light",exact:true}).click();await page.getByRole("button",{name:"Cyan",exact:true}).click();
+  await page.getByRole("button",{name:"Light",exact:true}).click();await page.getByLabel("Hex value",{exact:true}).fill("#086781");
   await page.getByLabel("First Blood count",{exact:true}).uncheck();
-  expect(await svg(page)).toContain("#f5f3ec");expect(await svg(page)).not.toContain("FIRST BLOODS");
+  expect(await svg(page)).toContain("#f5f3ec");expect(await svg(page)).toContain("#086781");expect(await svg(page)).not.toContain("FIRST BLOODS");
   expect(await svg(page)).not.toMatch(/PRIVATE_EMAIL|@example.test|userId|token|Download PNG/);
   await png(page,"test-results/profile-card-populated.png");
   await expect(page.getByRole("link",{name:"Save PNG again",exact:true})).toBeVisible();
   await page.reload();await page.screenshot({path:"test-results/profile-dashboard-desktop.png",fullPage:true});
-  await openCard(page);await expect(page.getByRole("button",{name:"Light",exact:true})).toHaveAttribute("aria-pressed","true");
+  await openCard(page);await expect(page.getByRole("button",{name:"Light",exact:true})).toHaveAttribute("aria-pressed","true");await expect(page.getByLabel("Hex value",{exact:true})).toHaveValue("#086781");
   mock.owner("second-profile-owner");await page.reload();await openCard(page);
   await expect(page.getByRole("button",{name:"Dark",exact:true})).toHaveAttribute("aria-pressed","true");
   await page.getByRole("button",{name:"Light",exact:true}).click();await page.getByRole("button",{name:"Reset card",exact:true}).click();

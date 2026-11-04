@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CARD_THEMES, DEFAULT_CARD, cardFilename, parseCardPreferences, renderProfileCard } from "@/lib/profile-card";
+import { CARD_THEMES, DEFAULT_CARD, cardAccent, cardAccentContrast, cardFilename, parseCardPreferences, renderProfileCard } from "@/lib/profile-card";
 import { profileMilestones, type PublicProfileCard } from "@/lib/player-profile";
 
 const card:PublicProfileCard={codename:"fixture_player",displayName:"Fixture Learner",bio:"A fictional profile for automated tests.",scope:"Practice · all time",period:"All-time practice",asOf:"2026-11-03T10:00:00Z",rank:2,points:150,solved:3,firstBloods:1,milestones:profileMilestones({rank:2,points:150,solved:3,firstBloods:1})};
@@ -19,9 +19,26 @@ describe("public card rendering",()=>{
   });
   it("limits persisted choices and never manufactures an unearned milestone",()=>{
     const preferences=parseCardPreferences({theme:"unknown",accent:"javascript",showBio:false,milestones:["unearned","first-capture","first-blood","ten-captures","first-capture"]});
-    expect(preferences).toMatchObject({theme:"dark",accent:"gold",showBio:false,milestones:["first-capture","first-blood"]});
+    expect(preferences).toMatchObject({theme:"dark",accent:null,showBio:false,milestones:["first-capture","first-blood"]});
     const svg=renderProfileCard({...card,rank:null,points:0,solved:0,firstBloods:0,milestones:[]},preferences);
     expect(svg).toContain("Unranked");expect(svg).toContain("POINTS");expect(svg).toContain("SOLVES");expect(svg).not.toContain("First solve");expect(svg).not.toContain(card.bio);
+  });
+  it("accepts any hex accent, migrates saved names and rejects unsafe values",()=>{
+    expect(parseCardPreferences({accent:"#A1B2C3"}).accent).toBe("#a1b2c3");
+    expect(renderProfileCard(card,parseCardPreferences({accent:"#a1b2c3"}))).toContain('fill="#a1b2c3"');
+    expect(parseCardPreferences({accent:"gold"}).accent).toBeNull();
+    expect(parseCardPreferences({accent:"mint"}).accent).toBe("#78d6b1");
+    expect(parseCardPreferences({accent:"cyan",theme:"light"}).accent).toBe("#086781");
+    for(const accent of ['"/><script>','#fff','#12345g','red',42,{}])expect(parseCardPreferences({accent}).accent).toBeNull();
+    expect(renderProfileCard(card,{...DEFAULT_CARD,accent:'"/><script>'})).not.toContain("<script");
+  });
+  it("follows the theme's gold by default and measures accent contrast",()=>{
+    expect(cardAccent({theme:"dark",accent:null})).toBe("#ffd23f");
+    expect(cardAccent({theme:"light",accent:null})).toBe("#795600");
+    expect(cardAccentContrast({theme:"dark",accent:null})).toBeGreaterThan(3);
+    expect(cardAccentContrast({theme:"light",accent:null})).toBeGreaterThan(3);
+    expect(cardAccentContrast({theme:"dark",accent:"#101113"})).toBeLessThan(3);
+    expect(cardAccentContrast({theme:"light",accent:"#ffd23f"})).toBeLessThan(3);
   });
   it("uses self-contained images across themes and bounded multilingual names",()=>{
     for(const theme of CARD_THEMES){
