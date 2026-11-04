@@ -52,6 +52,8 @@ The app and database scripts load `.env.local`. Leave `LOCAL_MAIL=1` for local d
 
 ## Try the learner flow
 
+New or replacement passwords require 8–128 characters, including an uppercase letter, a lowercase letter, a number, and a symbol. Existing passwords still work for sign-in; no database migration or password reset is required.
+
 1. Sign in with the generated learner account, or register with any email address. New accounts must verify their email before accessing challenges; no prior approval is needed.
 2. Choose a public codename when prompted. Provider names and email addresses do not become public codenames automatically.
 3. Open the practice library and filter by category, difficulty, or solve status.

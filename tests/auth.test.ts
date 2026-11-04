@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { hash, verify } from "@node-rs/argon2";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createStore } from "@/server/db";
@@ -21,7 +22,7 @@ vi.mock("@/server/mail", () => ({
 }));
 
 const base = "http://localhost:3000";
-const password = "a long test password with spaces";
+const password = "A long test password with spaces 1!";
 let store: Awaited<ReturnType<typeof createStore>>;
 let auth: Auth;
 const globals = globalThis as unknown as {
@@ -225,7 +226,7 @@ describe("open registration and account access", () => {
     const credentials = await store.db.select().from(account).where(eq(account.userId, id));
     const access = await store.db.select().from(allowlist).where(eq(allowlist.email, email));
     const mailCount = outbound.messages.length;
-    const replacementPassword = "a different registration passphrase";
+    const replacementPassword = "A different registration passphrase 2!";
 
     for (const submittedEmail of [email, email.toUpperCase()]) {
       const response = await authPost(applicationRequest("/api/auth/sign-up/email", {
@@ -337,11 +338,75 @@ describe("open registration and account access", () => {
     }
   });
 
-  it("blocks common passwords even when they meet the minimum length", async () => {
-    const email = "common-password@example.test";
+  it.each(["passwordpassword123", "Password1!", "Password123!", "Qwerty123!", "Welcome1!", "Admin123!"])("blocks common password %s", async (candidate) => {
+    const email = `common-password-${candidate.length}-${candidate[0].toLowerCase()}@example.test`;
     await store.db.insert(allowlist).values({ id: randomUUID(), email });
-    await expect(auth.api.signUpEmail({ body: { email, name: "Private", password: "passwordpassword123" } })).rejects.toMatchObject({ statusCode: 400, body: { code: "PASSWORD_TOO_COMMON" } });
+    await expect(auth.api.signUpEmail({ body: { email, name: "Private", password: candidate } })).rejects.toMatchObject({ statusCode: 400, body: { code: "PASSWORD_TOO_COMMON" } });
     expect(await store.db.select().from(user).where(eq(user.email, email))).toHaveLength(0);
+  });
+
+  it.each([
+    ["short", "Abcde1!"], ["long", `A1!${"x".repeat(126)}`],
+    ["lowercase", "ABCDEF1!"], ["uppercase", "abcdef1!"], ["number", "Abcdefg!"],
+    ["symbol", "Abcdef12"], ["space", "Abcdef1 "], ["tab", "Abcdef1\t"],
+    ["letter-is-not-symbol", "Abcdef1é"],
+  ])("rejects %s passwords through the HTTP signup boundary without creating an account", async (kind, candidate) => {
+    const email = `invalid-password-${kind}@example.test`;
+    const response = await authPost(applicationRequest("/api/auth/sign-up/email", { email, name: "Private", password: candidate }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "PASSWORD_REQUIREMENTS_NOT_MET" });
+    expect(await store.db.select().from(user).where(eq(user.email, email))).toHaveLength(0);
+    expect(await store.db.select().from(allowlist).where(eq(allowlist.email, email))).toHaveLength(0);
+  });
+
+  it.each(["Abcdef1!", `A1!${"x".repeat(125)}`, "Abcdef1€"])("accepts compliant password %s and stores only its Argon2id hash", async (candidate) => {
+    const email = `password-boundary-${candidate.length}-${candidate.endsWith("€")}@example.test`;
+    const registered = await auth.api.signUpEmail({ body: { email, name: "Private", password: candidate } });
+    await store.db.update(user).set({ emailVerified: true }).where(eq(user.id, registered.user.id));
+    const [credential] = await store.db.select().from(account).where(eq(account.userId, registered.user.id));
+    expect(credential.password).toMatch(/^\$argon2id\$/);
+    expect(await verify(credential.password!, candidate)).toBe(true);
+    expect((await auth.api.signInEmail({ body: { email, password: candidate }, asResponse: true })).status).toBe(200);
+  });
+
+  it.each(["a long test password with spaces", "oldpass", "Password1!"])("preserves legacy password sign-in and requires the current password to change it (%s)", async (legacy) => {
+    const identity = await provision(`legacy-password-${legacy.length}@example.test`);
+    const digest = await hash(legacy, { algorithm: 2, memoryCost: 19456, timeCost: 2, parallelism: 1, outputLen: 32 });
+    await store.db.update(account).set({ password: digest }).where(eq(account.userId, identity.id));
+    const original = await store.db.select().from(account).where(eq(account.userId, identity.id));
+    const signedIn = await authPost(applicationRequest("/api/auth/sign-in/email", { email: identity.email, password: legacy }));
+    expect(signedIn.status).toBe(200);
+    expect(await store.db.select().from(account).where(eq(account.userId, identity.id))).toEqual(original);
+    expect((await requireAccess(identity.headers)).user.id).toBe(identity.id);
+    const headers = headersAfterAuth(new Request(base), signedIn);
+    const change = (currentPassword: string, newPassword: string) => authPost(applicationRequest("/api/auth/change-password", { currentPassword, newPassword, revokeOtherSessions: true }, headers));
+    const invalid = await change(legacy, "no uppercase 1!");
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toMatchObject({ code: "PASSWORD_REQUIREMENTS_NOT_MET" });
+    expect((await change("incorrect", "Abcdef1!")).status).toBe(400);
+    expect(await store.db.select().from(account).where(eq(account.userId, identity.id))).toEqual(original);
+    const changed = await change(legacy, "Abcdef1!");
+    expect(changed.status).toBe(200);
+    await expect(requireAccess(identity.headers)).rejects.toMatchObject({ status: 401 });
+    expect((await requireAccess(headersAfterAuth(new Request(base), changed))).user.id).toBe(identity.id);
+    expect((await auth.api.signInEmail({ body: { email: identity.email, password: legacy }, asResponse: true })).status).toBe(401);
+    expect((await auth.api.signInEmail({ body: { email: identity.email, password: "Abcdef1!" }, asResponse: true })).status).toBe(200);
+  });
+
+  it("enforces policy and account access when adding a password to a social-only account", async () => {
+    const identity = await provision("set-password@example.test");
+    await store.db.delete(account).where(eq(account.userId, identity.id));
+    await store.db.insert(account).values({ id: randomUUID(), userId: identity.id, providerId: "google", accountId: `oauth-${identity.id}` });
+    await expect(auth.api.setPassword({ body: { newPassword: "no uppercase 1!" }, headers: identity.headers })).rejects.toMatchObject({ statusCode: 400, body: { code: "PASSWORD_REQUIREMENTS_NOT_MET" } });
+    expect(await store.db.select().from(account).where(eq(account.userId, identity.id))).toHaveLength(1);
+    await store.db.update(allowlist).set({ revokedAt: new Date() }).where(eq(allowlist.email, identity.email));
+    await expect(auth.api.setPassword({ body: { newPassword: "Abcdef1!" }, headers: identity.headers })).rejects.toMatchObject({ statusCode: 403 });
+    await store.db.update(allowlist).set({ revokedAt: null }).where(eq(allowlist.email, identity.email));
+    expect((await authPost(applicationRequest("/api/auth/set-password", { newPassword: "Abcdef1!" }, identity.headers))).status).toBe(404);
+    await expect(auth.api.setPassword({ body: { newPassword: "Abcdef1!" } })).rejects.toMatchObject({ statusCode: 401 });
+    expect(await auth.api.setPassword({ body: { newPassword: "Abcdef1!" }, headers: identity.headers })).toEqual({ status: true });
+    expect((await auth.api.signInEmail({ body: { email: identity.email, password: "Abcdef1!" }, asResponse: true })).status).toBe(200);
+    await expect(auth.api.setPassword({ body: { newPassword: "Different2!" }, headers: identity.headers })).rejects.toMatchObject({ statusCode: 400, body: { code: "PASSWORD_ALREADY_SET" } });
   });
 
   it("hashes reset-token identifiers, consumes tokens once, and revokes existing sessions", async () => {
@@ -352,7 +417,15 @@ describe("open registration and account access", () => {
     const entries = await store.db.select().from(verification);
     expect(entries.some((entry) => entry.value === identity.id)).toBe(true);
     expect(entries.some((entry) => entry.identifier.includes(token))).toBe(false);
-    const nextPassword = "another long and different password";
+    const credentials = await store.db.select().from(account).where(eq(account.userId, identity.id));
+    for (const invalid of ["no uppercase 1!", "Password1!", `A1!${"x".repeat(126)}`]) {
+      const rejected = await authPost(applicationRequest("/api/auth/reset-password", { token, newPassword: invalid }));
+      expect(rejected.status).toBe(400);
+      expect(await store.db.select().from(account).where(eq(account.userId, identity.id))).toEqual(credentials);
+      expect(await store.db.select().from(verification)).toEqual(entries);
+      expect((await requireAccess(identity.headers)).user.id).toBe(identity.id);
+    }
+    const nextPassword = "Abcdef1!";
     await auth.api.resetPassword({ body: { token, newPassword: nextPassword } });
     await expect(requireAccess(identity.headers)).rejects.toMatchObject({ status: 401 });
     await expect(auth.api.resetPassword({ body: { token, newPassword: password } })).rejects.toMatchObject({ statusCode: 400 });

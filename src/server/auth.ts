@@ -11,8 +11,10 @@ import * as authSchema from "./auth-schema";
 import { allowlist } from "./schema";
 import { localSecret } from "./flags";
 import { sendAuthEmail } from "./mail";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, PASSWORD_PATTERN, PASSWORD_REQUIREMENTS } from "../lib/password-policy";
 
 const commonPasswords = new Set([
+  "password1!", "password123!", "qwerty123!", "welcome1!", "admin123!",
   "passwordpassword", "passwordpassword123", "password123456789", "password1234567890",
   "123456789012345", "1234567890123456", "12345678901234567890", "123456789123456789",
   "qwertyuiopasdfgh", "qwertyuiopasdfghjkl", "qwerty1234567890", "letmeinletmein123",
@@ -73,8 +75,8 @@ export function createAuth(db: Database) {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
-      minPasswordLength: 15,
-      maxPasswordLength: 128,
+      minPasswordLength: PASSWORD_MIN_LENGTH,
+      maxPasswordLength: PASSWORD_MAX_LENGTH,
       revokeSessionsOnPasswordReset: true,
       password: {
         // Algorithm 2 is Argon2id; the package's ambient const enum is not usable with isolatedModules.
@@ -113,6 +115,8 @@ export function createAuth(db: Database) {
     verification: { storeIdentifier: "hashed" },
     hooks: {
       before: createAuthMiddleware(async (context) => {
+        // Better Auth's server-only setPassword has an operation ID but no URL path.
+        const path = "operationId" in context && context.operationId === "setPassword" ? "/set-password" : context.path;
         if (process.env.NODE_ENV === "production" && context.request) {
           const ip = context.request.headers.get("x-real-ip") || "";
           // Scoped IPv6 is accepted by Node but not by Better Auth's IP parser.
@@ -120,7 +124,7 @@ export function createAuth(db: Database) {
             code: "TRUSTED_PROXY_REQUIRED", message: "Authentication requires a valid client IP from the trusted reverse proxy.",
           });
         }
-        if (protectedAuthPaths.has(context.path) || context.path.startsWith("/two-factor/")) {
+        if (protectedAuthPaths.has(path) || path.startsWith("/two-factor/")) {
           const active = await getSessionFromCtx(context, { disableCookieCache: true });
           if (active) {
             const [identity] = await db.select({
@@ -131,7 +135,7 @@ export function createAuth(db: Database) {
               throw new APIError("FORBIDDEN", { code: "ACCESS_DENIED", message: "This account does not currently have access to dfCTF." });
             }
             const needsStaffGrant = identity.role !== "participant" && (
-              sensitiveMfaPaths.has(context.path) || (context.path === "/two-factor/enable" && identity.twoFactorEnabled)
+              sensitiveMfaPaths.has(path) || (path === "/two-factor/enable" && identity.twoFactorEnabled)
             );
             if (needsStaffGrant) {
               const [grant] = await db.select({ id: authSchema.staffVerification.sessionId }).from(authSchema.staffVerification).where(and(
@@ -143,14 +147,17 @@ export function createAuth(db: Database) {
             }
             // Apply this at the native endpoint seam: direct Better Auth calls
             // and the application wrapper share the same per-account budget.
-            if (verifyMfaPaths.has(context.path)) await limitActiveMfaAttempts(db, identity.id);
+            if (verifyMfaPaths.has(path)) await limitActiveMfaAttempts(db, identity.id);
           }
         }
-        const passwords = context.path === "/sign-up/email" ? [context.body?.password]
-          : ["/reset-password", "/change-password", "/set-password"].includes(context.path) ? [context.body?.newPassword] : [];
+        const passwords = path === "/sign-up/email" ? [context.body?.password]
+          : ["/reset-password", "/change-password", "/set-password"].includes(path) ? [context.body?.newPassword] : [];
         for (const password of passwords) {
           if (typeof password === "string" && commonPasswords.has(password.toLowerCase())) {
             throw new APIError("BAD_REQUEST", { code: "PASSWORD_TOO_COMMON", message: "Choose a less common password or a longer passphrase." });
+          }
+          if (typeof password === "string" && (password.length < PASSWORD_MIN_LENGTH || password.length > PASSWORD_MAX_LENGTH || !PASSWORD_PATTERN.test(password))) {
+            throw new APIError("BAD_REQUEST", { code: "PASSWORD_REQUIREMENTS_NOT_MET", message: PASSWORD_REQUIREMENTS });
           }
         }
       }),

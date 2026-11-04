@@ -7,7 +7,7 @@ test("real registration, verification, private download, concurrent scoring and 
   const fixture = JSON.parse(await readFile(path.join(process.env.DFCTF_INTEGRATION_DIR!, "fixture.json"), "utf8")) as {
     challengeId: string; file: { id: string; sha256: string }; flag: string; content: string;
   };
-  const email = "smoke-player@example.test", password = "synthetic smoke-test passphrase 2026";
+  const email = "smoke-player@example.test", password = "Synthetic smoke-test passphrase 2026!";
   const download = `/api/v1/challenges/${fixture.challengeId}/files/${fixture.file.id}`;
   expect((await page.request.get(download)).status()).toBe(401);
 
@@ -62,7 +62,7 @@ test("real registration, verification, private download, concurrent scoring and 
   const reset = await message("Reset your dfCTF password");
   expect(new URL(reset.url).origin).toBe("http://127.0.0.1:3200");
   await page.goto(reset.url);
-  const replacement = "replacement synthetic smoke-test passphrase";
+  const replacement = "Replacement synthetic smoke-test passphrase 2026!";
   await page.getByLabel("New password", { exact: true }).fill(replacement);
   await page.getByRole("button", { name: "Update password", exact: true }).click();
   await expect(page.getByText("Password updated. Sign in with your new password.")).toBeVisible();

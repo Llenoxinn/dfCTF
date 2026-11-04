@@ -19,7 +19,7 @@ for (const next of ["signin", "forgot"] as const) {
 
     await page.goto("/?auth=signup");
     await page.getByLabel("Email", { exact: true }).fill("existing@example.test");
-    await page.getByLabel("Password", { exact: true }).fill("a long registration test password");
+    await page.getByLabel("Password", { exact: true }).fill("A long registration test password 1!");
     await page.locator("form").getByRole("button", { name: "Create account", exact: true }).click();
     const notice = page.getByRole("status");
     await expect(notice).toContainText("If this email is eligible for a new account, check your inbox for a verification link.");
