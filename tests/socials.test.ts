@@ -73,9 +73,25 @@ describe("player discovery and connections",()=>{
     await changeFriendship(store.db,a.id,b.codename!,"request",now);await changeFriendship(store.db,a.id,b.codename!,"cancel",now);
     expect((await listPlayers(store.db,a.id,{kind:"outgoing"},now)).items).toEqual([]);
     await changeFriendship(store.db,a.id,b.codename!,"request",now);await changeFriendship(store.db,b.id,a.codename!,"decline",now);
-    expect(await relationship(store.db,a.id,b.id)).toBe("none");await expect(changeFriendship(store.db,a.id,b.codename!,"request",now)).rejects.toMatchObject({status:429});
+    expect(await relationship(store.db,a.id,b.id)).toBe("none");await expect(changeFriendship(store.db,a.id,b.codename!,"request",now)).rejects.toMatchObject({status:429,code:"REQUEST_COOLDOWN",message:"A friend request between you and this player was declined. You can send another request seven days after that decline."});
     expect((await listPlayers(store.db,b.id,{kind:"incoming"},now)).items).toEqual([]);
-    const later=new Date(now.getTime()+8*86_400_000);expect(await changeFriendship(store.db,a.id,b.codename!,"request",later)).toEqual({relationship:"outgoing"});
+    await expect(changeFriendship(store.db,a.id,b.codename!,"cancel",now)).rejects.toMatchObject({status:409});
+    await expect(changeFriendship(store.db,a.id,b.codename!,"request",new Date(now.getTime()+7*86_400_000-1))).rejects.toMatchObject({code:"REQUEST_COOLDOWN"});
+    const later=new Date(now.getTime()+7*86_400_000);expect(await changeFriendship(store.db,a.id,b.codename!,"request",later)).toEqual({relationship:"outgoing"});
+  });
+  it("lets the decliner initiate immediately while keeping recipient acceptance and directional cooldowns",async()=>{
+    const a=await player(),b=await player();
+    await changeFriendship(store.db,a.id,b.codename!,"request",now);
+    await changeFriendship(store.db,b.id,a.codename!,"decline",now);
+    await expect(changeFriendship(store.db,a.id,b.codename!,"request",now)).rejects.toMatchObject({code:"REQUEST_COOLDOWN"});
+    expect(await changeFriendship(store.db,b.id,a.codename!,"request",now)).toEqual({relationship:"outgoing"});
+    expect(await relationship(store.db,a.id,b.id)).toBe("incoming");
+    expect(await changeFriendship(store.db,a.id,b.codename!,"request",now)).toEqual({relationship:"incoming"});
+    await expect(changeFriendship(store.db,b.id,a.codename!,"accept",now)).rejects.toMatchObject({status:409});
+    await changeFriendship(store.db,a.id,b.codename!,"decline",now);
+    await expect(changeFriendship(store.db,b.id,a.codename!,"request",now)).rejects.toMatchObject({code:"REQUEST_COOLDOWN"});
+    expect(await changeFriendship(store.db,a.id,b.codename!,"request",now)).toEqual({relationship:"outgoing"});
+    expect(await changeFriendship(store.db,b.id,a.codename!,"accept",now)).toEqual({relationship:"friends"});
   });
   it("limits repeated requests instead of allowing unlimited notification spam",async()=>{
     const a=await player(),b=await player();

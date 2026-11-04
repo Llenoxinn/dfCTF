@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "./db";
 import { allowlist, friendships, playerProfiles, user } from "./schema";
@@ -79,8 +79,8 @@ export async function changeFriendship(db: Database,viewerId:string,codename:str
     await db.insert(friendships).values({lowUserId,highUserId,requestedBy:viewerId,status:"pending",updatedAt:now}).onConflictDoNothing();
     const [existing]=await db.select().from(friendships).where(pairWhere(viewerId,target.id)).limit(1);
     if(existing?.status==="declined") {
-      if(now.getTime()-existing.updatedAt.getTime()<7*86_400_000)throw new HttpError(429,"REQUEST_COOLDOWN","This player is not accepting another request from you yet. Try again in seven days.");
-      await db.update(friendships).set({status:"pending",requestedBy:viewerId,updatedAt:now}).where(and(pairWhere(viewerId,target.id),eq(friendships.status,"declined"),sql`${friendships.updatedAt}<=${new Date(now.getTime()-7*86_400_000)}`));
+      if(existing.requestedBy===viewerId&&now.getTime()-existing.updatedAt.getTime()<7*86_400_000)throw new HttpError(429,"REQUEST_COOLDOWN","A friend request between you and this player was declined. You can send another request seven days after that decline.");
+      await db.update(friendships).set({status:"pending",requestedBy:viewerId,updatedAt:now}).where(and(pairWhere(viewerId,target.id),eq(friendships.status,"declined"),or(sql`${friendships.requestedBy}<>${viewerId}`,sql`${friendships.updatedAt}<=${new Date(now.getTime()-7*86_400_000)}`)));
     }
   } else {
     await consumeLimit(db,`friends:manage:${viewerId}`,60);
