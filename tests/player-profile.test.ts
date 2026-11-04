@@ -98,8 +98,12 @@ describe("authoritative owner profile", () => {
     vi.stubEnv("APP_URL","http://localhost:3000");
     const log=vi.spyOn(console,"error").mockImplementation(()=>{});
     try {
-      const response=await PATCH(new Request("http://localhost:3000/api/v1/profile",{method:"PATCH",headers:{origin:"http://localhost:3000","content-type":"application/json"},body:JSON.stringify({...fields,userId:other.id,points:999})}),{});
+      const response=await PATCH(new Request("http://localhost:3000/api/v1/profile",{method:"PATCH",headers:{origin:"http://localhost:3000","content-type":"application/json","x-dfctf-account":owner.id},body:JSON.stringify({...fields,userId:other.id,points:999})}),{});
       expect(response.status).toBe(422);
+      const switchedAccount=await PATCH(new Request("http://localhost:3000/api/v1/profile",{method:"PATCH",headers:{origin:"http://localhost:3000","content-type":"application/json","x-dfctf-account":other.id},body:JSON.stringify(fields)}),{});
+      expect(switchedAccount.status).toBe(409);
+      expect(await switchedAccount.json()).toMatchObject({error:{code:"ACCOUNT_CHANGED"}});
+      expect((await getPlayerProfile(store.db,owner,"all",now)).identity.displayName).toBe(fields.displayName);
       const own=await GET(new Request(`http://localhost:3000/api/v1/profile?userId=${other.id}`),{});
       expect((await own.json()).identity.codename).toBe(owner.codename);
       authMock.mockRejectedValue(new HttpError(401,"SIGN_IN_REQUIRED","Sign in to continue."));
