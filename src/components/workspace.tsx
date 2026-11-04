@@ -527,11 +527,22 @@ function solveTime(value: string) {
   return new Date(value).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 }
 
-function StandingsTable({ standings, viewer, max, openPlayer }: { standings: Leaderboard["standings"]; viewer: Leaderboard["viewer"]; max: number; openPlayer:(name:string)=>void }) {
-  const shown = standings.slice(0, 15), pinned = viewer && !shown.some(s => s.codename === viewer.codename);
+const STANDINGS_PAGE = 15;
+
+function StandingsTable({ standings, viewer, players, max, openPlayer }: { standings: Leaderboard["standings"]; viewer: Leaderboard["viewer"]; players: number; max: number; openPlayer:(name:string)=>void }) {
+  const [limit, setLimit] = useState(STANDINGS_PAGE);
+  const list = useRef<HTMLOListElement>(null), focusRow = useRef<number | null>(null);
+  const shown = standings.slice(0, limit), pinned = viewer && !shown.some(s => s.codename === viewer.codename);
+  const more = standings.length > limit, capped = standings.length < players;
+  // The last reveal removes the focused button, so hand focus to the first new row.
+  useEffect(() => { if (focusRow.current === null) return; list.current?.querySelectorAll("a")[focusRow.current]?.focus(); focusRow.current = null; }, [limit]);
+  function showMore() { if (limit + STANDINGS_PAGE >= standings.length) focusRow.current = limit; setLimit(limit + STANDINGS_PAGE); }
   const row = (s: Leaderboard["standings"][number], you: boolean) => <li key={s.codename} className={`${s.rank <= 3 ? "top" : ""}${you ? " you" : ""}`}><span className="rank mono">{String(s.rank).padStart(2, "0")}</span><Identicon name={s.codename} you={you} /><a className="mono name player-profile-link" href={hrefFor("socials","",s.codename)} aria-label={`View ${s.codename}'s profile`} onClick={e=>inPlace(e,()=>openPlayer(s.codename))}>{s.codename}{you ? <em>you</em> : null}</a><Meter value={s.points} max={max} tone={s.rank <= 3 || you ? "accent" : "ink"} label={`${s.points} points`} /><span className="mono num muted">{s.solves}</span><span className="mono num strong">{s.points.toLocaleString()}</span></li>;
   if (!standings.length) return <p className="muted panel-pad">No points yet in this range. The first solve puts a name at the top.</p>;
-  return <ol className="standings"><li className="standings-head" aria-hidden="true"><span>#</span><span /><span>Player</span><span /><span className="num">Solves</span><span className="num">Points</span></li>{shown.map(s => row(s, s.codename === viewer?.codename))}{pinned ? <><li className="gap mono faint" aria-hidden="true">...</li>{row(viewer, true)}</> : null}</ol>;
+  return <>
+    <ol ref={list} className="standings"><li className="standings-head" aria-hidden="true"><span>#</span><span /><span>Player</span><span /><span className="num">Solves</span><span className="num">Points</span></li>{shown.map(s => row(s, s.codename === viewer?.codename))}{pinned ? <><li className="gap mono faint" aria-hidden="true">...</li>{row(viewer, true)}</> : null}</ol>
+    {standings.length > STANDINGS_PAGE ? <div className="standings-more"><p className="muted" role="status">{more ? `Showing ${shown.length} of ${capped ? `the top ${standings.length}` : `${players} players`}` : capped ? `Showing the top ${standings.length} of ${players} players` : `Showing all ${players} players`}</p>{more ? <button type="button" className="button button-secondary" onClick={showMore}>Show more</button> : null}</div> : null}
+  </>;
 }
 
 function LeaderboardView({ initial, progress, viewer, openPlayer }: { initial: Leaderboard | null; progress: Progress | null; viewer: string; openPlayer:(name:string)=>void }) {
@@ -547,7 +558,7 @@ function LeaderboardView({ initial, progress, viewer, openPlayer }: { initial: L
     {error ? <Notice type="error">{error} <button className="text-button" onClick={() => setRetry(n => n + 1)}>Try again</button></Notice> : !data ? <Loading label="Loading the leaderboard" backdrop /> : <>
     {range === "week" ? <section className="panel" aria-labelledby="race-title"><div className="panel-head"><h2 id="race-title">Race for #1</h2><InfoTip text="Each line is a player’s rank against all players, sampled at 20:00 Philippine time each day and now. Gaps mean the player had no solves yet. The bars are solves per hour; yellow caps mark hours with a first blood." /><span className="muted hide-sm">How this week’s top players have moved. Hover a name to follow its line.</span><span className="spacer" /><span className="muted">{left} left</span></div><RaceChart race={data.race} hourly={data.hourly} viewer={viewer} /></section> : null}
     <div className="lb-grid">
-      <section className="panel" aria-labelledby="stand-title"><div className="panel-head"><h2 id="stand-title">Standings</h2><InfoTip text="Points in this range. The meter shows each player’s points relative to the leader. Select a player’s name to view their profile." /><span className="spacer" /><span className="muted">{data.players} {data.players === 1 ? "player" : "players"}</span></div><StandingsTable standings={data.standings} viewer={data.viewer} max={data.standings[0]?.points ?? 0} openPlayer={openPlayer}/></section>
+      <section className="panel" aria-labelledby="stand-title"><div className="panel-head"><h2 id="stand-title">Standings</h2><InfoTip text="Points in this range. The meter shows each player’s points relative to the leader. Select a player’s name to view their profile." /><span className="spacer" /><span className="muted">{data.players} {data.players === 1 ? "player" : "players"}</span></div><StandingsTable key={range} standings={data.standings} viewer={data.viewer} players={data.players} max={data.standings[0]?.points ?? 0} openPlayer={openPlayer}/></section>
       <div className="lb-side">
         <section className="panel" aria-labelledby="you-title"><div className="panel-head"><h2 id="you-title">Your standing</h2><InfoTip text="Your rank and points in this range, and how your solves spread across the seven categories." /><span className="spacer" /><span className="mono muted">{viewer}</span></div>
           <div className="you-stats"><div><strong className="accent">{data.viewer ? `#${data.viewer.rank}` : "unranked"}</strong><span>rank</span></div><div><strong>{(data.viewer?.points ?? 0).toLocaleString()}</strong><span>points</span></div><div><strong>{data.viewer?.solves ?? 0}</strong><span>solves</span></div></div>
