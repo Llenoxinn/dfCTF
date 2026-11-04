@@ -1323,7 +1323,14 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 @media (pointer: coarse) { .profile-control-group > label { min-height: 44px; } }
 .profile-control-group input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent-text); }
 .profile-control-group small { color: var(--muted); }
-.profile-color { display: grid; gap: 12px; }
+.profile-swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.profile-swatch { width: 28px; height: 28px; border-radius: var(--r); }
+.profile-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
+.profile-custom { min-height: 28px; margin-left: 4px; }
+.profile-custom i { width: 12px; height: 12px; border-radius: var(--r); }
+.profile-custom[aria-expanded="true"] { color: var(--text); }
+@media (pointer: coarse) { .profile-swatch { width: 44px; height: 44px; } .profile-custom { min-height: 44px; } }
+.profile-color { display: grid; gap: 12px; margin-top: 12px; }
 .profile-color-warning { color: var(--danger); margin-top: 8px; }
 .profile-export-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
 .profile-export-actions .button { min-height: 44px; }

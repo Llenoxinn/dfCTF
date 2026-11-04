@@ -11,7 +11,18 @@ const PALETTES = {
   dark:{bg:"#101113",surface:"#191b1e",text:"#ece8df",muted:"#aaa79f",line:"#36393d",accent:"#ffd23f"},
   light:{bg:"#f5f3ec",surface:"#eae8df",text:"#17181b",muted:"#55564e",line:"#c8c7be",accent:"#795600"},
 };
-const LEGACY_ACCENTS: Record<string, Record<CardPreferences["theme"], string>> = { mint:{dark:"#78d6b1",light:"#126346"}, cyan:{dark:"#70d4ef",light:"#086781"} };
+/** Ready-made accents, each with a shade that stays readable on either card theme. Gold is the null default. */
+export const CARD_PRESETS = [
+  {name:"Gold",dark:PALETTES.dark.accent,light:PALETTES.light.accent},
+  {name:"Mint",dark:"#78d6b1",light:"#126346"},
+  {name:"Cyan",dark:"#70d4ef",light:"#086781"},
+  {name:"Coral",dark:"#ff8a75",light:"#b23a24"},
+  {name:"Pink",dark:"#ff8fc7",light:"#a8266b"},
+  {name:"Lime",dark:"#c6e75a",light:"#566b00"},
+] as const;
+export type CardPreset = typeof CARD_PRESETS[number];
+const presetValue = (preset: CardPreset, theme: CardPreferences["theme"]) => preset.name === "Gold" ? null : preset[theme];
+const legacyAccent = (accent: string, theme: CardPreferences["theme"]) => { const preset = CARD_PRESETS.find(p => p.name.toLowerCase() === accent); return preset ? presetValue(preset, theme) : null; };
 
 export function parseCardPreferences(value: unknown): CardPreferences {
   const raw = value && typeof value === "object" ? value as Partial<CardPreferences> : {};
@@ -20,7 +31,7 @@ export function parseCardPreferences(value: unknown): CardPreferences {
   const accent = typeof raw.accent === "string" ? raw.accent : "";
   return {
     theme,
-    accent: /^#[0-9a-f]{6}$/i.test(accent) ? accent.toLowerCase() : LEGACY_ACCENTS[accent]?.[theme] ?? null,
+    accent: /^#[0-9a-f]{6}$/i.test(accent) ? accent.toLowerCase() : legacyAccent(accent, theme),
     showDisplayName: typeof raw.showDisplayName === "boolean" ? raw.showDisplayName : true,
     showBio: typeof raw.showBio === "boolean" ? raw.showBio : true,
     showFirstBloods: typeof raw.showFirstBloods === "boolean" ? raw.showFirstBloods : true,
@@ -29,6 +40,14 @@ export function parseCardPreferences(value: unknown): CardPreferences {
 }
 
 export function cardAccent(preferences: Pick<CardPreferences,"theme"|"accent">) { return preferences.accent ?? PALETTES[preferences.theme].accent; }
+
+export function activeCardPreset(preferences: Pick<CardPreferences,"theme"|"accent">) { const accent = cardAccent(preferences); return CARD_PRESETS.find(preset => preset[preferences.theme] === accent) ?? null; }
+export function presetAccent(preset: CardPreset, theme: CardPreferences["theme"]) { return presetValue(preset, theme); }
+/** The accent to keep when the card theme changes: a preset moves to its readable shade, a custom color stays as chosen. */
+export function accentForTheme(preferences: Pick<CardPreferences,"theme"|"accent">, theme: CardPreferences["theme"]) {
+  const preset = activeCardPreset(preferences);
+  return preset ? presetValue(preset, theme) : preferences.accent;
+}
 
 function luminance(hex: string) {
   const [r,g,b]=[1,3,5].map(i=>{const c=parseInt(hex.slice(i,i+2),16)/255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4;});

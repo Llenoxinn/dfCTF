@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PublicProfileCard } from "@/lib/player-profile";
 import { HexColorInput, HexColorPicker } from "react-colorful";
-import { CARD_THEMES, DEFAULT_CARD, cardAccent, cardAccentContrast, cardFilename, parseCardPreferences, renderProfileCard, type CardPreferences } from "@/lib/profile-card";
+import { CARD_PRESETS, CARD_THEMES, DEFAULT_CARD, accentForTheme, activeCardPreset, cardAccent, cardAccentContrast, cardFilename, parseCardPreferences, presetAccent, renderProfileCard, type CardPreferences } from "@/lib/profile-card";
 import { Icon, Notice, Spinner } from "./ui";
 
 export default function ProfileCardStudio({ userId, card, scope, onBusy }: { userId: string; card: PublicProfileCard; scope: string; onBusy: (busy:boolean)=>void }) {
@@ -23,7 +23,8 @@ export default function ProfileCardStudio({ userId, card, scope, onBusy }: { use
     if(!ready || !storage)return;
     try {localStorage.setItem(key,JSON.stringify(preferences));}catch{setStorage(false);}
   },[preferences,ready,storage,key]);
-  const accent=cardAccent(preferences);
+  const [picking,setPicking]=useState(false);
+  const accent=cardAccent(preferences),preset=activeCardPreset(preferences);
   const svg=useMemo(()=>renderProfileCard(card,preferences),[card,preferences]);
   useEffect(()=>{setPrepared(null);},[svg]);
   useEffect(()=>()=>{if(prepared)URL.revokeObjectURL(prepared.url);},[prepared]);
@@ -51,8 +52,8 @@ export default function ProfileCardStudio({ userId, card, scope, onBusy }: { use
         <p className="fine">Downloads as a 2400 × 1350 PNG in the same design as this preview. Your email, account identifiers, and private challenge details are excluded.</p>
       </div>
       <div className="profile-card-controls">
-        <fieldset disabled={busy || !ready} className="profile-control-group"><legend>Card theme</legend><div className="segmented">{CARD_THEMES.map(theme=><button key={theme} type="button" aria-pressed={preferences.theme===theme} onClick={()=>update({theme})}>{theme[0].toUpperCase()+theme.slice(1)}</button>)}</div></fieldset>
-        <fieldset disabled={busy || !ready} className="profile-control-group"><legend>Accent</legend><div className="profile-color" inert={busy || !ready}><HexColorPicker color={accent} onChange={value=>update({accent:value})}/><label className="field"><span>Hex value</span><HexColorInput className="mono" prefixed color={accent} onChange={value=>update({accent:value})}/></label></div>{cardAccentContrast(preferences)<3?<p className="fine profile-color-warning">This color is hard to read on the {preferences.theme} card. Try a {preferences.theme==="dark"?"lighter":"darker"} shade.</p>:null}</fieldset>
+        <fieldset disabled={busy || !ready} className="profile-control-group"><legend>Card theme</legend><div className="segmented">{CARD_THEMES.map(theme=><button key={theme} type="button" aria-pressed={preferences.theme===theme} onClick={()=>update({theme,accent:accentForTheme(preferences,theme)})}>{theme[0].toUpperCase()+theme.slice(1)}</button>)}</div></fieldset>
+        <fieldset disabled={busy || !ready} className="profile-control-group"><legend>Accent</legend><div className="profile-swatches">{CARD_PRESETS.map(option=><button key={option.name} type="button" className="profile-swatch" style={{background:option[preferences.theme]}} title={option.name} aria-label={option.name} aria-pressed={preset?.name===option.name} onClick={()=>{update({accent:presetAccent(option,preferences.theme)});setPicking(false);}}/>)}<button type="button" className="text-button profile-custom" aria-expanded={picking} aria-controls="profile-color-picker" onClick={()=>setPicking(open=>!open)}>{preset?null:<i style={{background:accent}} aria-hidden="true"/>}Custom color</button></div>{picking?<div id="profile-color-picker" className="profile-color" inert={busy || !ready}><HexColorPicker color={accent} onChange={value=>update({accent:value})}/><label className="field"><span>Hex value</span><HexColorInput className="mono" prefixed color={accent} onChange={value=>update({accent:value})}/></label></div>:null}{cardAccentContrast(preferences)<3?<p className="fine profile-color-warning">This color is hard to read on the {preferences.theme} card. Try a {preferences.theme==="dark"?"lighter":"darker"} shade.</p>:null}</fieldset>
         <fieldset disabled={busy || !ready} className="profile-control-group"><legend>Include on card</legend>
           <label><input type="checkbox" checked={preferences.showDisplayName} disabled={!card.displayName} onChange={e=>update({showDisplayName:e.target.checked})}/>Display name{!card.displayName?<small> — add one in Edit profile</small>:null}</label>
           <label><input type="checkbox" checked={preferences.showBio} disabled={!card.bio} onChange={e=>update({showBio:e.target.checked})}/>Bio{!card.bio?<small> — optional</small>:null}</label>

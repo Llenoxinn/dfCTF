@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CARD_THEMES, DEFAULT_CARD, cardAccent, cardAccentContrast, cardFilename, parseCardPreferences, renderProfileCard } from "@/lib/profile-card";
+import { CARD_PRESETS, CARD_THEMES, DEFAULT_CARD, accentForTheme, activeCardPreset, cardAccent, cardAccentContrast, cardFilename, parseCardPreferences, presetAccent, renderProfileCard } from "@/lib/profile-card";
 import { profileMilestones, type PublicProfileCard } from "@/lib/player-profile";
 
 const card:PublicProfileCard={codename:"fixture_player",displayName:"Fixture Learner",bio:"A fictional profile for automated tests.",scope:"Practice · all time",period:"All-time practice",asOf:"2026-11-03T10:00:00Z",rank:2,points:150,solved:3,firstBloods:1,milestones:profileMilestones({rank:2,points:150,solved:3,firstBloods:1})};
@@ -31,6 +31,16 @@ describe("public card rendering",()=>{
     expect(parseCardPreferences({accent:"cyan",theme:"light"}).accent).toBe("#086781");
     for(const accent of ['"/><script>','#fff','#12345g','red',42,{}])expect(parseCardPreferences({accent}).accent).toBeNull();
     expect(renderProfileCard(card,{...DEFAULT_CARD,accent:'"/><script>'})).not.toContain("<script");
+  });
+  it("keeps every preset readable and moves it to the right shade when the theme changes",()=>{
+    for(const preset of CARD_PRESETS)for(const theme of CARD_THEMES){
+      expect(cardAccentContrast({theme,accent:preset[theme]})).toBeGreaterThanOrEqual(3);
+      expect(activeCardPreset({theme,accent:presetAccent(preset,theme)})?.name).toBe(preset.name);
+    }
+    expect(accentForTheme({theme:"dark",accent:"#78d6b1"},"light")).toBe("#126346");
+    expect(accentForTheme({theme:"dark",accent:null},"light")).toBeNull();
+    expect(accentForTheme({theme:"dark",accent:"#123456"},"light")).toBe("#123456");
+    expect(activeCardPreset({theme:"dark",accent:"#123456"})).toBeNull();
   });
   it("follows the theme's gold by default and measures accent contrast",()=>{
     expect(cardAccent({theme:"dark",accent:null})).toBe("#ffd23f");
