@@ -93,6 +93,15 @@ describe("competition isolation and scoring",()=>{
     await setCompetitionStatus(store.db,admin,e.id,"archived");
     await expect(downloadArtifact(store.db,player,c.id,c.file.id,false,e.id)).rejects.toMatchObject({status:404});
   });
+  it.each([end,new Date(end.getTime()+60_000)])("keeps published-event challenges immutable and accessible after the event ends (%s)",async(at)=>{
+    const {e,c}=await event();await joinCompetition(store.db,player,e.id);vi.setSystemTime(at);
+    const before=await competitionChallengeDetail(store.db,player,e.id,c.id);
+    await expect(editChallenge(store.db,admin,c.id,{title:"Changed after the event"})).rejects.toMatchObject({status:409,code:"COMPETITION_LOCKED"});
+    await expect(editChallenge(store.db,admin,c.id,{status:"archived"})).rejects.toMatchObject({status:409,code:"COMPETITION_LOCKED"});
+    await expect(saveArtifact(store.db,admin,c.id,"replacement.txt",Buffer.from("Replacement evidence"))).rejects.toMatchObject({status:409,code:"COMPETITION_LOCKED"});
+    expect(await competitionChallengeDetail(store.db,player,e.id,c.id)).toMatchObject({title:before.title,version:before.version,status:"published",submissionsOpen:false,files:before.files});
+    expect(await (await downloadArtifact(store.db,player,c.id,c.file.id,false,e.id)).text()).toBe(flag);
+  });
   it("rate limits incorrect event guesses without granting points, then lifts the cooldown",async()=>{
     const {e,c}=await event();await joinCompetition(store.db,other,e.id);vi.setSystemTime(start);
     for(let i=0;i<10;i++)expect(await submitCompetitionFlag(store.db,other,e.id,c.id,"dfCTF{wrong}")).toMatchObject({status:"incorrect",xp:0});
