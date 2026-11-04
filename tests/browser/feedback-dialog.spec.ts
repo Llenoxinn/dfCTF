@@ -34,6 +34,9 @@ test("the dialog opens from the footer, closes with Escape and returns focus", a
 
 test("required fields and the contact email are validated before anything is sent", async ({ page }) => {
   const { requests } = await openDialog(page, accept);
+  await expect(page.getByLabel(/^Subject/)).toHaveAttribute("maxlength", "120");
+  await expect(page.getByLabel(/^Feedback message/)).toHaveAttribute("maxlength", "5000");
+  await expect(page.getByLabel(/^Contact email/)).toHaveAttribute("maxlength", "254");
   await submit(page);
   await expect(page.getByLabel(/^Subject/)).toBeFocused();
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText("This field is required.");
@@ -119,4 +122,11 @@ test("the dialog fits a phone and works by touch", async ({ browser }) => {
     await page.getByRole("button", { name: "Close reporting dialog", exact: true }).tap();
     await expect(page.getByRole("dialog")).toHaveCount(0);
   } finally { await context.close(); }
+});
+
+test("development local delivery is identified without claiming an email was sent", async ({page}) => {
+  const {dialog}=await openDialog(page,route=>route.fulfill({json:{accepted:true,id:route.request().postDataJSON().id,delivery:"local"}}));
+  await fill(page);await submit(page);
+  await expect(dialog).toContainText("Saved in the local development mailbox. No email was sent.");
+  await expect(dialog).not.toContainText("accepted for delivery to the developers");
 });
