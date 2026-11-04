@@ -36,9 +36,20 @@ bounded keyset activity pages. No full attempt history or private auth fields
 are sent to the dashboard. Only the authenticated owner can edit; the PATCH
 schema rejects identity, role, score, and unknown fields.
 
+## Page layout
+
+The owner page leads with one hero: a dithered band generated from the codename
+(`codenameField` in `src/lib/pixel.ts`, nothing stored), then identity, with rank
+and points as the largest content. Below it, the category map shows one square per
+currently published challenge, milestones show earned and not-yet states as goals,
+and recent solves form a dense list. A player with no solves gets one step to the
+challenges. The interface says "points" and "solves", as the leaderboard does; the
+Socials player view has its own layout and still says "XP" and "captures".
+
 ## Card and export
 
-The card is a 1200 × 675 SVG with a responsive image preview. The same renderer
+The card opens on demand from Share card, in a dialog that cannot close during an
+export. The card is a 1200 × 675 SVG with a responsive image preview. The same renderer
 is rasterized locally to a 2400 × 1350 PNG. It uses an explicit background,
 one consistent system sans-serif family resolved by the same browser for both images, and
 the platform's deterministic inline identicon. No remote avatars, image proxy,
