@@ -18,6 +18,7 @@ Required settings:
 | `LOCAL_MAIL` | `0` |
 | `SMTP_URL` | Your authenticated SMTP connection URL |
 | `MAIL_FROM` | Sender authorized by your email provider |
+| `FEEDBACK_TO` | Required private developer inbox for feedback, bug reports, and suggestions |
 | `POSTGRES_DB` | `dfctf`, or a dedicated database name |
 | `POSTGRES_USER` | `dfctf`, or a dedicated database account |
 | `POSTGRES_PASSWORD` | Long random URL-safe password; the Compose connection string embeds this value |

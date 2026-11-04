@@ -1,8 +1,7 @@
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import nodemailer from "nodemailer";
-import { feedbackInput, FEEDBACK_FIELDS, FEEDBACK_LABELS, type FeedbackInput } from "@/lib/feedback";
-import { SUPPORT_EMAIL } from "@/lib/site";
+import { feedbackInput, legacyFeedbackInput, FEEDBACK_FIELDS, FEEDBACK_LABELS, type FeedbackInput } from "@/lib/feedback";
+import { localMailEnabled, sendTextEmail } from "./mail";
 import type { Database } from "./db";
 import { feedbackReceipts } from "./schema";
 import { consumeLimit } from "./challenges";
@@ -23,19 +22,24 @@ export function feedbackMail(input: FeedbackInput) {
 }
 
 export async function deliverFeedback(input: FeedbackInput) {
-  if(!process.env.SMTP_URL || !process.env.MAIL_FROM)throw new HttpError(503,"FEEDBACK_UNAVAILABLE","Reporting is temporarily unavailable. Your text has been kept; try again later.");
+  const destination=process.env.FEEDBACK_TO?.trim();
+  if(!destination || (!localMailEnabled()&&(!process.env.SMTP_URL || !process.env.MAIL_FROM)))throw new HttpError(503,"FEEDBACK_UNAVAILABLE","Reporting is temporarily unavailable. Your text has been kept; try again later.");
   try {
-    const transport=nodemailer.createTransport({url:process.env.SMTP_URL,connectionTimeout:10_000,socketTimeout:15_000});
-    const result=await transport.sendMail({from:process.env.MAIL_FROM,to:process.env.FEEDBACK_TO || SUPPORT_EMAIL,...feedbackMail(input),...(input.contactEmail?{replyTo:input.contactEmail}:{})});
-    if(!result.accepted?.length)throw new Error("Inbox did not accept the submission.");
+    await sendTextEmail({to:destination,...feedbackMail(input),...(input.contactEmail?{replyTo:input.contactEmail}:{})});
   } catch {
     // SMTP errors may contain addresses or credentials; return only a safe, actionable error.
     throw new HttpError(503,"FEEDBACK_DELIVERY_FAILED","We could not deliver your submission. Your text has been kept; please retry.");
   }
 }
 
+function parseFeedback(raw:unknown):FeedbackInput {
+  if(raw&&typeof raw==="object"&&"kind" in raw)return feedbackInput.parse(raw);
+  const legacy=legacyFeedbackInput.parse(raw);
+  return feedbackInput.parse({id:randomUUID(),kind:"feedback",title:legacy.subject,message:legacy.message,contactEmail:legacy.email});
+}
+
 export async function submitFeedback(db: Database, raw: unknown, headers: Headers, deliver=deliverFeedback) {
-  const input=feedbackInput.parse(raw);
+  const input=parseFeedback(raw);
   const fingerprint=digest(JSON.stringify(input));
   const [receipt]=await db.select().from(feedbackReceipts).where(eq(feedbackReceipts.id,input.id)).limit(1);
   if(receipt) {
@@ -44,7 +48,8 @@ export async function submitFeedback(db: Database, raw: unknown, headers: Header
   }
   // Production trusts only the hosting proxy's address header, never a client-supplied forwarded chain.
   const address=headers.get(process.env.NODE_ENV==="production"?"x-real-ip":"x-forwarded-for") || "unknown";
-  await consumeLimit(db,`feedback:${digest(address)}`,5,3_600_000);
+  try {await consumeLimit(db,`feedback:${digest(address)}`,5,3_600_000);}
+  catch(error){if(error instanceof HttpError&&error.status===429)throw new HttpError(429,"FEEDBACK_RATE_LIMITED","Too many feedback submissions. Please wait before trying again.",error.details);throw error;}
   await db.transaction(async tx=>{
     const inserted=await tx.insert(feedbackReceipts).values({id:input.id,digest:fingerprint}).onConflictDoNothing().returning();
     if(!inserted.length) {
