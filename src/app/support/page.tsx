@@ -21,8 +21,8 @@ export default function SupportPage() {
       <p>For a request to access, correct, or delete account information, email <a className="link-button" href={`mailto:${SUPPORT_EMAIL}?subject=dfCTF%20account%20data%20request`}>{SUPPORT_EMAIL}</a> from your registered address. Requests are handled manually and require confirmation of account ownership. Do not send a password or identity document.</p>
     </section>
     <section>
-      <h2>Public bug reports and suggestions</h2>
-      <p>For a reproducible, non-sensitive issue or feature suggestion, use the <a className="link-button" href="https://github.com/Llenoxinn/dfCTF/issues">dfCTF issue tracker</a>. Use fictional examples and remove personal information from screenshots.</p>
+      <h2>Bug reports, suggestions, and feedback</h2>
+      <p>Use Report a bug, Suggest a feature, or Send feedback in the footer to submit privately within dfCTF. No GitHub account is needed. Developers review submissions and can transfer non-sensitive reports to the issue tracker after removing private contact details.</p>
     </section>
   </InformationPage>;
 }

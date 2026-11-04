@@ -21,6 +21,8 @@
 }
 
 @layer legacy {
+.feedback-dialog { width: min(640px,calc(100% - 32px)); }
+@media (max-width: 700px) { .feedback-dialog { width: 100%; } }
 /* dfCTF: a capture-the-flag platform by DFC Developers.
    Carbon ground, bone ink, one flag-yellow accent. Yellow means flag, points, or action; difficulty has its own three colors.
    Geist for reading, Geist Mono only for flags, points, timers, codenames, hashes, and ASCII states. Martian Mono is the wordmark. */
