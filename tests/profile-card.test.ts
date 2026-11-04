@@ -21,7 +21,7 @@ describe("public card rendering",()=>{
     const preferences=parseCardPreferences({theme:"unknown",accent:"javascript",showBio:false,milestones:["unearned","first-capture","first-blood","ten-captures","first-capture"]});
     expect(preferences).toMatchObject({theme:"dark",accent:null,showBio:false,milestones:["first-capture","first-blood"]});
     const svg=renderProfileCard({...card,rank:null,points:0,solved:0,firstBloods:0,milestones:[]},preferences);
-    expect(svg).toContain("Unranked");expect(svg).toContain("POINTS");expect(svg).toContain("SOLVES");expect(svg).not.toContain("First solve");expect(svg).not.toContain(card.bio);
+    expect(svg).toContain("Unranked");expect(svg).toContain("Points");expect(svg).toContain("Solves");expect(svg).not.toContain("First solve");expect(svg).not.toContain(card.bio);
   });
   it("accepts any hex accent, migrates saved names and rejects unsafe values",()=>{
     expect(parseCardPreferences({accent:"#A1B2C3"}).accent).toBe("#a1b2c3");

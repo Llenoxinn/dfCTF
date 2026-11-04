@@ -1,5 +1,5 @@
 import { milestoneIconPath } from "./milestone-icons";
-import { identiconPath } from "./pixel";
+import { codenameField, ditherPath, identiconPath } from "./pixel";
 import type { PublicProfileCard } from "./player-profile";
 
 export const CARD_WIDTH = 1200, CARD_HEIGHT = 675;
@@ -74,29 +74,37 @@ export function renderProfileCard(card: PublicProfileCard, preferences: CardPref
   const prefs=parseCardPreferences(preferences);
   const palette = PALETTES[prefs.theme], accent = cardAccent(prefs);
   const text=(x:number,y:number,value:unknown,size=20,fill=palette.text,extra="")=>`<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" ${extra}>${xml(value)}</text>`;
+  const isWide=(value:string)=>/[ᄀ-￿]|\p{Extended_Pictographic}/u.test(value);
   const display=prefs.showDisplayName && card.displayName ? card.displayName : card.codename;
-  const names=lines(display,20), hasName=display!==card.codename;
-  const stats:[string,string][]=[["RANK",card.rank===null?"Unranked":`#${card.rank.toLocaleString("en")}`],["POINTS",card.points.toLocaleString("en")],["SOLVES",card.solved.toLocaleString("en")],...(prefs.showFirstBloods?[["FIRST BLOODS",card.firstBloods.toLocaleString("en")] as [string,string]]:[])];
+  const names=lines(display,isWide(display)?11:19), hasName=display!==card.codename;
+  const bio=prefs.showBio && card.bio?lines(card.bio,isWide(card.bio)?24:46):[];
+  const handleY=352+(names.length-1)*54+38, bioY=hasName?handleY+42:352+(names.length-1)*54+44;
+  const rank=card.rank===null?"Unranked":`#${card.rank.toLocaleString("en")}`, points=card.points.toLocaleString("en");
+  const big=(value:string)=>Math.min(84,Math.floor(383/value.length));
+  const lower:[string,string][]=[["Solves",card.solved.toLocaleString("en")],...(prefs.showFirstBloods?[["First Bloods",card.firstBloods.toLocaleString("en")] as [string,string]]:[])];
   const badges=card.milestones.filter(m=>prefs.milestones.includes(m.id)).slice(0,2);
   const snapshot=new Intl.DateTimeFormat("en",{timeZone:"Asia/Manila",day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(card.asOf));
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}" font-family="Arial, sans-serif">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}" font-family="ui-monospace, 'Cascadia Mono', Consolas, Menlo, monospace">
     <rect width="1200" height="675" fill="${palette.bg}"/>
-    <rect x="24" y="24" width="1152" height="627" rx="12" fill="none" stroke="${palette.line}"/>
-    <path d="M64 109H1136M64 580H1136" stroke="${palette.line}"/>
-    ${text(64,79,"dfCTF",32,accent,'font-weight="800"')}
-    ${text(1136,77,"PLAYER IDENTITY / PRACTICE",15,palette.muted,'text-anchor="end" letter-spacing="2"')}
-    <rect x="64" y="148" width="120" height="120" rx="8" fill="${palette.surface}" stroke="${palette.line}"/>
-    <g transform="translate(68 152)" fill="${accent}" shape-rendering="crispEdges"><path d="${identiconPath(card.codename,112)}"/></g>
-    ${names.map((name,i)=>text(216,190+i*50,name,44,palette.text,'font-weight="700"')).join("")}
-    ${hasName?text(216,names.length>1?280:242,`@${fit(card.codename,24)}`,24,accent):text(216,250,"INDEPENDENT PLAYER",14,palette.muted,'letter-spacing="2"')}
-    ${prefs.showBio && card.bio?lines(card.bio,48).map((line,i)=>text(64,316+i*26,line,20,palette.muted)).join(""):""}
-    <rect x="64" y="372" width="1072" height="128" rx="8" fill="${palette.surface}" stroke="${palette.line}"/>
-    ${stats.map(([label,value],i)=>{const width=1072/stats.length,x=88+i*width;return `${i?`<path d="M${64+i*width} 396v80" stroke="${palette.line}"/>`:""}${text(x,409,label,14,palette.muted,'letter-spacing="1.5"')}${text(x,464,value,value.length>11?30:value.length>8?38:46,i===0?accent:palette.text,'font-weight="700"')}`;}).join("")}
-    ${badges.map((badge,i)=>{const x=64+i*252;return `<rect x="${x}" y="525" width="232" height="34" rx="17" fill="${palette.surface}" stroke="${palette.line}"/><g transform="translate(${x+12} 530) scale(1.5)" fill="${accent}" shape-rendering="crispEdges"><path d="${milestoneIconPath(badge.id)}"/></g>${text(x+44,548,badge.label,16,palette.text,'font-weight="600"')}`;}).join("")}
-    ${text(64,609,card.scope,18,accent,'font-weight="700"')}
-    ${text(1136,609,card.period,16,palette.muted,'text-anchor="end"')}
-    ${text(64,635,`SNAPSHOT ${snapshot} PHT`,12,palette.muted,'letter-spacing="1"')}
-    ${text(1136,635,"dfctf.vercel.app",13,palette.muted,'text-anchor="end"')}
+    <path d="${ditherPath(1200,232,8,codenameField(card.codename,1200,232))}" fill="${accent}" shape-rendering="crispEdges"/>
+    <rect x="48" y="48" width="150" height="64" fill="${palette.bg}"/>
+    ${text(66,92,"dfCTF",34,accent,'font-weight="700"')}
+    <rect x="48" y="168" width="128" height="128" fill="${palette.bg}" stroke="${palette.line}"/>
+    <g transform="translate(56 176)" fill="${accent}" shape-rendering="crispEdges"><path d="${identiconPath(card.codename,112)}"/></g>
+    ${names.map((name,i)=>text(48,352+i*54,name,48,palette.text,'font-weight="700" letter-spacing="-1"')).join("")}
+    ${hasName?text(48,handleY,`@${fit(card.codename,24)}`,24,accent):""}
+    ${bio.map((line,i)=>text(48,bioY+i*28,line,20,palette.muted)).join("")}
+    <rect x="664" y="168" width="537" height="${badges.length?420:288}" fill="${palette.surface}" stroke="${palette.line}"/>
+    ${text(696,216,"Rank",18,palette.muted)}${text(948,216,"Points",18,palette.muted)}
+    ${text(696,296,rank,big(rank),accent,'font-weight="700" letter-spacing="-2"')}${text(948,296,points,big(points),palette.text,'font-weight="700" letter-spacing="-2"')}
+    <path d="M664 328H1200" stroke="${palette.line}"/>
+    ${lower.map(([label,value],i)=>{const x=696+i*252;return `${text(x,368,label,18,palette.muted)}${text(x,424,value,48,palette.text,'font-weight="700"')}`;}).join("")}
+    ${badges.length?`<path d="M664 456H1200" stroke="${palette.line}"/>`:""}
+    ${badges.map((badge,i)=>{const x=696+i*252;return `<g transform="translate(${x} 506) scale(2)" fill="${accent}" shape-rendering="crispEdges"><path d="${milestoneIconPath(badge.id)}"/></g>${text(x+44,530,badge.label,18,palette.text,'font-weight="600"')}`;}).join("")}
+    ${text(48,626,card.scope,18,accent,'font-weight="700"')}
+    ${text(1152,626,card.period,16,palette.muted,'text-anchor="end"')}
+    ${text(48,652,`Snapshot ${snapshot} PHT`,13,palette.muted)}
+    ${text(1152,652,"dfctf.vercel.app",13,palette.muted,'text-anchor="end"')}
   </svg>`;
 }
 

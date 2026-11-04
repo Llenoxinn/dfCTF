@@ -51,7 +51,7 @@ Socials player view has its own layout and still says "XP" and "captures".
 The card opens on demand from Share card, in a dialog that cannot close during an
 export. The card is a 1200 × 675 SVG with a responsive image preview. The same renderer
 is rasterized locally to a 2400 × 1350 PNG. It uses an explicit background,
-one consistent system sans-serif family resolved by the same browser for both images, and
+one consistent system monospace family resolved by the same browser for both images, and
 the platform's deterministic inline identicon. No remote avatars, image proxy,
 third-party renderer, or new export dependency is needed. There is no avatar
 upload service in the platform, so no nonfunctional upload control is added.

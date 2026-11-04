@@ -145,7 +145,7 @@ test("customization persists per owner, exports a real matching PNG and resets",
   await openCard(page);
   await page.getByRole("button",{name:"Light",exact:true}).click();await page.getByRole("button",{name:"Custom color",exact:true}).click();await page.getByLabel("Hex value",{exact:true}).fill("#123abc");
   await page.getByLabel("First Blood count",{exact:true}).uncheck();
-  expect(await svg(page)).toContain("#f5f3ec");expect(await svg(page)).toContain("#123abc");expect(await svg(page)).not.toContain("FIRST BLOODS");
+  expect(await svg(page)).toContain("#f5f3ec");expect(await svg(page)).toContain("#123abc");expect(await svg(page)).not.toContain("First Bloods");
   expect(await svg(page)).not.toMatch(/PRIVATE_EMAIL|@example.test|userId|token|Download PNG/);
   await png(page,"test-results/profile-card-populated.png");
   await expect(page.getByRole("link",{name:"Save PNG again",exact:true})).toBeVisible();
