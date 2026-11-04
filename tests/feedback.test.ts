@@ -14,7 +14,7 @@ vi.mock("nodemailer",()=>({default:{createTransport:()=>({sendMail:smtp.send})}}
 let store:Awaited<ReturnType<typeof createStore>>;
 const report=():FeedbackInput=>({id:randomUUID(),kind:"bug",title:"Fictional broken control",steps:"Open the fictional page and select the control.",expected:"The fictional control should open.",actual:"The fictional control stays closed.",contactEmail:"reply@example.test"});
 const headers=()=>new Headers({"x-forwarded-for":randomUUID()});
-beforeAll(async()=>{store=await createStore(undefined,true);await store.migrate();});
+beforeAll(async()=>{store=await createStore(process.env.TEST_DATABASE_URL,true);await store.migrate();});
 afterAll(async()=>{await store.close();});
 beforeEach(()=>{vi.stubEnv("AUTH_SECRET","test-feedback-secret-that-is-long-enough");vi.stubEnv("SMTP_URL","smtp://fixture.invalid");vi.stubEnv("MAIL_FROM","sender@example.test");vi.stubEnv("FEEDBACK_TO","developers@example.test");smtp.send.mockReset();smtp.send.mockResolvedValue({accepted:["developers@example.test"]});});
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllEnvs();});
@@ -45,6 +45,20 @@ describe("private reporting intake",()=>{
     expect(await store.db.select().from(feedbackReceipts).where(eq(feedbackReceipts.id,item.id))).toHaveLength(0);
     expect(await submitFeedback(store.db,item,address)).toEqual({accepted:true,id:item.id});
     smtp.send.mockResolvedValueOnce({accepted:[]});await expect(deliverFeedback(report())).rejects.toMatchObject({status:503});
+  });
+  it("bounds slow delivery, shares duplicate sends, and resumes without charging busy reports",async()=>{
+    const item=report(),address=headers();let release!:()=>void;
+    const deliver=vi.fn(()=>new Promise<void>(resolve=>{release=resolve;}));
+    const first=submitFeedback(store.db,item,address,deliver);
+    await vi.waitFor(()=>expect(deliver).toHaveBeenCalledTimes(1));
+    try {
+      for(let i=0;i<6;i++)await expect(submitFeedback(store.db,report(),address,deliver)).rejects.toMatchObject({status:503,code:"FEEDBACK_BUSY"});
+      await expect(submitFeedback(store.db,{...item,title:"A changed report"},address,deliver)).rejects.toMatchObject({status:409});
+      const duplicate=submitFeedback(store.db,item,address,deliver);release();
+      await expect(Promise.all([first,duplicate])).resolves.toEqual([{accepted:true,id:item.id},{accepted:true,id:item.id}]);
+      expect(deliver).toHaveBeenCalledTimes(1);
+      await expect(submitFeedback(store.db,report(),address,async()=>{})).resolves.toMatchObject({accepted:true});
+    } finally { release();await first; }
   });
   it("rejects malformed, oversized, and header-injection fields",()=>{
     for(const patch of [{title:"Report\r\nBcc: secret@example.test"},{steps:" "},{actual:"x".repeat(6001)},{contactEmail:"a@example.test\r\nBcc: x@example.test"},{userId:"forged"}])expect(feedbackInput.safeParse({...report(),...patch}).success).toBe(false);
