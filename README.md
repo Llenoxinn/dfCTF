@@ -1,12 +1,33 @@
 # dfCTF
 
+<p align="center">
+  <a href="#run-locally">
+    <img src="https://skillicons.dev/icons?i=nextjs,react,ts,nodejs,postgres,tailwind,vitest,githubactions,docker,vercel" alt="Built with Next.js, React, TypeScript, Node.js, PostgreSQL, Tailwind CSS, Vitest, GitHub Actions, Docker, and Vercel" />
+  </a>
+</p>
+
 A capture-the-flag (CTF) platform built as a side project. Anyone can register, verify their email, choose a codename, solve challenges, and earn points on the weekly and all-time leaderboards.
 
-The application is a custom Next.js modular monolith with React, Better Auth, Drizzle, and PostgreSQL. Development can use embedded PGlite without installing a database server. PostgreSQL stores account records, challenge data, and private artifact contents; persistent hosts can also keep local backup copies. [Architecture and invariants](docs/ARCHITECTURE.md) describe authentication, event isolation, scoring, and database ownership.
+The application is a custom Next.js 16 modular monolith with React 19, TypeScript, Tailwind CSS, Better Auth, Drizzle, and PostgreSQL. Development can use embedded PGlite without installing a database server. PostgreSQL stores account records, challenge data, and private artifact contents; persistent hosts can also keep local backup copies. [Architecture and invariants](docs/ARCHITECTURE.md) describe authentication, event isolation, scoring, and database ownership.
 
 See the [side project plan](docs/MVP.md) for current scope, the next small release, and known limitations. [PRODUCT.md](PRODUCT.md) describes the product and its constraints.
 
-To report a bug, suggest a feature, or flag a visual UI problem, follow the [contributing and issue template guide](.github/CONTRIBUTING.md).
+## Features
+
+- **Practice library**: reviewed challenges across seven categories, server-side flag validation, cooldowns instead of penalties, and explanations unlocked on solve.
+- **Leaderboards**: weekly standings (Asia/Manila week) and all-time totals, with first blood and solver lists per challenge.
+- **Competitions**: timed built-in events with separate scoring, or links to an external CTFd host.
+- **Tutorials & Resources**: a public reading library with learning paths, glossary terms, and synced progress for signed-in players.
+- **Player pages**: Profile with an exportable player card, Progress, and Socials with friend requests.
+- **Staff tools**: Authoring with independent review before publication, two-factor staff sessions, and account access controls.
+
+## Contents
+
+[Run locally](#run-locally) · [Learner flow](#try-the-learner-flow) · [Your account](#your-account) · [Staff flow](#try-the-staff-flow) · [Competitions](#host-a-competition) · [Account access](#manage-account-access) · [Social sign-in](#configure-social-sign-in) · [Commands](#development-commands) · [Deploy](#deploy-and-review-scope)
+
+## Contributing
+
+To report a bug, suggest a feature, or flag a visual UI problem, follow the [contributing and issue template guide](.github/CONTRIBUTING.md). The site footer links to the same issue templates, plus **Send feedback** (`/support`) for account help or private reports, and the **Privacy** page.
 
 ## Run locally
 
@@ -37,11 +58,18 @@ The app and database scripts load `.env.local`. Leave `LOCAL_MAIL=1` for local d
    Press `/` outside an editable field to focus the visible library search. Press Escape in search to clear it.
 4. Open a challenge, read the objective, and download any files it comes with. Each file shows its size; staff see SHA-256 checksums in Authoring to confirm an upload.
 5. Investigate the fictional artifact and submit a complete `dfCTF{...}` flag. Validation happens on the server. Incorrect attempts do not deduct points; a cooldown appears when the attempt limit is reached.
-6. A first solve records the challenge version, awards its practice XP once, and unlocks the explanation. The challenge's **Solvers** tab lists every solver in completion order, with the first blood highlighted and timestamps in Philippine time. Sign out and back in to confirm that progress remains.
+6. A first solve records the challenge version, awards its practice XP once, and unlocks the explanation. A newly accepted flag shows a capture confirmation once; it does not replay when you switch tabs, and it fades without movement under reduced motion. The challenge's **Solvers** tab lists every solver in completion order, with the first blood highlighted and timestamps in Philippine time. Sign out and back in to confirm that progress remains.
 
 Open **Rules / Mechanics** from the public site or the signed-in Rules tab. On phones, **Sections** stays below the header while reading; open it to jump to a topic, or close it with Escape or **Close sections**. The rules prohibit LLM-assisted solving, attacks or abuse of the platform, answer sharing, and plagiarized challenges. Three field notes form the flag for **Read the fine print**. Re-run `npm run seed` with the local app stopped to add it to an existing development database. On a deployment, staff can choose **Authoring → Rules challenge** to create its draft and briefing file, then use the usual independent review and publication flow.
 
-Open **Resources** from the navigation or tools FAQ for the public [Tutorials & Resources library](http://127.0.0.1:3000/resources), or use the signed-in Resources tab. Search its 15 topics and tool guides (grouped as Beginner or Intermediate), filter by starting level or stated platform, or follow one of six learning paths. Each topic has its own page with learning goals, optional prerequisites, previous/next navigation, and a gradual order: introduction, basic ideas, a first skill, recommended tools, deeper guides, a recap, then optional practice. **Mark topic read** sits at the end of each topic. The topic index uses the LineSidebar. Click underlined technical terms for plain-language explanations. Commands and exercises stay collapsed until requested.
+### Tutorials & Resources
+
+Open **Resources** from the navigation or tools FAQ for the public [Tutorials & Resources library](http://127.0.0.1:3000/resources), or use the signed-in Resources tab.
+
+- Search 15 topics and tool guides (grouped as Beginner or Intermediate), filter by starting level or stated platform, or follow one of six learning paths.
+- Each topic has its own page with learning goals, optional prerequisites, and previous/next navigation. Lessons run from an introduction and basic ideas to a first skill, recommended tools, deeper guides, a recap, then optional practice.
+- **Mark topic read** sits at the end of each topic, and a sidebar index lists the topic's sections.
+- Click underlined technical terms for plain-language explanations. Commands and exercises stay collapsed until requested.
 
 After you start reading, **Your learning** replaces the welcome panel at the top of the library: the topic you were reading and the section you stopped at, your current path, topics marked read, bookmarks, and where progress is saved. Each learning path shows which topics are read, which one you are reading, and which comes next.
 
@@ -50,6 +78,14 @@ Anonymous reading progress stays in the browser. Signed-in users sync reading se
 Legacy topic/tool fragment links redirect to their new pages. Content lives in `src/lib/resources.ts` and `src/lib/resource-specialties.ts`; learning paths and glossary live in `src/lib/resource-learning.ts`, and learning goals, prerequisites, and recaps live in `src/lib/resource-lesson-plan.ts`. Use original examples and verify official references when updating guides. These guides teach tools without providing answers to dfCTF challenges.
 
 The library covers General skills, OSINT, Steganography, Forensics, Web exploitation, Binary exploitation, and Miscellaneous. MVP web and binary exercises use downloadable material; they do not launch vulnerable services or execute uploaded content.
+
+## Your account
+
+The main navigation contains **Challenges**, **Leaderboard**, **Competitions**, and **Resources**. Open the account menu beside your codename to see your identicon, rank, and points, followed by **Profile**, **Progress**, and **Socials**, then **Settings** and **Rules**, with **Sign out** at the bottom. Staff also see **Authoring**, marked `staff`. The current page is highlighted in the menu and shown beside your account name. Arrow keys, Home, and End move between menu items; Escape closes the menu and returns focus to the account button.
+
+The **Profile** page provides owner-only display details, scoped practice statistics, capture history, and a customizable player card. **Download PNG** creates a 2400 × 1350 image locally. Card preferences stay in this browser per account; account security remains in Settings. Apply migration `0005_player_profiles` with `npm run db:migrate` before deploying this feature. See [Profile data sources, privacy, and export design](docs/PROFILE.md).
+
+The **Socials** page adds player discovery, leaderboard-linked player views, and accepted friend requests. Optional profile details stay private until the owner chooses to share them. Apply `0006_social_connections` before deploying Socials; see [visibility and friendship rules](docs/SOCIALS.md).
 
 ## Try the staff flow
 
@@ -124,22 +160,6 @@ Provider configuration is included, but a real social sign-in round trip require
 
 ## Development commands
 
-The signed-in **Profile** page provides owner-only display details, scoped practice
-statistics, capture history, and a customizable player card. **Download PNG**
-creates a 2400 × 1350 image locally. Card preferences stay in this browser per
-account; account security remains in Settings. Apply migration
-`0005_player_profiles` with `npm run db:migrate` before deploying this feature.
-See [Profile data sources, privacy, and export design](docs/PROFILE.md).
-The **Socials** page adds player discovery, leaderboard-linked player views, and
-accepted friend requests. Optional profile details stay private until the owner
-chooses to share them. Apply `0006_social_connections` before deploying Socials;
-see [visibility and friendship rules](docs/SOCIALS.md).
-
-The main navigation contains **Challenges**, **Leaderboard**, **Competitions**,
-and **Resources**. Open the account menu beside your codename for **Profile**,
-**Socials**, **Progress**, **Rules**, and **Settings**; staff also see **Authoring**
-under Staff tools. The current personal page is shown beside your account name.
-
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Development server on `127.0.0.1:3000` |
@@ -147,6 +167,8 @@ under Staff tools. The current personal page is shown beside your account name.
 | `npm run db:backfill-artifacts` | Copy legacy artifact files into the configured database after migrations; verify checksums and keep local copies |
 | `npm run db:generate` | Generate migrations after changing the Drizzle schema |
 | `npm run seed` | Create local fictional content and generated demo credentials |
+| `npm run demo` | Add fictional local players and 20 weeks of solves so leaderboards and heatmaps have data; `npm run demo -- --remove` deletes them. Run with the dev server stopped; refused in production |
+| `npm run auth:check` | Print the OAuth callback URLs for the configured `APP_URL` without revealing credentials |
 | `npm run admin -- allow <email>` | Restore account access; email verification is still required |
 | `npm run admin -- revoke <email>` | Suspend account access, including existing sessions |
 | `npm run admin -- grant <email>` | Promote an existing verified account to administrator |
@@ -155,6 +177,7 @@ under Staff tools. The current personal page is shown beside your account name.
 | `npm test` | Automated tests |
 | `npm run test:browser` | Browser regression tests against the production build (Edge on Windows; Playwright Chromium elsewhere) |
 | `npm run test:integration` | Real local player flow with isolated app, database, files, and mailbox on port 3200 |
+| `npm run test:recovery` | Backup-and-restore drill against a disposable local PostgreSQL cluster; needs PostgreSQL tools in `DFCTF_POSTGRES_BIN` (see [release rehearsal](docs/RELEASE_REHEARSAL.md)) |
 | `npm run build` | Build the production application |
 | `npm run verify:build` | Check an existing build's file manifests for private local data and test output |
 | `npm start` | Run a previously built application |

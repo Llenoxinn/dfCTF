@@ -43,9 +43,14 @@ test("compact navigation keeps personal pages and staff tools in an accessible a
   await expect(main.getByRole("link")).toHaveText(["Challenges","Leaderboard","Competitions","Resources"]);
   await account.click();const menu=page.getByRole("navigation",{name:"Account",exact:true});
   await expect(menu.getByRole("group",{name:"Staff tools",exact:true}).getByRole("link",{name:"Authoring",exact:true})).toHaveAttribute("href","/?view=authoring");
-  await expect(menu.getByRole("group",{name:"Your space",exact:true}).getByRole("link")).toHaveText(["Profile","Socials","Progress"]);
+  await expect(menu.getByRole("group",{name:"Your space",exact:true}).getByRole("link")).toHaveText(["Profile","Progress","Socials"]);
+  await expect(menu.getByRole("group",{name:"Help & account",exact:true}).getByRole("link")).toHaveText(["Settings","Rules"]);
+  await expect(menu.locator(".account-nav-label")).toHaveCount(0);await expect(menu.locator(".account-role")).toHaveText("Staff");
   await page.screenshot({path:"test-results/account-navigation-desktop.png",animations:"disabled"});
   await page.keyboard.press("Tab");await expect(menu.getByRole("link",{name:"Profile",exact:true})).toBeFocused();
+  await page.keyboard.press("ArrowDown");await expect(menu.getByRole("link",{name:"Progress",exact:true})).toBeFocused();
+  await page.keyboard.press("End");await expect(menu.getByRole("button",{name:"Sign out",exact:true})).toBeFocused();
+  await page.keyboard.press("ArrowDown");await expect(menu.getByRole("link",{name:"Profile",exact:true})).toBeFocused();
   await page.keyboard.press("Escape");await expect(account).toBeFocused();await expect(menu).toHaveCount(0);
   await account.click();await menu.getByRole("link",{name:"Progress",exact:true}).click();await expect(page.getByRole("heading",{name:"Progress",exact:true})).toBeVisible();
   await expect(account).not.toContainText("Progress");await account.click();await expect(menu.getByRole("link",{name:"Progress",exact:true})).toHaveAttribute("aria-current","page");
@@ -61,7 +66,8 @@ test("player navigation fits narrow screens, hides staff tools and remains usabl
   const brandBounds=await page.getByRole("link",{name:"dfCTF home",exact:true}).boundingBox(),accountBounds=await account.boundingBox();
   expect(Math.abs((brandBounds!.y+brandBounds!.height/2)-(accountBounds!.y+accountBounds!.height/2))).toBeLessThan(3);
   await account.click();const menu=page.getByRole("navigation",{name:"Account",exact:true});
-  await expect(menu.getByRole("link",{name:"Authoring",exact:true})).toHaveCount(0);
+  await expect(menu.getByRole("link",{name:"Authoring",exact:true})).toHaveCount(0);await expect(menu.locator(".account-role, .account-staff-tag")).toHaveCount(0);
+  expect(await menu.locator(".account-identity strong").evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   const bounds=await menu.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(320);expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(680);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:"test-results/account-navigation-mobile-dark.png",animations:"disabled"});
@@ -471,6 +477,102 @@ test("an empty solver list refreshes to the new first blood immediately after a 
   await expect(solvers.locator(".challenge-solvers li")).toHaveCount(1);
 });
 
+for (const reduced of [false, true]) {
+  test(`capture feedback waits for server success and stays readable${reduced ? " with reduced motion on mobile" : " on desktop"}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(reduced ? { width: 375, height: 812 } : { width: 1440, height: 1000 });
+    await page.emulateMedia({ reducedMotion: reduced ? "reduce" : "no-preference" });
+    if (reduced) await page.context().addCookies([{ name: "dfctf-theme", value: "light", domain: "127.0.0.1", path: "/" }]);
+    // Hold the short animation so its actual keyframes can be inspected without a timing race.
+    await page.addInitScript(() => {
+      const animate = Element.prototype.animate;
+      Element.prototype.animate = function (...args) {
+        const animation = animate.apply(this, args);
+        if (this.classList.contains("captured")) animation.pause();
+        return animation;
+      };
+    });
+    const detail = { ...challenge("capture-feedback", "Capture feedback training"), description: Array(12).fill("Inspect the fictional evidence carefully before submitting your answer.").join("\n\n") };
+    let outcome: "error" | "incorrect" | "correct" = "error";
+    let confirm!: () => void;
+    const confirmation = new Promise<void>(resolve => { confirm = resolve; });
+    await mockWorkspace(page, async (route, url) => {
+      if (url.pathname === "/api/v1/challenges/capture-feedback/submissions") {
+        if (outcome === "error") await route.fulfill({ status: 503, json: { error: { message: "Temporary submission failure." } } });
+        else if (outcome === "incorrect") await route.fulfill({ json: { status: "incorrect", xp: 0, totalXp: 100 } });
+        else {
+          await confirmation;
+          detail.solved = true;
+          detail.solution = "Read the fictional evidence.";
+          await route.fulfill({ json: { status: "correct", xp: 37, totalXp: 137, solution: detail.solution } });
+        }
+      } else if (url.pathname === "/api/v1/challenges/capture-feedback") await route.fulfill({ json: detail });
+      else return false;
+      return true;
+    });
+    await page.goto("/?view=practice&challenge=capture-feedback");
+    const announcement = page.locator(".capture-announcement");
+    await expect(announcement).toHaveText("");
+    await page.getByLabel("Flag", { exact: true }).fill("dfCTF{training}");
+    await page.getByRole("button", { name: "Submit flag", exact: true }).click();
+    await expect(page.getByText("Temporary submission failure.", { exact: true })).toBeVisible();
+    await expect(page.locator(".capture-heading")).toHaveCount(0);
+    await expect(announcement).toHaveText("");
+    outcome = "incorrect";
+    await page.getByRole("button", { name: "Submit flag", exact: true }).click();
+    await expect(page.locator("#flag-verdict")).toBeVisible();
+    await expect(page.locator(".capture-heading")).toHaveCount(0);
+    await expect(announcement).toHaveText("");
+    outcome = "correct";
+    await page.getByLabel("Flag", { exact: true }).fill("dfCTF{training}");
+    await page.getByRole("button", { name: "Submit flag", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Checking", exact: true })).toBeVisible();
+    await expect(page.locator(".capture-heading")).toHaveCount(0);
+    confirm();
+    const captured = page.locator(".captured");
+    await expect(captured.getByRole("heading", { name: "Flag captured!", exact: true })).toBeVisible();
+    await expect(captured.locator(".capture-points")).toHaveText("+37 points earned");
+    await expect(announcement).toHaveAttribute("role", "status");
+    await expect(announcement).toHaveAttribute("aria-live", "polite");
+    await expect(announcement).toHaveText("Flag captured! 37 points earned.");
+    const frames = await captured.evaluate(element => element.getAnimations().map(animation => (animation.effect as KeyframeEffect).getKeyframes()));
+    expect(frames).toHaveLength(1);
+    expect(frames[0].some(frame => "transform" in frame)).toBe(!reduced);
+    await captured.evaluate(element => element.getAnimations().forEach(animation => animation.finish()));
+    await expect(captured).toHaveCSS("opacity", "1");
+    await expect(captured).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole("heading", { name: "Walkthrough", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath("capture-feedback.png") });
+    await page.getByRole("tab", { name: /^Solvers/ }).click();
+    await page.getByRole("tab", { name: "Challenge", exact: true }).click();
+    expect(await captured.evaluate(element => element.getAnimations().length)).toBe(0);
+    await page.reload();
+    await expect(page.locator(".captured")).toBeVisible();
+    await expect(page.locator(".capture-heading")).toHaveCount(0);
+    await expect(page.locator(".capture-announcement")).toHaveText("");
+    expect(await page.locator(".captured").evaluate(element => element.getAnimations().length)).toBe(0);
+  });
+}
+
+test("already accepted flags do not replay capture feedback", async ({ page }) => {
+  const detail = challenge("already-captured", "Already captured training");
+  await mockWorkspace(page, async (route, url) => {
+    if (url.pathname === "/api/v1/challenges/already-captured/submissions") {
+      detail.solved = true;
+      await route.fulfill({ json: { status: "already_solved", xp: 0, totalXp: 50 } });
+    } else if (url.pathname === "/api/v1/challenges/already-captured") await route.fulfill({ json: detail });
+    else return false;
+    return true;
+  });
+  await page.goto("/?view=practice&challenge=already-captured");
+  await page.getByLabel("Flag", { exact: true }).fill("dfCTF{training}");
+  await page.getByRole("button", { name: "Submit flag", exact: true }).click();
+  await expect(page.locator(".captured")).toContainText("You had already solved this one");
+  await expect(page.locator(".capture-heading")).toHaveCount(0);
+  await expect(page.locator(".capture-announcement")).toHaveText("");
+  expect(await page.locator(".captured").evaluate(element => element.getAnimations().length)).toBe(0);
+});
+
 test("staff can create the rules challenge draft from Authoring", async ({ page }) => {
   const detail = { ...challenge("rules-draft", "Read the fine print"), status: "draft", authorId: "test-author", tags: ["rules", "onboarding"], solution: "Collect the field notes from the rules page in reading order.", files: [{ id: "briefing", name: "briefing.txt", size: 180, sha256: "a".repeat(64) }] };
   let created = false;
@@ -495,4 +597,60 @@ test("staff can create the rules challenge draft from Authoring", async ({ page 
   await expect(page.getByText("briefing.txt", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Send for review", exact: true })).toBeEnabled();
   expect(created).toBe(true);
+});
+
+async function recordViewMotion(page: Page) {
+  await page.addInitScript(() => {
+    const records: { target: string; from: string | undefined }[] = [];
+    (window as unknown as { viewMotions: typeof records }).viewMotions = records;
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (keyframes, options) {
+      if (this.tagName === "MAIN" || this.tagName === "BODY") records.push({ target: this.tagName, from: (keyframes as Keyframe[])[0].transform as string | undefined });
+      return animate.call(this, keyframes, options);
+    };
+  });
+  return () => page.evaluate(() => (window as unknown as { viewMotions: { target: string; from?: string }[] }).viewMotions.splice(0));
+}
+
+test("view changes slide in navigation order, fade to the landing page and survive history and rapid clicks",async({page})=>{
+  const motions=await recordViewMotion(page);
+  await mockWorkspace(page,async(route,url)=>{
+    if(url.pathname!=="/api/v1/community")return false;
+    await route.fulfill({json:{weekly:null,recent:[],top:[],topAll:[],activity:{start:new Date().toISOString(),days:[]},totals:{challenges:0,categories:[]}}});return true;
+  });await page.goto("/?view=practice");
+  const tabs=page.getByRole("navigation",{name:"Main",exact:true});
+  await expect(tabs.getByRole("link",{name:"Challenges",exact:true})).toHaveAttribute("aria-current","page");
+  expect(await motions()).toEqual([]);
+
+  await tabs.getByRole("link",{name:"Leaderboard",exact:true}).click();
+  await expect(tabs.getByRole("link",{name:"Leaderboard",exact:true})).toHaveAttribute("aria-current","page");
+  expect(await motions()).toEqual([{target:"MAIN",from:"translateX(20px)"}]);
+
+  await page.goBack();
+  await expect(tabs.getByRole("link",{name:"Challenges",exact:true})).toHaveAttribute("aria-current","page");
+  expect(await motions()).toEqual([{target:"MAIN",from:"translateX(-20px)"}]);
+  await expect(page.locator("#main-content")).toBeFocused();
+
+  await page.evaluate(()=>{for(const name of ["Leaderboard","Challenges","Leaderboard"])[...document.querySelectorAll<HTMLAnchorElement>("nav.tabs a")].find(link=>link.textContent===name)?.click();});
+  await expect(tabs.getByRole("link",{name:"Leaderboard",exact:true})).toHaveAttribute("aria-current","page");
+  await expect.poll(()=>page.evaluate(()=>document.querySelector("main")!.getAnimations().filter(animation=>animation.playState==="running").length)).toBe(0);
+  expect(await page.evaluate(()=>getComputedStyle(document.querySelector("main")!).transform)).toBe("none");
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth)).toBe(true);
+  await motions();
+
+  await page.getByRole("link",{name:"dfCTF home",exact:true}).click();
+  await expect(page).toHaveURL(/view=home/);await expect(page.locator("#main-content")).toHaveCount(0);
+  expect(await motions()).toEqual([{target:"BODY"}]);
+  await page.goBack();
+  await expect(page.locator("#main-content")).toBeFocused();
+  expect(await motions()).toEqual([{target:"BODY"}]);
+});
+
+test("reduced motion keeps the view change as a fade with no sliding",async({page})=>{
+  const motions=await recordViewMotion(page);
+  await page.emulateMedia({reducedMotion:"reduce"});
+  await mockWorkspace(page);await page.goto("/?view=practice");
+  const leaderboard=page.getByRole("navigation",{name:"Main",exact:true}).getByRole("link",{name:"Leaderboard",exact:true});
+  await leaderboard.click();await expect(leaderboard).toHaveAttribute("aria-current","page");
+  expect(await motions()).toEqual([{target:"MAIN"}]);
 });

@@ -93,6 +93,15 @@ test.describe("mobile Rules section navigation", () => {
     await page.keyboard.press("Enter");
     await page.keyboard.press("Shift+Tab");
     await expect(disclosure).not.toHaveAttribute("open");
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    // A quick return to the menu must not be overridden by a deferred section focus.
+    await page.getByRole("link", { name: "Solve independently", exact: true }).evaluate(link => {
+      (link as HTMLAnchorElement).click();
+      document.querySelector<HTMLElement>(".rules-sections > summary")!.focus();
+    });
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+    await expect(trigger).toBeFocused();
   });
 
   test("the menu fits a short viewport, scrolls its links, and dismisses on an outside tap", async ({ page }, testInfo) => {

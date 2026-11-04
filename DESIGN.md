@@ -63,13 +63,15 @@ Easing token `--ease-out: cubic-bezier(.23, 1, .32, 1)`. Only transform, opacity
 | Buttons | active scale 0.96, 150ms ease-out; disabled never scales | feedback |
 | Hero | ASCII field drift and decode-in | ambient |
 | Challenge dialog | opacity + 8px rise, 180ms ease-out; backdrop fades | spatial |
+| App views | incoming main content fades with a 20px slide in navigation order, 220ms ease-out; the header stays still and the old view leaves at once, so nothing waits on the motion | spatial |
+| Landing, sign-in, app | incoming screen fades, 220ms ease-out | continuity |
 | Loaders | opacity-only pixel trail / sweep; under reduced motion a slow pulse | state |
 | Correct flag | verdict decodes (40ms/char), then +pts fades up 300ms with 8px rise and 4px blur | state change |
 | Wrong flag | input shakes 4px, 280ms; danger border | feedback |
 | FAQ | grid-template-rows 0fr to 1fr, 250ms | state change |
 | Ticker | linear 48s loop, pauses on hover | ambient, landing only |
 
-Rejected: per-section fade-ups, card hover lifts in the library, tab transitions, animated chart drawing. (The weekly countdown rolls its digits on request; see Countdown. The landing's live numbers, challenges published, categories covered, flags this week and the activity totals, roll in with the same Counter once loaded, at their text size.) Under `prefers-reduced-motion`, movement stops and fades remain. Hover styles live under `(hover: hover) and (pointer: fine)`.
+Rejected: per-section fade-ups, card hover lifts in the library, animated chart drawing. (The weekly countdown rolls its digits on request; see Countdown. The landing's live numbers, challenges published, categories covered, flags this week and the activity totals, roll in with the same Counter once loaded, at their text size.) Under `prefers-reduced-motion`, movement stops and fades remain. Hover styles live under `(hover: hover) and (pointer: fine)`.
 
 ## Data behind the visuals
 

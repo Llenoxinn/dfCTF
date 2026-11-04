@@ -4,11 +4,12 @@ import ValidatedForm from "./validated-form";
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { FormEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import type { Bootstrap, ChallengeDetail, ChallengeSummary, Leaderboard, Progress, Viewer } from "@/lib/types";
 import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
 import { authDestination, safeReturnTo } from "@/lib/auth-navigation";
 import { countdownParts } from "@/lib/week";
+import { VIEW_MOTION_MS, viewKeyframes, viewMotion, type ViewSurface } from "@/lib/view-motion";
 import AsciiField from "./ascii-field";
 import AuthPanel, { LocalInbox, type AuthMode } from "./auth-panel";
 import Authoring from "./authoring";
@@ -21,7 +22,7 @@ import { LearningProgressProvider } from "./resource-progress";
 import { Content } from "./content";
 import { ChallengeCard, type CardState } from "./cards";
 import { Heatmap, Radar, RaceChart, SolveGrid } from "./viz";
-import { api, CopyButton, DecodeText, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Modal, Notice, Pips, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
+import { api, CopyButton, Difficulty, Empty, formatDate, humanSize, Icon, Identicon, InfoTip, Loading, Meter, Modal, Notice, Pips, SettingsSection, Spinner, ThemeToggle, Wordmark } from "./ui";
 
 // The guides are long, so their text loads only when the Resources tab opens.
 const ResourcesContent = dynamic(() => import("./resources-content"), { loading: () => <Loading label="Opening the guides" backdrop /> });
@@ -35,10 +36,11 @@ const TABS: { id: View; label: string }[] = [
   { id: "competitions", label: "Competitions" },
   { id: "resources", label: "Resources" },
 ];
-const ACCOUNT_GROUPS: {label:string;staff?:boolean;items:{id:View;label:string}[]}[] = [
-  {label:"Your space",items:[{id:"profile",label:"Profile"},{id:"socials",label:"Socials"},{id:"progress",label:"Progress"}]},
-  {label:"Staff tools",staff:true,items:[{id:"authoring",label:"Authoring"}]},
-  {label:"Help & account",items:[{id:"rules",label:"Rules"},{id:"settings",label:"Settings"}]},
+// Ordered by how often players reach for them; group names stay available to assistive tech even where no heading is drawn.
+const ACCOUNT_GROUPS: {label:string;tone:"primary"|"staff"|"secondary";items:{id:View;label:string}[]}[] = [
+  {label:"Your space",tone:"primary",items:[{id:"profile",label:"Profile"},{id:"progress",label:"Progress"},{id:"socials",label:"Socials"}]},
+  {label:"Staff tools",tone:"staff",items:[{id:"authoring",label:"Authoring"}]},
+  {label:"Help & account",tone:"secondary",items:[{id:"settings",label:"Settings"},{id:"rules",label:"Rules"}]},
 ];
 const VIEWS: View[] = ["home", ...TABS.map(t => t.id), ...ACCOUNT_GROUPS.flatMap(group=>group.items.map(item=>item.id))];
 
@@ -66,6 +68,7 @@ export default function Workspace() {
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(() => lastBootstrap);
   const [bootError, setBootError] = useState("");
   const [view, setView] = useState<View>("practice");
+  const [located, setLocated] = useState(false);
   const [selected, setSelected] = useState("");
   const [socialPlayer,setSocialPlayer] = useState("");
   const [competitionRoute,setCompetitionRoute] = useState<CompetitionRoute>({eventId:"",challengeId:""});
@@ -113,6 +116,7 @@ export default function Workspace() {
       const target = destination ? new URLSearchParams(destination.split("?")[1]) : params;
       const requested = target.get("view");
       setView(VIEWS.includes(requested as View) ? requested as View : "practice");
+      setLocated(true);
       setSelected(requested === "competitions" ? "" : target.get("challenge") ?? "");
       setSocialPlayer(requested === "socials" ? target.get("player") ?? "" : "");
       setCompetitionRoute({eventId:target.get("competition")??"",challengeId:requested==="competitions"?target.get("challenge")??"":""});
@@ -157,6 +161,26 @@ export default function Workspace() {
     const timer = window.setTimeout(() => void loadData(), Math.max(0, new Date(board.weekEndsAt).getTime() + 1 - Date.now()));
     return () => window.clearTimeout(timer);
   }, [ready, board?.weekEndsAt, loadData]);
+
+  const activeView = view === "authoring" && bootstrap?.user?.role === "participant" ? "practice" : view;
+  const surface: ViewSurface = !located || !bootstrap ? "boot"
+    : authMode === "reset" || !bootstrap.user ? (authMode || returnTo ? "auth" : "landing")
+    : !bootstrap.hasAccess || !bootstrap.user.codename ? "gate"
+    : view === "home" ? "landing" : "app";
+  const shown = useRef({ surface, view: activeView });
+  const viewAnimation = useRef<Animation | null>(null);
+  // Only the incoming view animates, so nothing old stays clickable and nothing waits for the motion to end.
+  useLayoutEffect(() => {
+    const motion = viewMotion(shown.current, { surface, view: activeView }, VIEWS);
+    shown.current = { surface, view: activeView };
+    if (motion === "none") return;
+    const main = document.getElementById("main-content");
+    // Back, Forward and the landing page arrive without navigate() having a main element to focus.
+    if (main && !main.contains(document.activeElement)) main.focus({ preventScroll: true });
+    viewAnimation.current?.cancel();
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    viewAnimation.current = (motion === "fade" ? document.body : main)?.animate(viewKeyframes(motion, reduced), { duration: VIEW_MOTION_MS, easing: "cubic-bezier(.23, 1, .32, 1)" }) ?? null;
+  }, [surface, activeView]);
 
   function pushLocation(url: string) {
     window.history.pushState({ dfctfIndex: ++historyIndex.current }, "", url);
@@ -211,7 +235,6 @@ export default function Workspace() {
   const user = bootstrap.user;
   const codename = user.codename!;
   const staff = user.role !== "participant";
-  const activeView = view === "authoring" && !staff ? "practice" : view;
   // A challenge opens as a dialog over the current page, so closing it keeps your place and scroll.
   const openChallenge = (id: string) => { setSelected(id); pushLocation(hrefFor(activeView, id, socialPlayer)); };
   const closeChallenge = () => { setSelected(""); pushLocation(hrefFor(activeView,"",socialPlayer)); };
@@ -253,7 +276,7 @@ function Screen({ children }: { children: ReactNode }) {
 
 function ProfileMenu({ codename, points, rank, current, staff, navigate, onSignOut }: { codename: string; points: number; rank?: number; current:View;staff:boolean;navigate:(view:View)=>void;onSignOut:()=>void }) {
   const [open, setOpen] = useState(false); const root = useRef<HTMLDivElement>(null); const button = useRef<HTMLButtonElement>(null);
-  const groups=ACCOUNT_GROUPS.filter(group=>!group.staff||staff);
+  const groups=ACCOUNT_GROUPS.filter(group=>group.tone!=="staff"||staff);
   useEffect(() => {
     if (!open) return;
     const close = (e: Event) => {
@@ -263,10 +286,24 @@ function ProfileMenu({ codename, points, rank, current, staff, navigate, onSignO
     window.addEventListener("pointerdown", close); window.addEventListener("keydown", close);
     return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", close); };
   }, [open]);
-  // A disclosure containing grouped navigation links; standard Tab/Shift+Tab works throughout.
-  return <div className="profile" ref={root}>
-    <button ref={button} type="button" className="profile-button" aria-label={`Account menu for ${codename}`} aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} size={32} you /><span className="profile-text"><span className="mono profile-name">{codename}</span><span className="standing-pill">{rank ? <b>#{rank} this week</b> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></span><Icon name="down" size={14} /></button>
-    {open ? <nav className="menu account-navigation" id="profile-actions" aria-label="Account">{groups.map(group=><div className="account-nav-group" role="group" aria-label={group.label} key={group.label}><span className="account-nav-label" aria-hidden="true">{group.label}</span>{group.items.map(item=><a key={item.id} href={hrefFor(item.id)} aria-current={current===item.id?"page":undefined} onClick={event=>inPlace(event,()=>{setOpen(false);button.current?.focus();navigate(item.id);})}>{item.label}{current===item.id?<span className="account-current" aria-hidden="true">Current</span>:null}</a>)}</div>)}<div className="account-nav-signout"><button type="button" onClick={()=>{setOpen(false);onSignOut();}}><Icon name="exit" size={15}/>Sign out</button></div></nav> : null}
+  // Arrow keys, Home and End move between rows as a convenience; Tab/Shift+Tab still walk the disclosure normally.
+  const moveFocus = (e: ReactKeyboardEvent<HTMLElement>) => {
+    const rows = [...e.currentTarget.querySelectorAll<HTMLElement>("a, button")], at = rows.indexOf(document.activeElement as HTMLElement);
+    const next = e.key === "ArrowDown" ? (at + 1) % rows.length : e.key === "ArrowUp" ? (at - 1 + rows.length) % rows.length : e.key === "Home" ? 0 : e.key === "End" ? rows.length - 1 : -1;
+    if (next < 0) return; e.preventDefault(); rows[next]?.focus();
+  };
+  // A disclosure containing grouped navigation links. It closes once focus leaves it, so it never lingers behind the page.
+  return <div className="profile" ref={root} data-open={open || undefined} onBlur={e => { if (open && e.relatedTarget && !root.current?.contains(e.relatedTarget as Node)) setOpen(false); }}>
+    <button ref={button} type="button" className="profile-button" aria-label={`Account menu for ${codename}`} aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} size={32} you /><span className="profile-text"><span className="mono profile-name">{codename}</span><span className="standing-pill">{rank ? <b>#{rank} this week</b> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></span><Icon name="down" size={14} className="profile-chevron" /></button>
+    {open ? <nav className="menu account-navigation" id="profile-actions" aria-label="Account" onKeyDown={moveFocus}>
+      <div className="account-identity"><Identicon name={codename} size={40} you /><div><strong className="mono">{codename}</strong><span>{staff ? <span className="account-role">Staff</span> : null}{rank ? <span>#{rank} this week</span> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></div></div>
+      {groups.map(group=>{const single=group.tone==="staff"&&group.items.length===1;
+        return <div className={`account-nav-group account-nav-${group.tone}`} role="group" aria-label={group.label} key={group.label}>
+          {group.tone==="staff"&&!single?<span className="account-nav-label" aria-hidden="true">{group.label}</span>:null}
+          {group.items.map(item=><a key={item.id} href={hrefFor(item.id)} aria-current={current===item.id?"page":undefined} onClick={event=>inPlace(event,()=>{setOpen(false);button.current?.focus();navigate(item.id);})}><span>{item.label}</span>{single?<span className="account-staff-tag" aria-hidden="true">staff</span>:null}</a>)}
+        </div>;})}
+      <div className="account-nav-signout"><button type="button" onClick={()=>{setOpen(false);onSignOut();}}><Icon name="exit" size={16}/>Sign out</button></div>
+    </nav> : null}
   </div>;
 }
 
@@ -369,6 +406,17 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
   const endpoint = competitionId ? `/api/v1/competitions/${encodeURIComponent(competitionId)}/challenges/${encodeURIComponent(id)}` : `/api/v1/challenges/${encodeURIComponent(id)}`;
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null); const [loadError, setLoadError] = useState(""); const [error, setError] = useState(""); const [flag, setFlag] = useState(""); const [busy, setBusy] = useState(false); const [result, setResult] = useState<SubmitResult | null>(null); const [miss, setMiss] = useState(0);
   const [solverError, setSolverError] = useState(""); const [shownSolvers, setShownSolvers] = useState(20);
+  const newlyCaptured = result?.status === "correct";
+  const captureFeedback = useCallback((node: HTMLDivElement | null) => {
+    if (!node || !newlyCaptured) return;
+    node.closest(".submit")?.scrollIntoView({ block: "nearest", behavior: "instant" });
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Run once on the new solve; changing tabs must not replay the celebration.
+    const animation = node.animate(reduced ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: "translateY(12px)" }, { opacity: 1, transform: "translateY(0)" }], {
+      duration: reduced ? 160 : 240, easing: getComputedStyle(node).getPropertyValue("--ease-out").trim(),
+    });
+    return () => animation.cancel();
+  }, [newlyCaptured]);
   // Solvers get their own tab so a long list never pushes the flag form and walkthrough out of reach.
   const [pane, setPane] = useState<"challenge" | "solvers">("challenge");
   const tabIds = useId();
@@ -406,6 +454,7 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
       <span className="spacer" />
       <button type="button" className="icon-button" onClick={back} aria-label={competitionId ? "Close and return to the competition" : "Close challenge"}><Icon name="close" size={18} /></button>
     </div>
+    <p className="sr-only capture-announcement" role="status" aria-live="polite" aria-atomic="true">{newlyCaptured ? `Flag captured! ${result.xp} points earned.` : ""}</p>
     {loadError ? <div className="modal-body"><h2 id="challenge-title" className="sr-only">Challenge unavailable</h2><Empty title="This challenge isn’t available" action={<button className="button button-secondary" onClick={back}>{backLabel}</button>}>{loadError}</Empty></div>
     : !challenge ? <div className="modal-body"><h2 id="challenge-title" className="sr-only">Opening the challenge</h2><Loading label="Opening the challenge" /></div>
     : <div className="modal-body challenge">
@@ -437,10 +486,12 @@ function ChallengeView({ id, back, onSolved, competitionId }: { id: string; back
           <a className="button button-secondary" href={`${endpoint}/files/${encodeURIComponent(file.id)}`} download><Icon name="download" size={16} />Download</a>
         </li>)}</ul> : <p className="muted">No files. Everything you need is in the description.</p>}
       </section>
-      <section className="submit" aria-labelledby="submit-title">
-        {challenge.solved ? <div className="captured">
-          <div className="verdict verdict-correct"><span className="mono" aria-hidden="true">[x]</span>{result?.status === "correct" ? <DecodeText text="correct" className="mono strong" /> : <span className="mono strong">solved</span>}{result?.status === "correct" ? <span className="fade-up mono strong">+{result.xp} pts</span> : null}</div>
-          <h3 id="submit-title">Flag captured</h3>
+      <section className={`submit${newlyCaptured ? " submit-correct" : ""}`} aria-labelledby="submit-title">
+        {challenge.solved ? <div className="captured" ref={captureFeedback}>
+          {newlyCaptured ? <div className="capture-heading"><span className="capture-mark" aria-hidden="true"><Icon name="check" size={28} /></span><div><h3 id="submit-title">Flag captured!</h3><p className="capture-points"><strong className="mono">+{result.xp}</strong> points earned</p></div></div> : <>
+            <div className="verdict verdict-correct"><span className="mono" aria-hidden="true">[x]</span><span className="mono strong">solved</span></div>
+            <h3 id="submit-title">Flag captured</h3>
+          </>}
           <p className="muted">{result?.status === "correct" ? <>{competitionId ? "Your competition score" : "Your total"} is now <span className="mono">{result.totalXp.toLocaleString()}</span> points.</> : result?.status === "already_solved" ? "You had already solved this one, so no extra points. Your progress is saved." : <>This one is on your record for <span className="mono">{challenge.xp}</span> points.</>}</p>
           <button className="button button-secondary" onClick={back}>{competitionId ? "Back to competition" : "Find another challenge"}</button>
         </div> : <>

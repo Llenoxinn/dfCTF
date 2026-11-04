@@ -12,6 +12,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 - Pull the current branch's upstream before starting work. Prefer `git pull --ff-only`; if there is no upstream, use the intended `origin` base explicitly. Preserve local changes; commit them before integrating overlapping updates. Rebase unpublished local commits when needed, without rewriting shared history.
 - Make small, focused commits as each logical step is completed, using the configured Git author and meaningful commit messages. Avoid bundling unrelated work into one large commit.
+- Use descriptive branch names such as `fix/challenge-filename-overlap`. Do not include `codex` in branch names, commit titles, or other authored labels unless the user explicitly requests it.
 - Leave pushing to the user unless they explicitly ask the agent to push.
 - Treat `origin` (`Llenoxinn/dfCTF`) as the working repository. The private `staging` repository is a separate Vercel deployment copy; do not discover, access, or synchronize it unless the user explicitly requests that work.
 - When explicitly asked to synchronize the repositories, preserve their separate histories and copy commits with cherry-pick where necessary. Do not force-push or remove repository-specific files such as the original CI workflow. Verify equivalent application changes in both repositories and report any update failure.

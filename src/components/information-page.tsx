@@ -3,7 +3,7 @@ import SiteHeader from "./site-header";
 import SiteFooter from "./site-footer";
 
 export default function InformationPage({ title, introduction, children }: { title: string; introduction: string; children: ReactNode }) {
-  return <div>
+  return <div className="app">
     <a className="skip-link" href="#information-content">Skip to content</a>
     <SiteHeader />
     <main id="information-content" className="rules-main" tabIndex={-1}>
