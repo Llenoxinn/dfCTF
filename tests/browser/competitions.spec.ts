@@ -82,3 +82,31 @@ test("upcoming event content stays hidden and CTFd links use their independent h
   await page.goto("/?view=competitions&competition=event-one");await expect(page.getByText("Challenges open at the scheduled start.",{exact:false})).toBeVisible();await expect(page.getByRole("link",{name:/Private competition evidence/})).toHaveCount(0);
   await page.goto("/?view=competitions&competition=external");const link=page.getByRole("link",{name:"Open CTFd event",exact:true});await expect(link).toHaveAttribute("href","https://ctf.example.org/autumn");await expect(link).toHaveAttribute("rel","noopener noreferrer");await expect(page.getByRole("button",{name:"Join competition",exact:true})).toHaveCount(0);
 });
+
+test("competition validation identifies invalid fields, retains input, and clears feedback for corrections",async({page})=>{
+  let attempts=0;
+  await mock(page,async(route,url)=>{
+    if(url.pathname==="/api/v1/staff/challenges")await route.fulfill({json:[]});
+    else if(url.pathname==="/api/v1/staff/competitions"&&route.request().method()==="POST"){
+      attempts++;
+      if(attempts===1)await route.fulfill({status:422,json:{error:{code:"VALIDATION_FAILED",message:"Check the highlighted fields.",details:{fieldErrors:{endsAt:["End time must be after the start time."]}}}}});
+      else if(attempts===2)await route.fulfill({status:422,json:{error:{message:"Competition could not be validated.",details:{fieldErrors:{hostPolicy:["This hosting policy needs review."]}}}}});
+      else if(attempts===3)await route.fulfill({status:503,json:{error:{message:"Competition service is temporarily unavailable."}}});
+      else await route.fulfill({json:{id:"corrected-event"}});
+    }else if(url.pathname==="/api/v1/staff/competitions")await route.fulfill({json:[]});
+    else return false;return true;
+  });
+  await page.goto("/?view=competitions");await page.getByRole("button",{name:"Manage events",exact:true}).click();await page.getByRole("button",{name:"Create competition",exact:true}).click();
+  const title=page.getByLabel("Competition title",{exact:true}),start=page.getByLabel("Starts (Philippine time)",{exact:true}),end=page.getByLabel("Ends (Philippine time)",{exact:true});
+  await title.fill("Schedule correction");await page.getByLabel("Description",{exact:true}).fill("An original competition for testing its schedule.");
+  await start.fill("2026-12-01T18:00");await end.fill("2026-12-01T08:00");
+  const save=page.getByRole("button",{name:"Save event draft",exact:true}),error=page.locator(".notice-error");await save.click();
+  await expect(error).toContainText("Ends (Philippine time): End time must be after the start time.");
+  await expect(end).toHaveAttribute("aria-invalid","true");await expect(end).toHaveAccessibleDescription("End time must be after the start time.");await expect(end).toBeFocused();
+  await expect(title).toHaveValue("Schedule correction");await expect(end).toHaveValue("2026-12-01T08:00");
+  await start.fill("2026-12-01T07:00");await expect(error).toHaveCount(0);await expect(end).not.toHaveAttribute("aria-invalid","true");await expect(end).not.toHaveAttribute("aria-describedby",/./);
+  await save.click();await expect(error).toContainText("Competition could not be validated.");await expect(error).toContainText("hostPolicy: This hosting policy needs review.");
+  await title.fill("Corrected schedule");await expect(error).toHaveCount(0);await save.click();
+  await expect(error).toContainText("Competition service is temporarily unavailable.");await expect(title).toHaveValue("Corrected schedule");
+  await save.click();await expect(page.getByText("Draft saved.",{exact:false})).toBeVisible();await expect(error).toHaveCount(0);expect(attempts).toBe(4);
+});
