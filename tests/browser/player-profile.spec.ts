@@ -62,7 +62,7 @@ test("scope changes update statistics, activity, milestones and card together",a
   const all=page.getByRole("region",{name:"Practice · all time statistics"});
   await expect(all).toContainText("160");await expect(all).toContainText("#2");
   await expect(page.getByRole("link",{name:"All-time fixture capture"})).toBeVisible();
-  await page.getByRole("button",{name:"Load more captures"}).click();
+  await page.getByRole("button",{name:"Load more solves"}).click();
   await expect(page.getByRole("link",{name:"Next fixture capture"})).toBeVisible();
   await page.getByLabel("Practice scope",{exact:true}).selectOption("week");
   const weekly=page.getByRole("region",{name:"Practice · this week statistics"});
@@ -108,7 +108,7 @@ for(const variant of ["empty","unicode"] as const){
     const unexpected:string[]=[];page.on("request",request=>{if(request.url().includes("unavailable-avatar"))unexpected.push(request.url());});
     await mockProfile(page,{empty:variant==="empty",long:variant==="unicode"});
     await page.setViewportSize({width:390,height:844});await page.goto("/?view=profile");
-    if(variant==="empty"){await expect(page.getByRole("region",{name:"Practice · all time statistics"})).toContainText("Unranked");await expect(page.getByText("Your first capture starts here",{exact:true})).toBeVisible();}
+    if(variant==="empty"){await expect(page.getByRole("region",{name:"Practice · all time statistics"})).toContainText("Unranked");await expect(page.getByRole("heading",{name:"Your first solve starts here",exact:true})).toBeVisible();await expect(page.getByRole("button",{name:"Browse challenges",exact:true})).toBeVisible();await expect(page.locator(".player-profile .empty")).toHaveCount(0);}
     await expect(page.getByRole("button",{name:"Share card",exact:true})).toBeVisible();
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await openCard(page);
