@@ -4,11 +4,12 @@ import ValidatedForm from "./validated-form";
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { FormEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import type { Bootstrap, ChallengeDetail, ChallengeSummary, Leaderboard, Progress, Viewer } from "@/lib/types";
 import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
 import { authDestination, safeReturnTo } from "@/lib/auth-navigation";
 import { countdownParts } from "@/lib/week";
+import { VIEW_MOTION_MS, viewKeyframes, viewMotion, type ViewSurface } from "@/lib/view-motion";
 import AsciiField from "./ascii-field";
 import AuthPanel, { LocalInbox, type AuthMode } from "./auth-panel";
 import Authoring from "./authoring";
@@ -67,6 +68,7 @@ export default function Workspace() {
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(() => lastBootstrap);
   const [bootError, setBootError] = useState("");
   const [view, setView] = useState<View>("practice");
+  const [located, setLocated] = useState(false);
   const [selected, setSelected] = useState("");
   const [socialPlayer,setSocialPlayer] = useState("");
   const [competitionRoute,setCompetitionRoute] = useState<CompetitionRoute>({eventId:"",challengeId:""});
@@ -114,6 +116,7 @@ export default function Workspace() {
       const target = destination ? new URLSearchParams(destination.split("?")[1]) : params;
       const requested = target.get("view");
       setView(VIEWS.includes(requested as View) ? requested as View : "practice");
+      setLocated(true);
       setSelected(requested === "competitions" ? "" : target.get("challenge") ?? "");
       setSocialPlayer(requested === "socials" ? target.get("player") ?? "" : "");
       setCompetitionRoute({eventId:target.get("competition")??"",challengeId:requested==="competitions"?target.get("challenge")??"":""});
@@ -158,6 +161,26 @@ export default function Workspace() {
     const timer = window.setTimeout(() => void loadData(), Math.max(0, new Date(board.weekEndsAt).getTime() + 1 - Date.now()));
     return () => window.clearTimeout(timer);
   }, [ready, board?.weekEndsAt, loadData]);
+
+  const activeView = view === "authoring" && bootstrap?.user?.role === "participant" ? "practice" : view;
+  const surface: ViewSurface = !located || !bootstrap ? "boot"
+    : authMode === "reset" || !bootstrap.user ? (authMode || returnTo ? "auth" : "landing")
+    : !bootstrap.hasAccess || !bootstrap.user.codename ? "gate"
+    : view === "home" ? "landing" : "app";
+  const shown = useRef({ surface, view: activeView });
+  const viewAnimation = useRef<Animation | null>(null);
+  // Only the incoming view animates, so nothing old stays clickable and nothing waits for the motion to end.
+  useLayoutEffect(() => {
+    const motion = viewMotion(shown.current, { surface, view: activeView }, VIEWS);
+    shown.current = { surface, view: activeView };
+    if (motion === "none") return;
+    const main = document.getElementById("main-content");
+    // Back, Forward and the landing page arrive without navigate() having a main element to focus.
+    if (main && !main.contains(document.activeElement)) main.focus({ preventScroll: true });
+    viewAnimation.current?.cancel();
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    viewAnimation.current = (motion === "fade" ? document.body : main)?.animate(viewKeyframes(motion, reduced), { duration: VIEW_MOTION_MS, easing: "cubic-bezier(.23, 1, .32, 1)" }) ?? null;
+  }, [surface, activeView]);
 
   function pushLocation(url: string) {
     window.history.pushState({ dfctfIndex: ++historyIndex.current }, "", url);
@@ -212,7 +235,6 @@ export default function Workspace() {
   const user = bootstrap.user;
   const codename = user.codename!;
   const staff = user.role !== "participant";
-  const activeView = view === "authoring" && !staff ? "practice" : view;
   // A challenge opens as a dialog over the current page, so closing it keeps your place and scroll.
   const openChallenge = (id: string) => { setSelected(id); pushLocation(hrefFor(activeView, id, socialPlayer)); };
   const closeChallenge = () => { setSelected(""); pushLocation(hrefFor(activeView,"",socialPlayer)); };
