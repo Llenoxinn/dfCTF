@@ -598,3 +598,59 @@ test("staff can create the rules challenge draft from Authoring", async ({ page 
   await expect(page.getByRole("button", { name: "Send for review", exact: true })).toBeEnabled();
   expect(created).toBe(true);
 });
+
+async function recordViewMotion(page: Page) {
+  await page.addInitScript(() => {
+    const records: { target: string; from: string | undefined }[] = [];
+    (window as unknown as { viewMotions: typeof records }).viewMotions = records;
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (keyframes, options) {
+      if (this.tagName === "MAIN" || this.tagName === "BODY") records.push({ target: this.tagName, from: (keyframes as Keyframe[])[0].transform as string | undefined });
+      return animate.call(this, keyframes, options);
+    };
+  });
+  return () => page.evaluate(() => (window as unknown as { viewMotions: { target: string; from?: string }[] }).viewMotions.splice(0));
+}
+
+test("view changes slide in navigation order, fade to the landing page and survive history and rapid clicks",async({page})=>{
+  const motions=await recordViewMotion(page);
+  await mockWorkspace(page,async(route,url)=>{
+    if(url.pathname!=="/api/v1/community")return false;
+    await route.fulfill({json:{weekly:null,recent:[],top:[],topAll:[],activity:{start:new Date().toISOString(),days:[]},totals:{challenges:0,categories:[]}}});return true;
+  });await page.goto("/?view=practice");
+  const tabs=page.getByRole("navigation",{name:"Main",exact:true});
+  await expect(tabs.getByRole("link",{name:"Challenges",exact:true})).toHaveAttribute("aria-current","page");
+  expect(await motions()).toEqual([]);
+
+  await tabs.getByRole("link",{name:"Leaderboard",exact:true}).click();
+  await expect(tabs.getByRole("link",{name:"Leaderboard",exact:true})).toHaveAttribute("aria-current","page");
+  expect(await motions()).toEqual([{target:"MAIN",from:"translateX(20px)"}]);
+
+  await page.goBack();
+  await expect(tabs.getByRole("link",{name:"Challenges",exact:true})).toHaveAttribute("aria-current","page");
+  expect(await motions()).toEqual([{target:"MAIN",from:"translateX(-20px)"}]);
+  await expect(page.locator("#main-content")).toBeFocused();
+
+  await page.evaluate(()=>{for(const name of ["Leaderboard","Challenges","Leaderboard"])[...document.querySelectorAll<HTMLAnchorElement>("nav.tabs a")].find(link=>link.textContent===name)?.click();});
+  await expect(tabs.getByRole("link",{name:"Leaderboard",exact:true})).toHaveAttribute("aria-current","page");
+  await expect.poll(()=>page.evaluate(()=>document.querySelector("main")!.getAnimations().filter(animation=>animation.playState==="running").length)).toBe(0);
+  expect(await page.evaluate(()=>getComputedStyle(document.querySelector("main")!).transform)).toBe("none");
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth)).toBe(true);
+  await motions();
+
+  await page.getByRole("link",{name:"dfCTF home",exact:true}).click();
+  await expect(page).toHaveURL(/view=home/);await expect(page.locator("#main-content")).toHaveCount(0);
+  expect(await motions()).toEqual([{target:"BODY"}]);
+  await page.goBack();
+  await expect(page.locator("#main-content")).toBeFocused();
+  expect(await motions()).toEqual([{target:"BODY"}]);
+});
+
+test("reduced motion keeps the view change as a fade with no sliding",async({page})=>{
+  const motions=await recordViewMotion(page);
+  await page.emulateMedia({reducedMotion:"reduce"});
+  await mockWorkspace(page);await page.goto("/?view=practice");
+  const leaderboard=page.getByRole("navigation",{name:"Main",exact:true}).getByRole("link",{name:"Leaderboard",exact:true});
+  await leaderboard.click();await expect(leaderboard).toHaveAttribute("aria-current","page");
+  expect(await motions()).toEqual([{target:"MAIN"}]);
+});
