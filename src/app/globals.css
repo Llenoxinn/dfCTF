@@ -1324,16 +1324,10 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .profile-control-group input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent-text); }
 .profile-control-group small { color: var(--muted); }
 .profile-color { display: grid; gap: 12px; }
-.profile-color .react-colorful { width: 100%; height: 188px; }
-.profile-color .react-colorful__saturation { border-radius: var(--r) var(--r) 0 0; border-bottom: 0; }
-.profile-color .react-colorful__last-control { height: 28px; border-radius: 0 0 var(--r) var(--r); }
-.profile-color .react-colorful__pointer { width: 20px; height: 20px; border-width: 2px; }
-.profile-color .react-colorful__interactive:focus .react-colorful__pointer { transform: translate(-50%,-50%) scale(1.25); }
-.profile-color .react-colorful__interactive:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-.profile-color input { text-transform: lowercase; }
 .profile-color-warning { color: var(--danger); margin-top: 8px; }
-.profile-export-actions { display: grid; gap: 12px; justify-items: start; }
-.profile-export-actions .button { min-height: 44px; width: 100%; }
+.profile-export-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.profile-export-actions .button { min-height: 44px; }
+.profile-control-group .profile-color input { width: 100%; height: auto; min-height: 40px; padding: 8px 12px; text-transform: lowercase; }
 .profile-detail-grid { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(0,1fr); gap: 24px; }
 .profile-categories { display: grid; gap: 22px; padding: 24px 28px; list-style: none; margin: 0; }
 .profile-categories li > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: .8125rem; }
@@ -1404,7 +1398,7 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .pf-start p { margin-top: 4px; }
 .profile-load-more { padding: 20px 28px; text-align: center; }.profile-edit-modal { width: min(620px,calc(100% - 32px)); }.profile-card-modal { width: min(1080px,calc(100% - 32px)); }
 @media (max-width: 1100px) {
-  .profile-studio-grid { grid-template-columns: 1fr; }.profile-card-controls { border-left: 0; border-top: 1px solid var(--line); grid-template-columns: repeat(2,minmax(0,1fr)); }.profile-export-actions { grid-column: 2; grid-row: 3; align-content: start; }
+  .profile-studio-grid { grid-template-columns: 1fr; }.profile-card-controls { border-left: 0; border-top: 1px solid var(--line); grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 @media (max-width: 1250px) {
   .pf-cat { grid-template-columns: minmax(0,1fr); }.pf-map { border-left: 0; border-top: 1px solid var(--line); }
@@ -1418,8 +1412,15 @@ dl.resource-area-notes { display: grid; gap: 20px; }
   .pf-band { height: 96px; }.pf-who { padding: 0 16px 20px; }.pf-who h2 { font-size: 1.25rem; letter-spacing: -.02em; }.pf-map li { grid-template-columns: minmax(0,1fr) 36px 68px; gap: 8px; padding: 10px 16px; }.pf-meter { display: none; }.pf-cat .radar { max-width: 320px; }.pf-log li { grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; padding: 12px 16px; }.pf-log-title { grid-column: 1; }.pf-log .num { grid-column: 2; grid-row: 1; }.pf-log li > .muted, .pf-log time { grid-column: 1/-1; }.pf-start { padding: 20px 16px; }.pf-avatar { margin-top: -40px; padding: 6px; }.pf-avatar svg { width: 64px; height: 64px; }.pf-stat { padding: 14px 16px; }.pf-hero-foot { padding: 16px; }.pf-hero-foot .spacer { display: none; }.pf-hero-foot .fine { flex-basis: 100%; }
   .profile-identity { padding: 20px; gap: 18px; flex-wrap: wrap; align-items: start; }.profile-avatar { padding: 6px; }.profile-avatar svg { width: 64px; height: 64px; }.profile-identity-copy { flex-basis: calc(100% - 110px); }
   .profile-stat-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.profile-stat { padding: 16px; }.profile-stat:nth-child(3) { border-left: 0; }.profile-stat:nth-child(n+3) { border-top: 1px solid var(--line); }
-  .profile-detail-grid { grid-template-columns: 1fr; }.profile-section-head { padding: 20px; }.profile-preview-area { padding: 16px; }.profile-card-controls { grid-template-columns: 1fr; padding: 20px; }.profile-export-actions { grid-column: auto; grid-row: auto; }
+  .profile-detail-grid { grid-template-columns: 1fr; }.profile-section-head { padding: 20px; }.profile-preview-area { padding: 16px; }.profile-card-controls { grid-template-columns: 1fr; padding: 20px; }
   .profile-categories { padding: 20px; }.profile-milestones { padding: 0 20px; }.profile-activity li { padding: 20px; grid-template-columns: minmax(0,1fr) auto; }.profile-activity-time { grid-row: 2; grid-column: 1/-1; text-align: left; display: flex; flex-wrap: wrap; gap: 6px 16px; }.profile-activity li > strong { grid-column: 2; grid-row: 1; }
   .profile-edit-modal, .profile-card-modal { width: 100%; }.profile-page-actions { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; width: 100%; }.profile-page-actions .select-inline { display: grid; gap: 6px; min-width: 0; }.profile-page-actions select { width: 100%; }.profile-page-actions .button { min-height: 44px; }
 }
 }
+
+/* react-colorful injects unlayered styles, which beat anything in the legacy layer. */
+.profile-color .react-colorful { width: 100%; height: 188px; }
+.profile-color .react-colorful__saturation { border-radius: var(--r) var(--r) 0 0; border-bottom: 0; }
+.profile-color .react-colorful__last-control { height: 28px; border-radius: 0 0 var(--r) var(--r); }
+.profile-color .react-colorful__pointer { width: 20px; height: 20px; border-width: 2px; }
+.profile-color .react-colorful__interactive:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
