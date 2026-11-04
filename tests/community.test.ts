@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStore } from "@/server/db";
-import { challenges, challengeVersions, solves, xpLedger, user } from "@/server/schema";
-import { challengeDetail, listChallenges } from "@/server/challenges";
+import { eq } from "drizzle-orm";
+import { allowlist, challenges, challengeVersions, solves, xpLedger, user } from "@/server/schema";
+import { challengeDetail, getProgress, listChallenges } from "@/server/challenges";
 import { dailyCounts, getCommunity, getLeaderboard, rankStandings, type SolveRow } from "@/server/community";
 import { DAY_MS, weekStart } from "@/lib/week";
 import type { Viewer } from "@/lib/types";
@@ -91,5 +92,50 @@ describe("weekly feature across public and signed-in responses", () => {
     expect(response.activity.days.length).toBeLessThanOrEqual(140);
     expect(JSON.stringify(response)).not.toContain("Private name");
     expect(JSON.stringify(response)).not.toContain("@example.test");
+  });
+
+  it("excludes revoked and expired players before ranking, counting, and selecting First Blood", async () => {
+    const before = await getCommunity(store.db,now), population = (await getLeaderboard(store.db,viewer.id,"week",now)).players;
+    const id = "eligibility-weekly";
+    await store.db.insert(challenges).values({id,slug:id,familyId:id,authorId:viewer.id,status:"published",publishedAt:now});
+    await store.db.insert(challengeVersions).values({id:`${id}-v1`,challengeId:id,version:1,title:id,summary:"Eligibility fixture",description:"Public eligibility test.",solution:"Fixture solution",category:"Forensics",difficulty:"Easy",tags:["weekly"],xp:50,estimatedMinutes:5,flagHash:"unused"});
+    for (const [name,points,age] of [["revoked",10000,4000],["expired",9000,3000],["active",5000,2000],["future",4000,1000]] as const) {
+      const userId=`eligibility-${name}`,solveId=`${userId}-solve`,email=`${userId}@example.test`;
+      await store.db.insert(user).values({...viewer,id:userId,email,codename:userId,name:"Private eligibility name"});
+      await store.db.insert(solves).values({id:solveId,userId,challengeId:id,versionId:`${id}-v1`,createdAt:new Date(now.getTime()-age)});
+      await store.db.insert(xpLedger).values({id:`${solveId}-xp`,userId,familyId:id,solveId,amount:points});
+      if(name!=="active")await store.db.insert(allowlist).values({id:userId,email,...(name==="revoked"?{revokedAt:now}:{expiresAt:new Date(now.getTime()+(name==="future"?1:0))})});
+    }
+    for (const range of ["week","all"] as const) {
+      const board=await getLeaderboard(store.db,"eligibility-active",range,now);
+      expect(board.standings.slice(0,2).map(row=>[row.rank,row.codename])).toEqual([[1,"eligibility-active"],[2,"eligibility-future"]]);
+      expect(board.standings.some(row=>["eligibility-revoked","eligibility-expired"].includes(row.codename))).toBe(false);
+      expect(board.viewer).toMatchObject({rank:1,points:5000});
+      expect(board.challenges.find(c=>c.id===id)?.solveCount).toBe(2);
+      if(range==="week")expect(board.players).toBe(population+2);
+      expect(board.race.players.some(row=>["eligibility-revoked","eligibility-expired"].includes(row.codename))).toBe(false);
+    }
+    const community=await getCommunity(store.db,now);
+    for(const top of [community.top,community.topAll]) {
+      expect(top).toHaveLength(5);
+      expect(top.slice(0,2).map(row=>row.codename)).toEqual(["eligibility-active","eligibility-future"]);
+    }
+    expect(community.weekly).toMatchObject({id,solveCount:2,solvers:["eligibility-future","eligibility-active"]});
+    expect(community.recent.filter(row=>row.title===id).map(row=>[row.codename,row.firstBlood])).toEqual([["eligibility-future",false],["eligibility-active",true]]);
+    expect(community.activity.days.reduce((a,b)=>a+b,0)).toBe(before.activity.days.reduce((a,b)=>a+b,0)+2);
+    expect((await listChallenges(store.db,viewer.id)).find(c=>c.id===id)?.solveCount).toBe(2);
+    const detail=await challengeDetail(store.db,viewer,id);
+    expect(detail.solveCount).toBe(2);
+    expect(detail.solvers?.map(row=>[row.codename,row.firstBlood])).toEqual([["eligibility-active",true],["eligibility-future",false]]);
+    expect(JSON.stringify({community,solvers:detail.solvers})).not.toMatch(/Private eligibility name|@example\.test|"userId"|"flagHash"|"solution"/);
+    const hidden=await getLeaderboard(store.db,"eligibility-revoked","all",now);
+    expect(hidden.viewer).toBeNull();
+    expect(hidden.mine.days.reduce((a,b)=>a+b,0)).toBe(1);
+    expect(hidden.challenges.find(c=>c.id===id)?.solved).toBe(true);
+    const history=await getProgress(store.db,"eligibility-revoked");
+    expect(history.totalXp).toBe(10000);
+    expect(history.recentSolves.map(solve=>solve.id)).toContain(id);
+    expect(await store.db.select().from(solves).where(eq(solves.challengeId,id))).toHaveLength(4);
+    expect(await store.db.select().from(xpLedger).where(eq(xpLedger.familyId,id))).toHaveLength(4);
   });
 });

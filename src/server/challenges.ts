@@ -10,6 +10,7 @@ import { currentWeekly, weekEnd } from "@/lib/week";
 import type { z } from "zod";
 import { requireCompetitionChallenge } from "./competition-access";
 import { canEditChallengeContent, canManageChallengeDraft } from "@/lib/challenge-permissions";
+import { notSuspended } from "./player-eligibility";
 
 type Executor=Pick<Database,"select"|"insert"|"update"|"delete">;
 export type ChallengeDraft=z.infer<typeof challengeInput>;
@@ -32,7 +33,7 @@ export async function listChallenges(db:Database,userId:string,staff?:Viewer):Pr
     db.select({challenge:challenges,version:challengeVersions,author:user.codename}).from(challenges).innerJoin(challengeVersions,current).innerJoin(user,eq(user.id,challenges.authorId)).where(visible).orderBy(desc(challenges.createdAt)),
     db.select({challengeId:solves.challengeId}).from(solves).where(eq(solves.userId,userId)),
     db.selectDistinct({challengeId:submissions.challengeId}).from(submissions).where(eq(submissions.userId,userId)),
-    db.select({challengeId:solves.challengeId,total:count()}).from(solves).groupBy(solves.challengeId)
+    db.select({challengeId:solves.challengeId,total:count()}).from(solves).innerJoin(user,eq(user.id,solves.userId)).where(notSuspended(now)).groupBy(solves.challengeId)
   ]);
   const solved=new Set(mySolves.map(s=>s.challengeId)), attempted=new Set(myAttempts.map(s=>s.challengeId)), countMap=new Map(counts.map(s=>[s.challengeId,s.total]));
   const assignments=staff?await db.select().from(competitionChallenges):[];
@@ -88,7 +89,7 @@ export async function challengeDetail(db:Database,viewer:Viewer,id:string,staff=
     db.select().from(solves).where(and(eq(solves.userId,viewer.id),eq(solves.challengeId,id))).limit(1),
     db.select({id:submissions.id}).from(submissions).where(and(eq(submissions.userId,viewer.id),eq(submissions.challengeId,id))).limit(1),
     db.select({id:artifacts.id,name:artifacts.name,size:artifacts.size,sha256:artifacts.sha256}).from(artifacts).where(eq(artifacts.versionId,v.id)),
-    db.select({codename:user.codename,solvedAt:solves.createdAt}).from(solves).innerJoin(user,eq(user.id,solves.userId)).where(eq(solves.challengeId,id)).orderBy(asc(solves.createdAt),asc(solves.id)),
+    db.select({codename:user.codename,solvedAt:solves.createdAt}).from(solves).innerJoin(user,eq(user.id,solves.userId)).where(and(eq(solves.challengeId,id),notSuspended(now))).orderBy(asc(solves.createdAt),asc(solves.id)),
     db.select({id:challenges.id,publishedAt:challenges.publishedAt,tags:challengeVersions.tags}).from(challenges).innerJoin(challengeVersions,current).where(and(eq(challenges.status,"published"),eq(challenges.visibility,"practice")))
   ]);
   return {id:c.id,slug:c.slug,title:v.title,summary:v.summary,description:v.description,category:v.category as Category,difficulty:v.difficulty as Difficulty,tags:v.tags,xp:v.xp,estimatedMinutes:v.estimatedMinutes,solved:!!mySolve.length,attempted:!!myAttempt.length,solveCount:solverRows.length,status:c.status,flagFormat:v.flagFormat,author:row.author||"dfCTF author",version:v.version,files,solvers:solverRows.map((s,i)=>({codename:s.codename||"Unnamed player",solvedAt:s.solvedAt.toISOString(),firstBlood:i===0})),

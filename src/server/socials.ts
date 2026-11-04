@@ -1,10 +1,11 @@
 import { and, eq, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "./db";
-import { allowlist, friendships, playerProfiles, user } from "./schema";
+import { friendships, playerProfiles, user } from "./schema";
 import { HttpError } from "./http";
 import { getPlayerProfile } from "./player-profile";
 import { consumeLimit } from "./challenges";
+import { notSuspended } from "./player-eligibility";
 import type { ProfileScope } from "@/lib/player-profile";
 import type { FriendAction, FriendshipState, PlayerPage, SocialKind, ViewedPlayer } from "@/lib/socials";
 
@@ -14,8 +15,7 @@ export const directoryInput = z.object({ q: z.string().trim().max(24).regex(/^[a
 export const socialInput = z.object({ kind: z.enum(["friends", "incoming", "outgoing"]).default("friends"), cursor: z.string().max(300).optional() });
 const nameKey = sql<string>`lower(${user.codename}) collate "C"`;
 const eligible = (now: Date) => sql`${user.emailVerified}=true and ${user.codename} is not null and ${user.codename}<>''
-  and not exists(select 1 from ${allowlist} where ${allowlist.email}=${user.email}
-    and (${allowlist.revokedAt} is not null or ${allowlist.expiresAt}<=${now}))`;
+  and ${notSuspended(now)}`;
 const pair = (a: string, b: string) => a < b ? [a,b] as const : [b,a] as const;
 const pairWhere = (a: string,b: string) => { const [low,high]=pair(a,b);return and(eq(friendships.lowUserId,low),eq(friendships.highUserId,high)); };
 
