@@ -74,7 +74,7 @@ export async function prepareChallengeRevision(db:Executor,viewer:Viewer,id:stri
     // Copy the durable bytes; legacy local backups can share their immutable storage key.
     await db.insert(artifactContents).select(db.select({artifactId:sql<string>`${fileId}`.as("artifact_id"),content:artifactContents.content}).from(artifactContents).where(eq(artifactContents.artifactId,file.id)));
   }
-  await db.update(challenges).set({currentVersion:version,status:"review",reviewerId:null,publishedAt:null,updatedAt:new Date()}).where(eq(challenges.id,id));
+  await db.update(challenges).set({currentVersion:version,status:"review",reviewerId:null,updatedAt:new Date()}).where(eq(challenges.id,id));
   await audit(db,viewer.id,"challenge.revise",id,{versionId,previousVersion:row.version.version,independentReview:true});
   row=await challengeRecord(db,id);
   return {...row,fileIds};
@@ -186,7 +186,7 @@ export async function publishChallenge(db:Database,viewer:Viewer,id:string,revie
     if(c.authorId===viewer.id||await editedByAdministrator(tx,viewer,id,v.id))throw new HttpError(403,"SELF_REVIEW","A different reviewer must test-solve and approve your changes.");
     if(c.status!=="review")throw new HttpError(409,"INVALID_STATE","Only a challenge awaiting review can be published.");
     if(!matchesFlag(reviewFlag,v.flagHash))throw new HttpError(422,"REVIEW_FLAG_INCORRECT","Test-solve the challenge and submit its correct flag before publishing.");
-    await tx.update(challenges).set({status:"published",reviewerId:viewer.id,publishedAt:new Date(),updatedAt:new Date()}).where(eq(challenges.id,id));
+    await tx.update(challenges).set({status:"published",reviewerId:viewer.id,publishedAt:c.publishedAt??new Date(),updatedAt:new Date()}).where(eq(challenges.id,id));
     await tx.update(challengeVersions).set({locked:true}).where(eq(challengeVersions.id,v.id));
     await audit(tx,viewer.id,"challenge.publish",id,{attestation:"Independent test solve and intended solution reviewed"});return {id,status:"published"};
   });
