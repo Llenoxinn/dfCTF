@@ -1409,7 +1409,7 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .pf-start { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px; padding: 24px 20px; }
 .pf-start h3 { font-size: 1.125rem; }
 .pf-start p { margin-top: 4px; }
-.profile-load-more { padding: 20px 28px; text-align: center; }.profile-edit-modal { width: min(620px,calc(100% - 32px)); }.profile-card-modal { width: min(1080px,calc(100% - 32px)); }
+.profile-load-more { padding: 20px 28px; text-align: center; }.profile-edit-modal { width: min(620px,calc(100% - 32px)); }.profile-card-modal { width: min(1080px,calc(100% - 32px)); }.feedback-modal { width: min(560px,calc(100% - 32px)); }
 @media (max-width: 1100px) {
   .profile-studio-grid { grid-template-columns: 1fr; }.profile-card-controls { border-left: 0; border-top: 1px solid var(--line); grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
@@ -1427,7 +1427,7 @@ dl.resource-area-notes { display: grid; gap: 20px; }
   .profile-stat-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.profile-stat { padding: 16px; }.profile-stat:nth-child(3) { border-left: 0; }.profile-stat:nth-child(n+3) { border-top: 1px solid var(--line); }
   .profile-detail-grid { grid-template-columns: 1fr; }.profile-section-head { padding: 20px; }.profile-preview-area { padding: 16px; }.profile-card-controls { grid-template-columns: 1fr; padding: 20px; }
   .profile-categories { padding: 20px; }.profile-milestones { padding: 0 20px; }.profile-activity li { padding: 20px; grid-template-columns: minmax(0,1fr) auto; }.profile-activity-time { grid-row: 2; grid-column: 1/-1; text-align: left; display: flex; flex-wrap: wrap; gap: 6px 16px; }.profile-activity li > strong { grid-column: 2; grid-row: 1; }
-  .profile-edit-modal, .profile-card-modal { width: 100%; }.profile-page-actions { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; width: 100%; }.profile-page-actions .select-inline { display: grid; gap: 6px; min-width: 0; }.profile-page-actions select { width: 100%; }.profile-page-actions .button { min-height: 44px; }
+  .profile-edit-modal, .profile-card-modal, .feedback-modal { width: 100%; }.profile-page-actions { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; width: 100%; }.profile-page-actions .select-inline { display: grid; gap: 6px; min-width: 0; }.profile-page-actions select { width: 100%; }.profile-page-actions .button { min-height: 44px; }
 }
 }
 
