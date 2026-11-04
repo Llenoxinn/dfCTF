@@ -152,6 +152,7 @@ test("a pending export freezes scope and editing until the snapshot is ready",as
   await expect(page.getByLabel("Practice scope",{exact:true})).toBeDisabled();
   await expect(page.getByRole("button",{name:"Edit profile",exact:true})).toBeDisabled();
   await expect(page.getByRole("button",{name:"Light",exact:true})).toBeDisabled();
+  await page.waitForFunction(()=>typeof (window as unknown as {releaseProfileImage?:()=>void}).releaseProfileImage==="function");
   await page.evaluate(()=>(window as unknown as {releaseProfileImage:()=>void}).releaseProfileImage());
   await event;await expect(page.getByLabel("Practice scope",{exact:true})).toBeEnabled();
 });
