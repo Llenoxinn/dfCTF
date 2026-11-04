@@ -83,7 +83,7 @@ export function renderProfileCard(card: PublicProfileCard, preferences: CardPref
   const big=(value:string)=>Math.min(84,Math.floor(383/value.length));
   const lower:[string,string][]=[["Solves",card.solved.toLocaleString("en")],...(prefs.showFirstBloods?[["First Bloods",card.firstBloods.toLocaleString("en")] as [string,string]]:[])];
   const badges=card.milestones.filter(m=>prefs.milestones.includes(m.id)).slice(0,2);
-  const snapshot=new Intl.DateTimeFormat("en",{timeZone:"Asia/Manila",day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(card.asOf));
+  const snapshot=new Intl.DateTimeFormat("en",{timeZone:"Asia/Manila",day:"numeric",month:"short",year:"numeric"}).format(new Date(card.asOf));
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}" font-family="ui-monospace, 'Cascadia Mono', Consolas, Menlo, monospace">
     <rect width="1200" height="675" fill="${palette.bg}"/>
     <path d="${ditherPath(1200,232,8,codenameField(card.codename,1200,232))}" fill="${accent}" shape-rendering="crispEdges"/>
@@ -101,10 +101,8 @@ export function renderProfileCard(card: PublicProfileCard, preferences: CardPref
     ${lower.map(([label,value],i)=>{const x=696+i*252;return `${text(x,368,label,18,palette.muted)}${text(x,424,value,48,palette.text,'font-weight="700"')}`;}).join("")}
     ${badges.length?`<path d="M664 456H1200" stroke="${palette.line}"/>`:""}
     ${badges.map((badge,i)=>{const x=696+i*252;return `<g transform="translate(${x} 506) scale(2)" fill="${accent}" shape-rendering="crispEdges"><path d="${milestoneIconPath(badge.id)}"/></g>${text(x+44,530,badge.label,18,palette.text,'font-weight="600"')}`;}).join("")}
-    ${text(48,626,card.scope,18,accent,'font-weight="700"')}
-    ${text(1152,626,card.period,16,palette.muted,'text-anchor="end"')}
-    ${text(48,652,`Snapshot ${snapshot} PHT`,13,palette.muted)}
-    ${text(1152,652,"dfctf.vercel.app",13,palette.muted,'text-anchor="end"')}
+    ${text(48,638,card.scope,18,accent,'font-weight="700"')}
+    ${text(1152,638,`${snapshot}  dfctf.vercel.app`,16,palette.muted,'text-anchor="end" xml:space="preserve"')}
   </svg>`;
 }
 

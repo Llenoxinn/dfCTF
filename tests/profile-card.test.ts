@@ -55,7 +55,7 @@ describe("public card rendering",()=>{
       const svg=renderProfileCard({...card,displayName:"学ぶ人🌐".repeat(12)}, {...DEFAULT_CARD,theme});
       expect(svg).not.toMatch(/<image|url\(|<foreignObject|@font-face|<script/);
       expect(svg).toContain("…");
-      expect(svg).toContain(card.scope);
+      expect(svg).toContain(card.scope);expect(svg).toContain("Nov 3, 2026");expect(svg).not.toContain(card.period);
     }
     expect(cardFilename("../bad/name💻","week")).toBe("dfctf-bad-name-week.png");
   });
