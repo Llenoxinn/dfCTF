@@ -23,10 +23,17 @@ export type PlayerProfile = {
   card: PublicProfileCard;
 };
 
+const MILESTONES: (ProfileMilestone & { goal: string; earned: (stats: ProfileStats) => boolean; target?: (stats: ProfileStats) => { value: number; max: number } })[] = [
+  { id: "first-capture", label: "First solve", condition: "At least one valid solve in this scope.", goal: "Solve any practice challenge.", earned: stats => stats.solved >= 1 },
+  { id: "ten-captures", label: "Ten solves", condition: "At least ten distinct solves in this scope.", goal: "Solve ten different practice challenges.", earned: stats => stats.solved >= 10, target: stats => ({ value: Math.min(stats.solved, 10), max: 10 }) },
+  { id: "first-blood", label: "First Blood", condition: "At least one earliest solve, with timestamp ties resolved by solve ID, in this scope.", goal: "Be the first player to solve a challenge.", earned: stats => stats.firstBloods >= 1 },
+];
+
 export function profileMilestones(stats: ProfileStats): ProfileMilestone[] {
-  return [
-    ...(stats.solved >= 1 ? [{ id: "first-capture" as const, label: "First capture", condition: "At least one valid capture in this scope." }] : []),
-    ...(stats.solved >= 10 ? [{ id: "ten-captures" as const, label: "Ten captures", condition: "At least ten distinct captures in this scope." }] : []),
-    ...(stats.firstBloods >= 1 ? [{ id: "first-blood" as const, label: "First Blood", condition: "At least one earliest solve, with timestamp ties resolved by solve ID, in this scope." }] : []),
-  ];
+  return MILESTONES.filter(m => m.earned(stats)).map(({ id, label, condition }) => ({ id, label, condition }));
+}
+
+/** Every milestone, earned or not, so the owner can see what to aim for. Only proven results count as earned. */
+export function profileMilestoneGoals(stats: ProfileStats) {
+  return MILESTONES.map(m => ({ id: m.id, label: m.label, earned: m.earned(stats), text: m.earned(stats) ? m.condition : m.goal, target: m.target?.(stats) ?? null }));
 }

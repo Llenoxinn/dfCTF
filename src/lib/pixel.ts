@@ -49,6 +49,18 @@ export function identiconPath(name: string, size: number) {
   return d;
 }
 
+/** A density field for ditherPath, seeded by the codename: three overlapping waves, so each player keeps their own pattern. */
+export function codenameField(name: string, width: number, height: number) {
+  const waves = [0, 1, 2].map(i => {
+    const h = hashString(`${name}:field:${i}`);
+    return { x: 1 + (h & 3), y: (h >>> 2) & 1, phase: ((h >>> 3) % 628) / 100 };
+  });
+  return (x: number, y: number) => {
+    const sum = waves.reduce((total, w) => total + Math.sin(w.x * (x / width) * Math.PI * 2 + w.y * (y / height) * Math.PI * 2 + w.phase), 0);
+    return 0.8 * (0.5 + sum / 6) ** 1.5;
+  };
+}
+
 /** Filled cells of a segmented meter. Any value above zero shows at least one cell. */
 export function meterCells(value: number, max: number, cells = 20) {
   if (max <= 0 || value <= 0) return 0;
