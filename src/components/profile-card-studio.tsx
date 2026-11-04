@@ -39,12 +39,10 @@ export default function ProfileCardStudio({ userId, card, scope, onBusy }: { use
     }catch(err){if(mounted.current){setMessage("");setError(err instanceof Error?err.message:"Could not export the card. Retry the download.");}}
     finally{lock.current=false;if(mounted.current){setBusy(false);onBusy(false);}}
   }
-  return <section className="profile-studio panel" aria-labelledby="card-studio-title">
-    <div className="profile-section-head"><div><span className="profile-kicker">YOUR IDENTITY, PORTABLE</span><h2 id="card-studio-title">Player card</h2><p className="muted">A shareable snapshot of your practice progress.</p></div><span className="tag">PNG · 2400 × 1350</span></div>
-    <div className="profile-studio-grid">
+  return <div className="profile-studio-grid">
       <div className="profile-preview-area">
         <figure className="profile-card-preview"><img src={source} width={1200} height={675} alt={`Player card for ${card.codename}, ${card.scope}. Rank ${card.rank===null?"unranked":card.rank}, ${card.points} awarded XP, ${card.solved} captures.`} /></figure>
-        <p className="fine">Preview and download use the same design. Your email, account identifiers, and private challenge details are excluded.</p>
+        <p className="fine">Downloads as a 2400 × 1350 PNG in the same design as this preview. Your email, account identifiers, and private challenge details are excluded.</p>
       </div>
       <div className="profile-card-controls">
         <fieldset disabled={busy || !ready} className="profile-control-group"><legend>Card theme</legend><div className="profile-choice-row">{CARD_THEMES.map(theme=><button key={theme} type="button" className="profile-choice" aria-pressed={preferences.theme===theme} onClick={()=>update({theme})}>{theme[0].toUpperCase()+theme.slice(1)}</button>)}</div></fieldset>
@@ -63,6 +61,5 @@ export default function ProfileCardStudio({ userId, card, scope, onBusy }: { use
         {prepared?<p className="fine">If the browser didn’t start the download, <a className="link-button" href={prepared.url} download={prepared.filename}>Save PNG again</a>.</p>:null}
         {error?<Notice type="error">{error} <button type="button" className="text-button" onClick={download}>Retry export</button></Notice>:null}
       </div>
-    </div>
-  </section>;
+  </div>;
 }
