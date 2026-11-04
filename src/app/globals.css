@@ -1395,12 +1395,17 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .pf-goal-state { color: var(--muted); font-size: .8125rem; white-space: nowrap; }
 .pf-goals [data-earned] .pf-goal-state { color: var(--accent-text); font-weight: 600; }
 .pf-log { margin: 0; padding: 0; list-style: none; }
-.pf-log li { display: grid; grid-template-columns: minmax(0,1fr) 170px 110px 90px; align-items: center; gap: 16px; min-height: 48px; padding: 8px 20px; border-bottom: 1px solid var(--line); font-size: .875rem; }
+.pf-log li { display: grid; grid-template-columns: 112px minmax(0,1fr) auto; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); font-size: .875rem; }
 .pf-log li:last-child { border-bottom: 0; }
 .pf-log-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
 .pf-log a { font-weight: 600; overflow-wrap: anywhere; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
 .pf-log a:is(:hover,:focus-visible) { color: var(--accent-text); text-decoration-color: currentColor; }
-.pf-log .num { text-align: right; color: var(--accent-text); white-space: nowrap; }
+.pf-log-main { display: grid; gap: 4px; min-width: 0; }
+.pf-log-main > .muted { font-size: .8125rem; }
+.pf-log-points { font-size: 1.25rem; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.pf-log-points.on { color: var(--accent-text); }
+.pf-log-points small { font-size: .75rem; font-weight: 500; letter-spacing: 0; color: var(--muted); }
+.pf-log-blood { display: inline-flex; align-items: center; gap: 6px; color: var(--accent-text); font-size: .8125rem; font-weight: 500; white-space: nowrap; }
 .pf-start { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px; padding: 24px 20px; }
 .pf-start h3 { font-size: 1.125rem; }
 .pf-start p { margin-top: 4px; }
@@ -1417,7 +1422,7 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 }
 @media (pointer: coarse) { .pf-hero-foot .button { min-height: 44px; } .pf-hero-foot .text-button { min-height: 44px; } .pf-links a { min-height: 44px; } }
 @media (max-width: 700px) {
-  .pf-band { height: 96px; }.pf-who { padding: 0 16px 20px; }.pf-who h2 { font-size: 1.25rem; letter-spacing: -.02em; }.pf-map li { grid-template-columns: minmax(0,1fr) 36px 68px; gap: 8px; padding: 10px 16px; }.pf-meter { display: none; }.pf-cat .radar { max-width: 320px; }.pf-log li { grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; padding: 12px 16px; }.pf-log-title { grid-column: 1; }.pf-log .num { grid-column: 2; grid-row: 1; }.pf-log li > .muted, .pf-log time { grid-column: 1/-1; }.pf-start { padding: 20px 16px; }.pf-avatar { margin-top: -40px; padding: 6px; }.pf-avatar svg { width: 64px; height: 64px; }.pf-stat { padding: 14px 16px; }.pf-hero-foot { padding: 16px; }.pf-hero-foot .spacer { display: none; }.pf-hero-foot .fine { flex-basis: 100%; }
+  .pf-band { height: 96px; }.pf-who { padding: 0 16px 20px; }.pf-who h2 { font-size: 1.25rem; letter-spacing: -.02em; }.pf-map li { grid-template-columns: minmax(0,1fr) 36px 68px; gap: 8px; padding: 10px 16px; }.pf-meter { display: none; }.pf-cat .radar { max-width: 320px; }.pf-log li { grid-template-columns: 84px minmax(0,1fr); align-items: start; gap: 4px 12px; padding: 12px 16px; }.pf-log-points { font-size: 1.0625rem; }.pf-log time { grid-column: 2; }.pf-start { padding: 20px 16px; }.pf-avatar { margin-top: -40px; padding: 6px; }.pf-avatar svg { width: 64px; height: 64px; }.pf-stat { padding: 14px 16px; }.pf-hero-foot { padding: 16px; }.pf-hero-foot .spacer { display: none; }.pf-hero-foot .fine { flex-basis: 100%; }
   .profile-identity { padding: 20px; gap: 18px; flex-wrap: wrap; align-items: start; }.profile-avatar { padding: 6px; }.profile-avatar svg { width: 64px; height: 64px; }.profile-identity-copy { flex-basis: calc(100% - 110px); }
   .profile-stat-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.profile-stat { padding: 16px; }.profile-stat:nth-child(3) { border-left: 0; }.profile-stat:nth-child(n+3) { border-top: 1px solid var(--line); }
   .profile-detail-grid { grid-template-columns: 1fr; }.profile-section-head { padding: 20px; }.profile-preview-area { padding: 16px; }.profile-card-controls { grid-template-columns: 1fr; padding: 20px; }
