@@ -114,7 +114,8 @@ test("profile editing validates fields, preserves account separation and restore
   await expect(dialog.getByLabel(/^Website URL/)).toBeFocused();
   await dialog.getByLabel(/^Website URL/).fill("https://example.test");await dialog.getByRole("button",{name:"Save profile",exact:true}).click();
   await expect(dialog).toHaveCount(0);await expect(edit).toBeFocused();
-  await expect(page.getByRole("heading",{name:"Updated fixture player",exact:true})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"@profile_browser",exact:true})).toBeVisible();
+  await expect(page.getByText("Updated fixture player",{exact:true})).toBeVisible();
   expect(await svg(page)).toContain("Updated fixture");
   await edit.click();await page.getByRole("dialog").getByLabel(/^Display name/).fill("Unsaved fixture");await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);await expect(edit).toBeFocused();
@@ -151,6 +152,7 @@ test("a pending export freezes scope and editing until the snapshot is ready",as
   await expect(page.getByLabel("Practice scope",{exact:true})).toBeDisabled();
   await expect(page.getByRole("button",{name:"Edit profile",exact:true})).toBeDisabled();
   await expect(page.getByRole("button",{name:"Light",exact:true})).toBeDisabled();
+  await page.waitForFunction(()=>typeof (window as unknown as {releaseProfileImage?:()=>void}).releaseProfileImage==="function");
   await page.evaluate(()=>(window as unknown as {releaseProfileImage:()=>void}).releaseProfileImage());
   await event;await expect(page.getByLabel("Practice scope",{exact:true})).toBeEnabled();
 });

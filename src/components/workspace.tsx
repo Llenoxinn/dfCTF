@@ -277,7 +277,6 @@ function Screen({ children }: { children: ReactNode }) {
 function ProfileMenu({ codename, points, rank, current, staff, navigate, onSignOut }: { codename: string; points: number; rank?: number; current:View;staff:boolean;navigate:(view:View)=>void;onSignOut:()=>void }) {
   const [open, setOpen] = useState(false); const root = useRef<HTMLDivElement>(null); const button = useRef<HTMLButtonElement>(null);
   const groups=ACCOUNT_GROUPS.filter(group=>group.tone!=="staff"||staff);
-  const activeLabel=groups.flatMap(group=>group.items).find(item=>item.id===current)?.label;
   useEffect(() => {
     if (!open) return;
     const close = (e: Event) => {
@@ -295,7 +294,7 @@ function ProfileMenu({ codename, points, rank, current, staff, navigate, onSignO
   };
   // A disclosure containing grouped navigation links. It closes once focus leaves it, so it never lingers behind the page.
   return <div className="profile" ref={root} data-open={open || undefined} onBlur={e => { if (open && e.relatedTarget && !root.current?.contains(e.relatedTarget as Node)) setOpen(false); }}>
-    <button ref={button} type="button" className="profile-button" aria-label={`Account menu for ${codename}`} aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} size={32} you /><span className="profile-text"><span className="mono profile-name">{codename}</span>{activeLabel?<span className="profile-context">{activeLabel}</span>:null}<span className="standing-pill">{rank ? <b>#{rank} this week</b> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></span><Icon name="down" size={14} className="profile-chevron" /></button>
+    <button ref={button} type="button" className="profile-button" aria-label={`Account menu for ${codename}`} aria-expanded={open} aria-controls="profile-actions" onClick={() => setOpen(v => !v)}><Identicon name={codename} size={32} you /><span className="profile-text"><span className="mono profile-name">{codename}</span><span className="standing-pill">{rank ? <b>#{rank} this week</b> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></span><Icon name="down" size={14} className="profile-chevron" /></button>
     {open ? <nav className="menu account-navigation" id="profile-actions" aria-label="Account" onKeyDown={moveFocus}>
       <div className="account-identity"><Identicon name={codename} size={40} you /><div><strong className="mono">{codename}</strong><span>{staff ? <span className="account-role">Staff</span> : null}{rank ? <span>#{rank} this week</span> : null}<span className="tabular-nums">{points.toLocaleString()} pts</span></span></div></div>
       {groups.map(group=>{const single=group.tone==="staff"&&group.items.length===1;

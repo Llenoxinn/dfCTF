@@ -53,7 +53,7 @@ test("compact navigation keeps personal pages and staff tools in an accessible a
   await page.keyboard.press("ArrowDown");await expect(menu.getByRole("link",{name:"Profile",exact:true})).toBeFocused();
   await page.keyboard.press("Escape");await expect(account).toBeFocused();await expect(menu).toHaveCount(0);
   await account.click();await menu.getByRole("link",{name:"Progress",exact:true}).click();await expect(page.getByRole("heading",{name:"Progress",exact:true})).toBeVisible();
-  await expect(page.locator(".profile-context")).toHaveText("Progress");await account.click();await expect(menu.getByRole("link",{name:"Progress",exact:true})).toHaveAttribute("aria-current","page");
+  await expect(account).not.toContainText("Progress");await account.click();await expect(menu.getByRole("link",{name:"Progress",exact:true})).toHaveAttribute("aria-current","page");
   await page.keyboard.press("Escape");await page.goBack();await expect(main.getByRole("link",{name:"Challenges",exact:true})).toHaveAttribute("aria-current","page");
 });
 
