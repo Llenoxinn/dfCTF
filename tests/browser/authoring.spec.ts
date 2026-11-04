@@ -41,7 +41,7 @@ test("a failed draft load blocks editing and allows reopening or creating a new 
   failRead = false;
   await page.getByRole("row", { name: /Training challenge/ }).click();
   await expect(page.getByLabel(/^Description/)).toHaveValue(detail.description);
-  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
 
   await page.getByRole("button", { name: "Back to authoring" }).click();
   await page.getByRole("button", { name: "New challenge", exact: true }).click();
