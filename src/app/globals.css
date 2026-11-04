@@ -1213,7 +1213,7 @@ dl.resource-area-notes { display: grid; gap: 20px; }
   .profile-button { max-width: 100%; min-height: 44px; }
   .profile-button .profile-text { display: none; }
   .week-chip { min-width: 0; padding-inline: 2px; }
-  .week-chip strong { font-size: .75rem; word-spacing: 0; }
+  .week-chip strong { min-width: 10ch; font-size: .875rem; word-spacing: 0; }
   .profile-button > svg { flex-shrink: 0; }
   .profile-button .standing-pill b { display: none; }
   .tabs { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); padding: 0; }
