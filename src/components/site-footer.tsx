@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
+import type { FeedbackKind } from "@/lib/feedback";
+import FeedbackDialog from "./feedback-dialog";
 import { Wordmark } from "./ui";
 
 export function SiteLinks() {
@@ -9,16 +14,17 @@ export function SiteLinks() {
 }
 
 export default function SiteFooter() {
-  return <footer className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 border-t border-line px-5 py-6 text-muted sm:px-8 lg:flex-row lg:items-center lg:gap-8">
+  const [report,setReport]=useState<FeedbackKind|null>(null);
+  return <><footer className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 border-t border-line px-5 py-6 text-muted sm:px-8 lg:flex-row lg:items-center lg:gap-8">
     <div className="text-fg lg:mr-auto"><Wordmark size="sm" /></div>
     <div>
       <nav aria-label="Help and information" className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-        <a className="link-button inline-flex min-h-11 items-center" href="https://github.com/Llenoxinn/dfCTF/issues/new/choose">Report a bug</a>
-        <a className="link-button inline-flex min-h-11 items-center" href="https://github.com/Llenoxinn/dfCTF/issues/new?template=feature_request.md">Suggest a feature</a>
-        <Link className="link-button inline-flex min-h-11 items-center" href="/support">Send feedback</Link>
+        <button type="button" className="link-button inline-flex min-h-11 items-center" onClick={()=>setReport("bug")}>Report a bug</button>
+        <button type="button" className="link-button inline-flex min-h-11 items-center" onClick={()=>setReport("feature")}>Suggest a feature</button>
+        <button type="button" className="link-button inline-flex min-h-11 items-center" onClick={()=>setReport("feedback")}>Send feedback</button>
       </nav>
-      <p className="text-xs">For account help or private reports, choose Send feedback.</p>
+      <p className="text-xs">Reports and feedback go privately to the developers.</p>
     </div>
     <Link className="link-button inline-flex min-h-11 items-center self-start text-xs lg:border-l lg:border-line lg:pl-6" href="/privacy">Privacy</Link>
-  </footer>;
+  </footer>{report?<FeedbackDialog kind={report} close={()=>setReport(null)}/>:null}</>;
 }

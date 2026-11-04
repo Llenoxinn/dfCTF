@@ -76,7 +76,10 @@ test("guests can reach privacy and private support before registering", async ({
   await page.getByRole("link", { name: "Privacy", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Privacy", exact: true })).toBeVisible();
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/privacy$/);
-  await page.getByRole("navigation", { name: "Help and information" }).getByRole("link", { name: "Send feedback", exact: true }).click();
+  await page.getByRole("navigation", { name: "Help and information" }).getByRole("button", { name: "Send feedback", exact: true }).click();
+  await expect(page.getByRole("dialog",{name:"Send feedback",exact:true})).toBeVisible();
+  await page.getByRole("button",{name:"Cancel",exact:true}).click();
+  await page.goto("/support");
   await expect(page.getByRole("heading", { name: "Help / Contact", exact: true })).toBeInViewport();
   await expect(page.locator('a[href="mailto:dfctf.dfc@gmail.com?subject=dfCTF%20private%20security%20report"]')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
