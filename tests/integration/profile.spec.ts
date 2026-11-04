@@ -24,7 +24,7 @@ test("real owner profile edits persist, reflect canonical scores, and remain iso
   const dialog=page.getByRole("dialog",{name:"Edit profile",exact:true});
   await dialog.getByLabel(/^Display name/).fill("Fixture learner 学ぶ人");await dialog.getByLabel(/^Bio/).fill("Synthetic account for profile integration verification.");
   await dialog.getByRole("button",{name:"Save profile",exact:true}).click();
-  await expect(page.getByRole("heading",{name:"Fixture learner 学ぶ人",exact:true})).toBeVisible();
+  await expect(page.getByText("Fixture learner 学ぶ人",{exact:true})).toBeVisible();
   const submission=await page.request.post(`/api/v1/challenges/${fixture.challengeId}/submissions`,{data:{flag:fixture.flag}});
   expect(submission.ok()).toBe(true);
   await page.getByRole("button",{name:"Refresh profile",exact:true}).click();
@@ -32,7 +32,8 @@ test("real owner profile edits persist, reflect canonical scores, and remain iso
   const board=await(await page.request.get("/api/v1/leaderboard?range=all")).json();
   expect(result.stats).toMatchObject({points:board.viewer.points,rank:board.viewer.rank,solved:board.viewer.solves});
   expect(result.identity.displayName).toBe("Fixture learner 学ぶ人");expect(JSON.stringify(result.card)).not.toContain(fixture.learners.learner);expect(JSON.stringify(result)).not.toContain(fixture.flag);
-  await page.reload();await expect(page.getByRole("heading",{name:"Fixture learner 学ぶ人",exact:true})).toBeVisible();
+  await page.reload();await expect(page.getByRole("heading",{name:`@${result.identity.codename}`,exact:true})).toBeVisible();
+  await expect(page.getByText("Fixture learner 学ぶ人",{exact:true})).toBeVisible();
   expect((await page.request.post("/api/auth/sign-out",{data:{}})).ok()).toBe(true);
   expect((await page.request.get("/api/v1/profile")).status()).toBe(401);
   await signIn(fixture.learners.otherLearner);
