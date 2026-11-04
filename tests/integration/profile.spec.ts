@@ -36,8 +36,9 @@ test("real owner profile edits persist, reflect canonical scores, and remain iso
   expect((await page.request.post("/api/auth/sign-out",{data:{}})).ok()).toBe(true);
   expect((await page.request.get("/api/v1/profile")).status()).toBe(401);
   await signIn(fixture.learners.otherLearner);
+  const otherAccount=await(await page.request.get("/api/v1/me")).json();
   const other=await(await page.request.get("/api/v1/profile?scope=all")).json();
   expect(other.identity.displayName).toBe("");expect(other.stats).toMatchObject({points:0,solved:0,rank:null});
-  const injection=await page.request.patch("/api/v1/profile",{headers:{"X-dfCTF-Account":other.id},data:{displayName:"Injected",bio:"",websiteUrl:"",githubUrl:"",role:"admin",points:999}});
+  const injection=await page.request.patch("/api/v1/profile",{headers:{"X-dfCTF-Account":otherAccount.id},data:{displayName:"Injected",bio:"",websiteUrl:"",githubUrl:"",role:"admin",points:999}});
   expect(injection.status()).toBe(422);
 });
