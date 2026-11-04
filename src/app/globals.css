@@ -267,6 +267,9 @@ a.card:active { transform: scale(.98); }
 .standings .name em { margin-left: 10px; font-style: normal; font-size: .75rem; color: var(--accent-text); }
 .standings .gap { display: block; padding: 6px 16px; }
 .standings-head { font-size: .75rem; color: var(--faint); font-weight: 500; padding-top: 8px !important; padding-bottom: 8px !important; }
+.standings-more { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 11px 16px; border-top: 1px solid var(--line); font-size: .875rem; }
+.standings-more p { margin: 0; }
+@media (pointer: coarse) { .standings-more .button { min-height: 44px; } }
 .feed li { display: grid; grid-template-columns: 48px 120px 92px minmax(0, 1fr) 52px; gap: 14px; align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--line); font-size: .8125rem; }
 .feed li:last-child { border-bottom: 0; }
 .feed-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .875rem; }
