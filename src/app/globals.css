@@ -1274,6 +1274,8 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .profile-avatar svg { display: block; }
 .profile-identity-copy { flex: 1; min-width: 0; }
 .profile-identity-copy h2 { font-size: clamp(1.75rem,3vw,2.5rem); line-height: 1.12; letter-spacing: -.035em; overflow-wrap: anywhere; }
+.profile-identity-copy h2.mono { color: var(--text); font-size: clamp(1.375rem,2.5vw,2rem); letter-spacing: -.045em; }
+.profile-display-name { margin-top: 6px; color: var(--accent-text); font-size: .9375rem; }
 .profile-codename { margin-top: 6px; color: var(--accent-text); font-size: .875rem; overflow-wrap: anywhere; }
 .profile-bio { max-width: 64ch; margin-top: 14px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); }
 .profile-identity-copy > .muted { margin-top: 12px; }
@@ -1281,11 +1283,13 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .profile-links a { display: inline-flex; align-items: center; gap: 6px; font-size: .8125rem; text-decoration: underline; text-underline-offset: 4px; }
 .profile-identity-actions { display: grid; gap: 12px; justify-items: end; max-width: 210px; text-align: right; }
 .profile-identity-actions .text-button { display: flex; align-items: center; gap: 8px; min-height: 40px; }
-.profile-stat-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border: 1px solid var(--line); background: var(--surface); }
-.profile-stat { display: grid; gap: 14px; padding: 24px 28px; min-width: 0; }
+.profile-stat-grid { display: grid; grid-template-columns: 1.2fr repeat(3,minmax(0,1fr)); border: 1px solid var(--line); background: var(--surface); }
+.profile-stat { display: grid; gap: 8px; align-content: center; padding: 16px 24px; min-width: 0; }
 .profile-stat + .profile-stat { border-left: 1px solid var(--line); }
-.profile-stat strong { font-size: clamp(1.6rem,3vw,2.5rem); font-weight: 600; letter-spacing: -.04em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.profile-stat:first-child strong { color: var(--accent-text); }
+.profile-stat strong { font-size: clamp(1.25rem,2.2vw,1.75rem); font-weight: 600; letter-spacing: -.04em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.profile-stat-rank { background: linear-gradient(110deg,var(--surface-2),var(--surface)); }
+.profile-stat-rank strong { color: var(--accent-text); font-size: clamp(1.5rem,2.6vw,2.125rem); }
+.profile-stat .stat-label { font: 500 .6875rem/1.4 var(--font-code); letter-spacing: .1em; color: var(--faint); }
 .profile-scope-note { color: var(--muted); font-size: .8125rem; line-height: 1.7; max-width: 110ch; }
 .profile-scope-note strong { color: var(--text); }
 .profile-scope-note span { display: block; color: var(--faint); }
@@ -1293,12 +1297,12 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .profile-section-head h2 { font-size: 1.25rem; letter-spacing: -.025em; }
 .profile-section-head p { margin-top: 8px; max-width: 65ch; line-height: 1.6; }
 .profile-section-head .tag { white-space: nowrap; }
-.profile-studio-grid { display: grid; grid-template-columns: minmax(0,1fr) 300px; }
-.profile-preview-area { min-width: 0; display: grid; align-content: center; gap: 16px; padding: 28px; background: var(--bg); }
-.profile-card-preview { margin: 0; width: 100%; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; box-shadow: 0 16px 40px rgb(0 0 0 / .18); }
+.profile-studio-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(280px,320px); }
+.profile-preview-area { min-width: 0; display: grid; align-content: center; gap: 16px; padding: 32px; background: radial-gradient(ellipse at center,var(--surface-2),var(--bg) 72%); }
+.profile-card-preview { margin: 0; width: 100%; aspect-ratio: 16/9; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; box-shadow: 0 18px 44px rgb(0 0 0 / .24); }
 .profile-card-preview img { display: block; width: 100%; height: auto; }
 .profile-preview-area .fine { line-height: 1.7; }
-.profile-card-controls { border-left: 1px solid var(--line); display: grid; gap: 20px; align-content: start; padding: 24px; }
+.profile-card-controls { border-left: 1px solid var(--line); display: grid; gap: 20px; align-content: start; padding: 24px; background: var(--surface); }
 .profile-control-group { border: 0; padding: 0; min-width: 0; margin: 0; display: grid; gap: 8px; }
 .profile-control-group legend { font-size: .8125rem; font-weight: 600; margin-bottom: 10px; padding: 0; }
 .profile-control-group > label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 44px; font-size: .8125rem; }
@@ -1333,7 +1337,7 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 }
 @media (max-width: 700px) {
   .profile-identity { padding: 20px; gap: 18px; flex-wrap: wrap; align-items: start; }.profile-avatar { padding: 6px; }.profile-avatar svg { width: 64px; height: 64px; }.profile-identity-copy { flex-basis: calc(100% - 110px); }.profile-identity-actions { max-width: none; width: 100%; grid-template-columns: auto auto; align-items: center; text-align: left; justify-items: start; border-top: 1px solid var(--line); padding-top: 16px; }.profile-identity-actions .fine { grid-column: 1/-1; }
-  .profile-stat-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.profile-stat { padding: 20px; }.profile-stat:nth-child(3) { border-left: 0; }.profile-stat:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .profile-stat-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.profile-stat { padding: 16px; }.profile-stat:nth-child(3) { border-left: 0; }.profile-stat:nth-child(n+3) { border-top: 1px solid var(--line); }
   .profile-detail-grid { grid-template-columns: 1fr; }.profile-section-head { padding: 20px; }.profile-preview-area { padding: 16px; }.profile-card-controls { grid-template-columns: 1fr; padding: 20px; }.profile-export-actions { grid-column: auto; grid-row: auto; }
   .profile-categories { padding: 20px; }.profile-milestones { padding: 0 20px; }.profile-activity li { padding: 20px; grid-template-columns: minmax(0,1fr) auto; }.profile-activity-time { grid-row: 2; grid-column: 1/-1; text-align: left; display: flex; flex-wrap: wrap; gap: 6px 16px; }.profile-activity li > strong { grid-column: 2; grid-row: 1; }
   .profile-edit-modal { width: 100%; }.profile-page-actions { width: 100%; justify-content: space-between; }.profile-page-actions .select-inline { min-width: 0; }
