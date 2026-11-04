@@ -34,7 +34,9 @@ JSON protections apply to every mutation.
 Friends, incoming requests, and outgoing requests are visible only to the
 authenticated owner. Requests are limited to 20 per day per sender; other
 connection actions use the existing minute-based limiter. Declined requests
-have a seven-day per-pair cooldown. No email, push notification, messaging,
+have a seven-day cooldown for the requester, measured from the decline. The
+person who declined can initiate a new request immediately; the other player
+must explicitly accept it. No email, push notification, messaging,
 presence tracking, or public friend graph is introduced.
 
 The migration also adds indexes for the second endpoint of a friend pair and
