@@ -30,8 +30,9 @@ export default function RulesNavigation({ items }: { items: LineSidebarItem[] })
   }, []);
 
   function close() {
-    disclosure.current!.open = false;
+    // Move focus out of the panel before hiding it so browser focus repair cannot override it.
     trigger.current?.focus({ preventScroll: true });
+    disclosure.current!.open = false;
   }
 
   return <div className="rules-navigation">
