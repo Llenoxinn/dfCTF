@@ -247,6 +247,98 @@ test("a late submission cannot solve or reveal a walkthrough on the next challen
   await expect(page.getByRole("button", { name: "Submit flag", exact: true })).toBeEnabled();
 });
 
+function standingsFixture(count: number) {
+  return Array.from({ length: count }, (_, i) => ({ rank: i + 1, codename: `player_${i + 1}`, points: 1000 - i, solves: 3 }));
+}
+
+async function mockLongStandings(page: Page) {
+  const { board } = await mockWorkspace(page, async (route, url) => {
+    if (url.pathname !== "/api/v1/leaderboard" || url.searchParams.get("range") !== "all") return false;
+    await route.fulfill({ json: { ...board, range: "all", players: 20, standings: standingsFixture(20), viewer: null } });
+    return true;
+  });
+  board.players = 120;
+  board.standings = standingsFixture(50);
+  board.standings[39].codename = "test_author";
+  board.viewer = { ...board.standings[39], gap: { codename: "player_39", points: 1 } };
+}
+
+test("standings expand in rank order, drop the duplicate viewer row, and reset between ranges", async ({ page }) => {
+  await mockLongStandings(page);
+  await page.goto("/?view=leaderboard");
+  const panel = page.getByRole("region", { name: "Standings", exact: true });
+  const rows = panel.locator(".standings li:not(.standings-head):not(.gap)");
+  const you = panel.locator(".standings .you");
+  const showMore = panel.getByRole("button", { name: "Show more", exact: true });
+  const count = panel.getByRole("status");
+  await expect(panel.locator(".panel-head")).toContainText("120 players");
+  await expect(rows).toHaveCount(16);
+  await expect(count).toHaveText("Showing 15 of the top 50");
+  await expect(you.locator(".rank")).toHaveText("40");
+
+  await showMore.focus();
+  await page.keyboard.press("Enter");
+  await expect(rows).toHaveCount(31);
+  await expect(showMore).toBeFocused();
+  await expect(you).toHaveCount(1);
+  await expect(count).toHaveText("Showing 30 of the top 50");
+
+  await page.keyboard.press("Space");
+  await expect(rows).toHaveCount(45);
+  await expect(you).toHaveCount(1);
+  await expect(panel.locator(".standings .gap")).toHaveCount(0);
+  await expect(rows.nth(39)).toHaveClass(/you/);
+
+  await page.keyboard.press("Enter");
+  await expect(rows).toHaveCount(50);
+  await expect(showMore).toHaveCount(0);
+  await expect(panel.getByRole("link", { name: "View player_46's profile", exact: true })).toBeFocused();
+  await expect(rows.locator(".rank")).toHaveText(Array.from({ length: 50 }, (_, i) => String(i + 1).padStart(2, "0")));
+  await expect(count).toHaveText("Showing the top 50 of 120 players");
+  await expect(panel.locator(".panel-head")).toContainText("120 players");
+
+  const ranges = page.getByRole("group", { name: "Range", exact: true });
+  await ranges.getByRole("button", { name: "All time", exact: true }).click();
+  await expect(rows).toHaveCount(15);
+  await expect(count).toHaveText("Showing 15 of 20 players");
+  await showMore.click();
+  await expect(rows).toHaveCount(20);
+  await expect(showMore).toHaveCount(0);
+  await expect(count).toHaveText("Showing all 20 players");
+
+  await ranges.getByRole("button", { name: "This week", exact: true }).click();
+  await expect(rows).toHaveCount(16);
+  await expect(count).toHaveText("Showing 15 of the top 50");
+  await expect(showMore).toBeVisible();
+});
+
+test("standings stay compact when every row already fits", async ({ page }) => {
+  const { board } = await mockWorkspace(page);
+  board.players = 15;
+  board.standings = standingsFixture(15);
+  await page.goto("/?view=leaderboard");
+  const panel = page.getByRole("region", { name: "Standings", exact: true });
+  await expect(panel.locator(".standings li:not(.standings-head)")).toHaveCount(15);
+  await expect(panel.getByRole("button", { name: "Show more", exact: true })).toHaveCount(0);
+  await expect(panel.getByRole("status")).toHaveCount(0);
+});
+
+test("standings expansion works by touch on a narrow screen", async ({ browser }) => {
+  const context = await browser.newContext({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  try {
+    const page = await context.newPage();
+    await mockLongStandings(page);
+    await page.goto("/?view=leaderboard");
+    const panel = page.getByRole("region", { name: "Standings", exact: true });
+    const showMore = panel.getByRole("button", { name: "Show more", exact: true });
+    await expect(showMore).toBeVisible();
+    expect((await showMore.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await showMore.tap();
+    await expect(panel.locator(".standings li:not(.standings-head):not(.gap)")).toHaveCount(31);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  } finally { await context.close(); }
+});
+
 test("leaderboard errors keep range controls and support cached recovery and retry", async ({ page }) => {
   let fail = true, allRequests = 0;
   await mockWorkspace(page, async (route, url) => {
