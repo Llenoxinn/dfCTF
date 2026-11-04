@@ -87,7 +87,7 @@ test("the hero pattern is stable and the map and goals reflect proven results",a
   await expect(categories.getByRole("img",{name:/Forensics 2 of 4/})).toBeVisible();
   await expect(categories.getByRole("listitem").filter({hasText:"OSINT"})).toContainText("None");
   const goals=page.getByRole("region",{name:"Milestones",exact:true});
-  await expect(goals).toContainText("2 of 3 earned");
+  await expect(goals).toContainText("2 of 3 earned");await expect(goals.locator("svg.milestone-icon[aria-hidden='true']")).toHaveCount(3);
   await expect(goals.getByRole("listitem").filter({hasText:"First solve"})).toContainText("Earned");
   await expect(goals.getByRole("listitem").filter({hasText:"Ten solves"})).toContainText("5/10");
   await expect(goals.getByRole("listitem").filter({hasText:"First Blood"})).toContainText("Earned");

@@ -1337,7 +1337,6 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .profile-categories .fine { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
 .profile-milestones { display: grid; gap: 0; list-style: none; margin: 0; padding: 0 28px; }
 .profile-milestones li { display: flex; gap: 16px; padding: 24px 0; border-bottom: 1px solid var(--line); }.profile-milestones li:last-child { border: 0; }
-.profile-milestone-icon { display: grid; place-items: center; flex: 0 0 38px; height: 38px; border: 1px solid var(--line-strong); color: var(--accent-text); font: 1.25rem var(--font-code); }
 .profile-milestones h3 { font-size: .9375rem; margin-bottom: 6px; }.profile-milestones p { color: var(--muted); font-size: .8125rem; line-height: 1.7; }
 .profile-activity { list-style: none; padding: 0; margin: 0; }.profile-activity li { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 16px; align-items: center; padding: 20px 28px; border-bottom: 1px solid var(--line); }
 .profile-activity a { display: inline-block; font-weight: 600; font-size: .9375rem; overflow-wrap: anywhere; text-underline-offset: 4px; }.profile-activity a:hover { text-decoration: underline; }
@@ -1377,10 +1376,10 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .pf-count { text-align: right; }
 .pf-map .num { text-align: right; }
 .pf-goals { display: grid; grid-auto-rows: 1fr; margin: 0; padding: 0; list-style: none; }
-.pf-goals li { display: grid; grid-template-columns: 14px minmax(0,1fr) auto; align-items: center; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.pf-goals li { display: grid; grid-template-columns: 32px minmax(0,1fr) auto; align-items: center; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
 .pf-goals li:last-child { border-bottom: 0; }
-.pf-goal-mark { width: 14px; height: 14px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.pf-goals [data-earned] .pf-goal-mark { background: var(--accent); box-shadow: none; }
+.milestone-icon { flex: none; display: block; color: var(--accent-text); }
+.pf-goals li:not([data-earned]) .milestone-icon { color: var(--faint); }
 .pf-goals h3 { font-size: .9375rem; }
 .pf-goals p { margin-top: 4px; color: var(--muted); font-size: .8125rem; line-height: 1.5; }
 .pf-goals .meter { margin-top: 8px; }

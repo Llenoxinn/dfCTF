@@ -2,7 +2,9 @@
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { applyTheme, effectiveTheme, type Theme } from "@/lib/theme";
+import { MILESTONE_ICON_SIZE, milestoneIconPath } from "@/lib/milestone-icons";
 import { identiconPath, meterCells } from "@/lib/pixel";
+import type { ProfileMilestone } from "@/lib/player-profile";
 import AsciiField from "./ascii-field";
 
 export function Icon({ name, size = 20, className = "" }: { name: string; size?: number; className?: string }) {
@@ -47,6 +49,11 @@ export function Identicon({ name, size = 28, you = false }: { name: string; size
   return <svg className={`identicon${you ? " identicon-you" : ""}`} width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" shapeRendering="crispEdges">
     <rect width={size} height={size} rx="2" className="identicon-bg" /><path d={identiconPath(name, size)} className="identicon-ink" />
   </svg>;
+}
+
+/** Decorative: the milestone's title always sits beside it. */
+export function MilestoneIcon({ id, size = 32 }: { id: ProfileMilestone["id"]; size?: number }) {
+  return <svg className="milestone-icon" width={size} height={size} viewBox={`0 0 ${MILESTONE_ICON_SIZE} ${MILESTONE_ICON_SIZE}`} aria-hidden="true" shapeRendering="crispEdges"><path d={milestoneIconPath(id)} fill="currentColor" /></svg>;
 }
 
 /** A 20-cell pixel meter; replaces ASCII bars, which Geist Mono would ligate. */

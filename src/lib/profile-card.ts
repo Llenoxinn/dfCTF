@@ -1,3 +1,4 @@
+import { milestoneIconPath } from "./milestone-icons";
 import { identiconPath } from "./pixel";
 import type { PublicProfileCard } from "./player-profile";
 
@@ -72,7 +73,7 @@ export function renderProfileCard(card: PublicProfileCard, preferences: CardPref
     ${prefs.showBio && card.bio?lines(card.bio,48).map((line,i)=>text(64,316+i*26,line,20,palette.muted)).join(""):""}
     <rect x="64" y="372" width="1072" height="128" rx="8" fill="${palette.surface}" stroke="${palette.line}"/>
     ${stats.map(([label,value],i)=>{const width=1072/stats.length,x=88+i*width;return `${i?`<path d="M${64+i*width} 396v80" stroke="${palette.line}"/>`:""}${text(x,409,label,14,palette.muted,'letter-spacing="1.5"')}${text(x,464,value,value.length>11?30:value.length>8?38:46,i===0?accent:palette.text,'font-weight="700"')}`;}).join("")}
-    ${badges.map((badge,i)=>{const x=64+i*252;return `<rect x="${x}" y="525" width="232" height="34" rx="17" fill="${palette.surface}" stroke="${palette.line}"/>${text(x+18,548,"+",20,accent)}${text(x+42,548,badge.label,16,palette.text,'font-weight="600"')}`;}).join("")}
+    ${badges.map((badge,i)=>{const x=64+i*252;return `<rect x="${x}" y="525" width="232" height="34" rx="17" fill="${palette.surface}" stroke="${palette.line}"/><g transform="translate(${x+12} 530) scale(1.5)" fill="${accent}" shape-rendering="crispEdges"><path d="${milestoneIconPath(badge.id)}"/></g>${text(x+44,548,badge.label,16,palette.text,'font-weight="600"')}`;}).join("")}
     ${text(64,609,card.scope,18,accent,'font-weight="700"')}
     ${text(1136,609,card.period,16,palette.muted,'text-anchor="end"')}
     ${text(64,635,`SNAPSHOT ${snapshot} PHT`,12,palette.muted,'letter-spacing="1"')}
