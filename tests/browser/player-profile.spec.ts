@@ -74,6 +74,43 @@ test("scope changes update statistics, activity, milestones and card together",a
   expect(await svg(page)).toContain("Practice · this week");expect(await svg(page)).toContain("#5");
 });
 
+test("the hero pattern is stable and the map and goals reflect proven results",async({page})=>{
+  await mockProfile(page);await page.goto("/?view=profile");
+  const band=page.locator(".pf-band path");await expect(band).toHaveAttribute("d",/^M/);
+  const pattern=await band.getAttribute("d");
+  await page.reload();await expect(band).toHaveAttribute("d",pattern!);
+  const categories=page.getByRole("region",{name:"Categories",exact:true});
+  await expect(categories).toContainText("2 of 4 solved");
+  const forensics=categories.getByRole("listitem").filter({hasText:"Forensics"});
+  await expect(forensics).toContainText("2/4");await expect(forensics).toContainText("160 pts");
+  await expect(forensics.locator(".pf-squares i")).toHaveCount(4);await expect(forensics.locator(".pf-squares i.on")).toHaveCount(2);
+  await expect(categories.getByRole("listitem").filter({hasText:"OSINT"})).toContainText("None");
+  const goals=page.getByRole("region",{name:"Milestones",exact:true});
+  await expect(goals).toContainText("2 of 3 earned");
+  await expect(goals.getByRole("listitem").filter({hasText:"First solve"})).toContainText("Earned");
+  await expect(goals.getByRole("listitem").filter({hasText:"Ten solves"})).toContainText("5/10");
+  await expect(goals.getByRole("listitem").filter({hasText:"First Blood"})).toContainText("Earned");
+  await expect(page.getByRole("button",{name:"Share card",exact:true})).toHaveClass(/button-primary/);
+});
+
+test("a new player sees goals and one clear next step",async({page})=>{
+  await mockProfile(page,{empty:true});await page.goto("/?view=profile");
+  await expect(page.getByRole("region",{name:"Milestones",exact:true})).toContainText("0 of 3 earned");
+  await expect(page.getByRole("region",{name:"Milestones",exact:true}).getByText("Not yet")).toHaveCount(2);
+  await expect(page.getByRole("heading",{name:"Your first solve starts here",exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:"Browse challenges",exact:true})).toHaveClass(/button-primary/);
+  await expect(page.getByRole("button",{name:"Share card",exact:true})).toHaveClass(/button-secondary/);
+  await expect(page.locator(".player-profile .empty")).toHaveCount(0);
+});
+
+for(const width of [320,390,768,1440]){
+  test(`the profile has no horizontal scrolling at ${width} pixels`,async({page})=>{
+    await mockProfile(page,{long:true});await page.setViewportSize({width,height:844});await page.goto("/?view=profile");
+    await expect(page.getByRole("button",{name:"Share card",exact:true})).toBeVisible();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  });
+}
+
 test("the player card opens on demand and returns focus when closed",async({page})=>{
   await mockProfile(page);await page.goto("/?view=profile");
   const share=page.getByRole("button",{name:"Share card",exact:true});
