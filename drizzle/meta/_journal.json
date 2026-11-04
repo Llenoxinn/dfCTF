@@ -50,6 +50,13 @@
       "when": 1793701860532,
       "tag": "0006_social_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793803382985,
+      "tag": "0007_feedback_receipts",
+      "breakpoints": true
     }
   ]
 }

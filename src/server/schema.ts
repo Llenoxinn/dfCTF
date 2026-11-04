@@ -4,6 +4,13 @@ import { user } from "./auth-schema";
 import type { LearningProgress } from "@/lib/resource-learning";
 export * from "./auth-schema";
 
+// Only delivery receipts are retained here; report text and optional contact details go to the private inbox.
+export const feedbackReceipts = pgTable("feedback_receipts", {
+  id: text("id").primaryKey(),
+  digest: text("digest").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}).enableRLS();
+
 export const playerProfiles = pgTable("player_profiles", {
   userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
   displayName: text("display_name").notNull().default(""),
