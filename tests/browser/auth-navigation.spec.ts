@@ -37,7 +37,7 @@ test("a guest challenge link preserves lesson filters through registration toggl
   await expect(page).toHaveURL(/view=practice&category=General\+skills&difficulty=Easy/);
   await expect(page.getByRole("group", { name: "Category", exact: true }).getByRole("button", { name: /General skills/ })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("group", { name: "Difficulty", exact: true }).getByRole("button", { name: "Easy", exact: true })).toHaveAttribute("aria-pressed", "true");
-  expect(callback()).toBe("http://127.0.0.1:3100/?view=practice&category=General+skills&difficulty=Easy");
+  expect(callback()).toBe("http://127.0.0.1:3100/?view=practice&category=General+skills&difficulty=Easy&verified=1");
 });
 
 test("the full leaderboard explains sign-in and returns to the leaderboard", async ({ page }) => {
