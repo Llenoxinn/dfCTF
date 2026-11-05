@@ -28,7 +28,7 @@ export function authDestination(search: string): string | null {
 }
 
 /** Where an emailed verification link returns to, marked so the sign-in page can confirm that it worked. */
-export function verificationCallback(origin: string, destination: string | null): string {
+export function verificationCallback(origin: string, destination?: string | null): string {
   const url = new URL(destination ?? "/", origin);
   url.searchParams.set("verified", "1");
   return url.href;
