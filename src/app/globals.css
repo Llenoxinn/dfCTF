@@ -1260,6 +1260,7 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 /* Profile: the same carbon/bone tokens, with a portable card as the focal point. */
 .socials-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; align-items: start; }
 .socials-grid .panel { min-width: 0; }
+.socials-grid .panel > .loading { padding-inline: 24px; }
 .social-filter { flex-wrap: wrap; }
 .social-filter button { min-height: 44px; }
 .social-search { display: flex; width: 100%; gap: 8px; }
@@ -1286,7 +1287,7 @@ dl.resource-area-notes { display: grid; gap: 20px; }
 .player-profile-link { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; min-height: 44px; align-content: center; }
 .player-profile-link:is(:hover,:focus-visible) { color: var(--accent-text); text-decoration-color: currentColor; }
 @media (max-width: 850px) { .socials-grid { grid-template-columns: 1fr; } }
-@media (max-width: 700px) { .social-profile-actions { width: 100%; max-width: none; }.social-profile .page-head { gap: 16px; flex-wrap: wrap; }.social-player-list > li { padding: 16px 20px; }.social-player-list .social-connection { padding-left: 0; }.social-search { flex-wrap: wrap; }.social-search .field { flex-basis: 180px; } }
+@media (max-width: 700px) { .social-profile-actions { width: 100%; max-width: none; }.social-profile .page-head { gap: 16px; flex-wrap: wrap; }.socials-grid .panel > .loading { padding-inline: 20px; }.social-player-list > li { padding: 16px 20px; }.social-player-list .social-connection { padding-left: 0; }.social-search { flex-wrap: wrap; }.social-search .field { flex-basis: 180px; } }
 .player-profile { display: grid; gap: 24px; min-width: 0; }
 .profile-kicker { display: block; color: var(--faint); font: 500 .6875rem/1.4 var(--font-code); letter-spacing: .14em; margin-bottom: 8px; }
 .profile-page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
