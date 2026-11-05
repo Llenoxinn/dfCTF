@@ -11,6 +11,7 @@ import { POST as verifyMfa } from "@/app/api/v1/auth/mfa/verify/route";
 import { GET as listAllowlist, POST as addAllowlist } from "@/app/api/v1/staff/allowlist/route";
 import { GET as bootstrap } from "@/app/api/v1/auth/bootstrap/route";
 import { GET as authGet, POST as authPost } from "@/app/api/auth/[...all]/route";
+import { sendAuthEmail } from "@/server/mail";
 import { DELETE as revokeAccess } from "@/app/api/v1/staff/allowlist/[id]/route";
 import { GET as listHostedCompetitions,POST as createHostedCompetition } from "@/app/api/v1/staff/competitions/route";
 
@@ -228,7 +229,7 @@ describe("open registration and account access", () => {
     const mailCount = outbound.messages.length;
     const replacementPassword = "A different registration passphrase 2!";
 
-    for (const submittedEmail of [email, email.toUpperCase()]) {
+    for (const [index, submittedEmail] of [email, email.toUpperCase()].entries()) {
       const response = await authPost(applicationRequest("/api/auth/sign-up/email", {
         email: submittedEmail, name: "Replacement account", password: replacementPassword,
       }));
@@ -242,7 +243,7 @@ describe("open registration and account access", () => {
       expect(await store.db.select().from(account).where(eq(account.userId, id))).toEqual(credentials);
       expect(await store.db.select().from(allowlist).where(eq(allowlist.email, email))).toEqual(access);
       expect(await store.db.select().from(session).where(eq(session.userId, id))).toHaveLength(0);
-      expect(outbound.messages).toHaveLength(mailCount);
+      expect(outbound.messages).toHaveLength(mailCount + (kind === "unverified" ? index + 1 : 0));
     }
     const replacementLogin = await auth.api.signInEmail({ body: { email, password: replacementPassword }, asResponse: true });
     expect(replacementLogin.status).toBe(401);
@@ -250,6 +251,58 @@ describe("open registration and account access", () => {
       const originalLogin = await auth.api.signInEmail({ body: { email, password }, asResponse: true });
       expect(originalLogin.status).toBe(kind === "verified" ? 200 : 403);
     }
+  });
+
+  it("recovers a failed first verification delivery on repeat signup and preserves the destination", async () => {
+    const email = "retry-verification@example.test";
+    vi.mocked(sendAuthEmail).mockRejectedValueOnce(new Error("Synthetic SMTP delivery failure"));
+    // Better Auth logs a delivery failure but still returns its neutral signup response.
+    const first = await auth.api.signUpEmail({ body: { email, name: "Retry player", password } });
+    expect(first.token).toBeNull();
+    expect(outbound.messages.some(entry => entry.to === email)).toBe(false);
+    const [identity] = await store.db.select().from(user).where(eq(user.email, email));
+    expect(identity.emailVerified).toBe(false);
+    const callbackURL = `${base}/?view=profile&verified=1`;
+    const response = await authPost(applicationRequest("/api/auth/sign-up/email", {
+      email, name: "Retry player", password: "A different password on retry 2!", callbackURL,
+    }));
+    expect(response.status).toBe(200);
+    expect(response.headers.getSetCookie()).toHaveLength(0);
+    const message = outbound.messages.filter(entry => entry.to === email).at(-1)!;
+    const link = new URL(message.url);
+    expect(link.origin).toBe(base);
+    expect(link.pathname).toBe("/api/auth/verify-email");
+    expect(link.searchParams.get("callbackURL")).toBe(callbackURL);
+    await auth.api.verifyEmail({ query: { token: link.searchParams.get("token")! } });
+    const login = await auth.api.signInEmail({ body: { email, password }, asResponse: true });
+    expect(login.status).toBe(200);
+    expect((await login.json()).user.id).toBe(identity.id);
+  });
+
+  it("does not send repeat-signup verification for suspended or expired existing accounts", async () => {
+    for (const reason of ["suspended", "expired"] as const) {
+      const email = `retry-${reason}@example.test`;
+      await auth.api.signUpEmail({ body: { email, name: "Blocked retry", password } });
+      await store.db.update(allowlist).set(reason === "suspended" ? { revokedAt: new Date() } : { expiresAt: new Date(Date.now() - 1000) }).where(eq(allowlist.email, email));
+      const count = outbound.messages.length;
+      const response = await authPost(applicationRequest("/api/auth/sign-up/email", { email, name: "Blocked retry", password }));
+      expect(response.status).toBe(200);
+      expect(outbound.messages).toHaveLength(count);
+      expect(await isEmailAllowed(email)).toBe(false);
+    }
+  });
+
+  it("keeps repeat-signup verification callbacks on the trusted app origin", async () => {
+    const email = "retry-foreign-callback@example.test";
+    await auth.api.signUpEmail({ body: { email, name: "Callback test", password } });
+    const count = outbound.messages.length;
+    const response = await authPost(applicationRequest("/api/auth/sign-up/email", {
+      email, name: "Callback test", password, callbackURL: "https://outside.example.test/",
+    }));
+    expect(response.status).toBe(200);
+    expect(outbound.messages).toHaveLength(count + 1);
+    const link = new URL(outbound.messages.at(-1)!.url);
+    expect(link.searchParams.get("callbackURL")).toBe(`${base}/?verified=1`);
   });
 
   it("keeps verified accounts usable when they have no legacy access entry", async () => {

@@ -1,5 +1,40 @@
 import { test, expect } from "@playwright/test";
 
+test("registration can retry a missed verification email and preserves the destination", async ({ page }) => {
+  await page.route("**/api/v1/auth/bootstrap", route => route.fulfill({ json: {
+    user: null, hasAccess: false, staffVerified: false,
+    providers: { google: false, github: false }, localMail: false,
+  } }));
+  await page.route("**/api/v1/community", route => route.fulfill({ json: { weekly: null } }));
+  await page.route("**/api/auth/sign-up/email", route => route.fulfill({ json: { token: null, user: { emailVerified: false } } }));
+  const requests: { email: string; callbackURL: string }[] = [];
+  await page.route("**/api/auth/send-verification-email", async route => {
+    requests.push(route.request().postDataJSON());
+    await route.fulfill(requests.length === 1
+      ? { status: 503, json: { error: { message: "Email delivery is temporarily unavailable. Please retry." } } }
+      : { json: { status: true } });
+  });
+  await page.goto("/?auth=signup&returnTo=" + encodeURIComponent("/?view=profile"));
+  await page.getByLabel("Email", { exact: true }).fill("retry@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("A registration test password 1!");
+  await page.locator("form").getByRole("button", { name: "Create account", exact: true }).click();
+  const resend = page.getByRole("button", { name: "Resend verification email", exact: true });
+  await resend.click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Email delivery is temporarily unavailable");
+  await expect(page.getByLabel("Email", { exact: true })).toHaveValue("retry@example.test");
+  await resend.click();
+  await expect(page.getByRole("status").filter({ hasText: "a new verification link has been sent" })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+  expect(requests).toHaveLength(2);
+  for (const request of requests) {
+    expect(request.email).toBe("retry@example.test");
+    const callback = new URL(request.callbackURL);
+    expect(callback.origin).toBe(new URL(page.url()).origin);
+    expect(callback.searchParams.get("view")).toBe("profile");
+    expect(callback.searchParams.get("verified")).toBe("1");
+  }
+});
+
 for (const next of ["signin", "forgot"] as const) {
   test(`registration gives neutral guidance and a working ${next} action`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });

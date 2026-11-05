@@ -80,6 +80,17 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to connect."); setBusy(false); }
   }
 
+  async function resendVerification() {
+    setBusy(true); setError("");
+    try {
+      await api("/api/auth/send-verification-email", { method: "POST", body: JSON.stringify({ email, callbackURL: verificationCallback(window.location.origin, returnTo) }) });
+      setMessage(bootstrap.localMail
+        ? "If this address is awaiting verification, a new verification link is available in the local mailbox below. Already registered? Sign in or reset your password."
+        : "If this address is awaiting verification, a new verification link has been sent. Check your inbox and spam folder. Already registered? Sign in or reset your password.");
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not send the verification email. Please try again."); }
+    finally { setBusy(false); }
+  }
+
   const title = { signin: "Sign in to dfCTF", signup: "Create your account", forgot: "Reset your password", reset: "Choose a new password", mfa: "Verify it’s you" }[mode];
   const subtitle = {
     signin: "Pick up where you left off. Your solves, points, and rank are saved to your account.",
@@ -110,8 +121,9 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
           <button type="button" aria-pressed={mode === "signup"} onClick={() => changeMode("signup")}>Create account</button>
         </div> : null}
         {message ? <Notice type={signupComplete ? "info" : "success"}>{message}{signupComplete ? <div className="cta-row">
-          <button type="button" className="text-button" onClick={() => changeMode("signin")}>Sign in to your account</button>
-          <button type="button" className="text-button" onClick={() => changeMode("forgot")}>Reset your password</button>
+          <button type="button" className="text-button" disabled={busy} onClick={resendVerification}>{busy ? "Sending verification email…" : "Resend verification email"}</button>
+          <button type="button" className="text-button" disabled={busy} onClick={() => changeMode("signin")}>Sign in to your account</button>
+          <button type="button" className="text-button" disabled={busy} onClick={() => changeMode("forgot")}>Reset your password</button>
         </div> : null}</Notice> : null}{error ? <Notice type="error">{error}</Notice> : null}
         <ValidatedForm onSubmit={submit} className="stack">
           {mode !== "mfa" && mode !== "reset" ? <label className="field"><span>Email</span><input type="email" name="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" disabled={busy} /></label> : null}

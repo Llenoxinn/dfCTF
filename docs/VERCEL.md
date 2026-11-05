@@ -2,6 +2,8 @@
 
 Use a separate staging project, database, SMTP credentials, OAuth applications, and secrets. The application runs as Next.js Node.js functions. PostgreSQL holds both records and private artifact bytes; local disk copies and legacy disk fallback are automatically disabled when `VERCEL=1`.
 
+For a private repository on Vercel Hobby, the deploying commit's author must have access to the Vercel project. Cherry-picking preserves the original author, so confirm the deployment is **Ready** after a repository sync; passing GitHub CI alone does not mean the new revision is live. Preserve copied history and publish subsequent changes with the configured maintainer identity rather than rewriting authors or disabling access checks.
+
 ## Before deploying
 
 - [ ] Choose one stable HTTPS staging hostname and the exact Git revision to deploy. Use that hostname for testing, email links, and provider callbacks.

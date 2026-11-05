@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth";
-import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
+import { APIError, createAuthMiddleware, createEmailVerificationToken, getSessionFromCtx } from "better-auth/api";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { nextCookies } from "better-auth/next-js";
 import { twoFactor } from "better-auth/plugins";
@@ -12,6 +12,7 @@ import { allowlist } from "./schema";
 import { localSecret } from "./flags";
 import { sendAuthEmail } from "./mail";
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, PASSWORD_PATTERN, PASSWORD_REQUIREMENTS } from "../lib/password-policy";
+import { verificationCallback } from "../lib/auth-navigation";
 
 const commonPasswords = new Set([
   "password1!", "password123!", "qwerty123!", "welcome1!", "admin123!",
@@ -64,11 +65,13 @@ export async function isEmailAllowed(email: string, db?: Database) {
 export function createAuth(db: Database) {
   const providers = configuredProviders();
   const appURL = new URL(process.env.APP_URL || "http://localhost:3000").origin;
+  const secret = localSecret("auth");
+  const trustedOrigins = process.env.NODE_ENV === "production" ? [appURL] : [appURL, "http://localhost:3000", "http://127.0.0.1:3000"];
   return betterAuth({
     appName: "dfCTF",
     baseURL: appURL,
-    secret: localSecret("auth"),
-    trustedOrigins: process.env.NODE_ENV === "production" ? [appURL] : [appURL, "http://localhost:3000", "http://127.0.0.1:3000"],
+    secret,
+    trustedOrigins,
     // Production ingress overwrites this header with the client's address.
     advanced: { ipAddress: { ipAddressHeaders: [process.env.NODE_ENV === "production" ? "x-real-ip" : "x-forwarded-for"] } },
     database: drizzleAdapter(db, { provider: "pg", schema: authSchema }),
@@ -84,6 +87,24 @@ export function createAuth(db: Database) {
         verify: ({ hash: digest, password }) => verify(digest, password),
       },
       sendResetPassword: ({ user, url }) => sendAuthEmail(user.email, "Reset your dfCTF password", url),
+      onExistingUserSignUp: async ({ user }, request) => {
+        // A failed first delivery can leave an unverified account behind. Retrying
+        // signup must send another link without changing its password or session.
+        if (user.emailVerified || !(await isEmailAllowed(user.email, db))) return;
+        let callbackURL = verificationCallback(appURL);
+        if (request) {
+          const body = await request.clone().json().catch(() => null);
+          if (typeof body?.callbackURL === "string") {
+            const callback = new URL(body.callbackURL, appURL);
+            if (trustedOrigins.includes(callback.origin)) callbackURL = callback.href;
+          }
+        }
+        const token = await createEmailVerificationToken(secret, user.email);
+        const url = new URL("/api/auth/verify-email", appURL);
+        url.searchParams.set("token", token);
+        url.searchParams.set("callbackURL", callbackURL);
+        await sendAuthEmail(user.email, "Verify your dfCTF email", url.href);
+      },
     },
     emailVerification: {
       sendOnSignUp: true,
