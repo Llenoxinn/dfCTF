@@ -33,7 +33,8 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
     const params = new URLSearchParams(window.location.search);
     const resetToken = params.get("token");
     if (resetToken && (params.get("reset") === "1" || window.location.pathname.includes("reset"))) { setToken(resetToken); setMode("reset"); }
-    if (params.has("verified")) setMessage("Your email is verified. Sign in to continue.");
+    // A failed link keeps its callback's verified=1 and adds an error.
+    if (params.has("verified") && !params.has("error")) setMessage("Your email is verified. Sign in to continue.");
     if (params.get("passwordReset") === "1") setMessage("Password updated. Sign in with your new password.");
     if (params.get("error")) setError(params.get("oauthError") === "1" ? socialSignInError(params.get("error")) : "This link could not be used. Request a new email and try again.");
   }, []);
