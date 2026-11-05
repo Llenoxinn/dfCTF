@@ -27,6 +27,13 @@ export function authDestination(search: string): string | null {
   return safeReturnTo(params.get("returnTo")) ?? safeReturnTo(`/?${params}`);
 }
 
+/** Where an emailed verification link returns to, marked so the sign-in page can confirm that it worked. */
+export function verificationCallback(origin: string, destination?: string | null): string {
+  const url = new URL(destination ?? "/", origin);
+  url.searchParams.set("verified", "1");
+  return url.href;
+}
+
 export function destinationLabel(destination: string): string {
   const params = new URLSearchParams(destination.split("?")[1]);
   const view = params.get("view");

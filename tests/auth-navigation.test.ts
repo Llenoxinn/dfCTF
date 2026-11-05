@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authDestination, destinationLabel, safeReturnTo } from "../src/lib/auth-navigation";
+import { authDestination, destinationLabel, safeReturnTo, verificationCallback } from "../src/lib/auth-navigation";
 
 describe("sign-in destinations", () => {
   it("preserves a lesson's category and difficulty across the sign-in URL", () => {
@@ -22,5 +22,13 @@ describe("sign-in destinations", () => {
     expect(authDestination("?view=socials&player=packet_fox")).toBe("/?view=socials&player=packet_fox");
     expect(destinationLabel("/?view=socials&player=packet_fox")).toBe("packet_fox's player profile");
     expect(safeReturnTo("/?view=socials&player=https://other.test&token=secret")).toBe("/?view=socials");
+  });
+  it("marks verification callbacks without losing the destination",()=>{
+    expect(verificationCallback("https://dfctf.test",null)).toBe("https://dfctf.test/?verified=1");
+    const path="/?view=practice&category=General+skills&difficulty=Easy";
+    const callback=verificationCallback("https://dfctf.test",path);
+    expect(callback).toBe(`https://dfctf.test${path}&verified=1`);
+    expect(authDestination(new URL(callback).search)).toBe(path);
+    expect(authDestination("?verified=1")).toBeNull();
   });
 });

@@ -4,7 +4,7 @@ import ValidatedForm from "./validated-form";
 
 import { FormEvent, useEffect, useState } from "react";
 import type { Bootstrap, Community } from "@/lib/types";
-import { destinationLabel } from "@/lib/auth-navigation";
+import { destinationLabel, verificationCallback } from "@/lib/auth-navigation";
 import { socialSignInError } from "@/lib/social-errors";
 import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, PASSWORD_PATTERN, PASSWORD_REQUIREMENTS } from "@/lib/password-policy";
 import AsciiField from "./ascii-field";
@@ -33,7 +33,8 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
     const params = new URLSearchParams(window.location.search);
     const resetToken = params.get("token");
     if (resetToken && (params.get("reset") === "1" || window.location.pathname.includes("reset"))) { setToken(resetToken); setMode("reset"); }
-    if (params.has("verified")) setMessage("Your email is verified. Sign in to continue.");
+    // A failed link keeps its callback's verified=1 and adds an error.
+    if (params.has("verified") && !params.has("error")) setMessage("Your email is verified. Sign in to continue.");
     if (params.get("passwordReset") === "1") setMessage("Password updated. Sign in with your new password.");
     if (params.get("error")) setError(params.get("oauthError") === "1" ? socialSignInError(params.get("error")) : "This link could not be used. Request a new email and try again.");
   }, []);
@@ -58,7 +59,7 @@ export default function AuthPanel({ bootstrap, refresh, initialMode = "signin", 
         await api("/api/v1/auth/mfa/verify", { method: "POST", body: JSON.stringify({ code, method: backup ? "backup" : "totp" }) });
         await refresh();
       } else {
-        const result = await api<{ twoFactorRedirect?: boolean }>(`/api/auth/${mode === "signup" ? "sign-up" : "sign-in"}/email`, { method: "POST", body: JSON.stringify({ email, password, ...(mode === "signup" ? { name: email.split("@")[0] } : {}), callbackURL: `${window.location.origin}${returnTo ?? "/"}` }) });
+        const result = await api<{ twoFactorRedirect?: boolean }>(`/api/auth/${mode === "signup" ? "sign-up" : "sign-in"}/email`, { method: "POST", body: JSON.stringify({ email, password, ...(mode === "signup" ? { name: email.split("@")[0] } : {}), callbackURL: verificationCallback(window.location.origin, returnTo) }) });
         if (result.twoFactorRedirect) { setMode("mfa"); setPassword(""); }
         else if (mode === "signup") {
           // Better Auth also returns success for existing emails to protect account privacy.
