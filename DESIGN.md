@@ -1,6 +1,6 @@
 # dfCTF design system
 
-A typical capture-the-flag platform, built with care. ASCII and 1-bit dither are the graphic language; the product stays a familiar CTF board. Figma source: https://www.figma.com/design/3WwMlVB5ByR3tAtYLh6f7f (page "Redesign: landing + library"). Code: `src/app/globals.css`, `src/components/ui.tsx`, `src/components/viz.tsx`, `src/components/cards.tsx`, `src/lib/pixel.ts`.
+A typical capture-the-flag platform, built with care. ASCII and 1-bit dither are the graphic language; the product stays a familiar CTF board. Figma source: https://www.figma.com/design/3WwMlVB5ByR3tAtYLh6f7f (page "Redesign: landing + library"; see [Landing revamp](#landing-revamp-approved-not-built-yet) for the approved next landing page). Code: `src/app/globals.css`, `src/components/ui.tsx`, `src/components/viz.tsx`, `src/components/cards.tsx`, `src/lib/pixel.ts`.
 
 ## Rules that hold everywhere
 
@@ -72,6 +72,42 @@ Easing token `--ease-out: cubic-bezier(.23, 1, .32, 1)`. Only transform, opacity
 | Ticker | linear 48s loop, pauses on hover | ambient, landing only |
 
 Rejected: per-section fade-ups, card hover lifts in the library, animated chart drawing. (The weekly countdown rolls its digits on request; see Countdown. The landing's live numbers, challenges published, categories covered, flags this week and the activity totals, roll in with the same Counter once loaded, at their text size.) Under `prefers-reduced-motion`, movement stops and fades remain. Hover styles live under `(hover: hover) and (pointer: fine)`.
+
+## Landing revamp (approved, not built yet)
+
+The rules above describe the live site until this ships. Then fold this section into them and retire what it replaces. Figma source: https://www.figma.com/design/3WwMlVB5ByR3tAtYLh6f7f/dfCTF?node-id=82-3286 (page "Landing revamp: sideways prototype"; its codenames, counts, and titles are sample data).
+
+- **Layout**: at 1024px wide and 640px tall or more, normal scrolling moves the page sideways: a tall wrapper, a sticky full-height stage, and a track moved with `translate3d` from `window.scrollY`, with no scroll hijacking and no arrow buttons. Smaller viewports and reduced motion stack vertically. The footer is a normal vertical section after the track.
+- **Frame**: replaces the 1440px column. It stays fixed at every desktop size while content moves through it, with corner markers, the header, a pixel progress meter, the section label, and the Pause motion control.
+- **Type**: the hero and closing `dfCTF` use custom pixel lettering, shipped as a web font so they stay real text. Other headings use Tektur. Geist stays for reading at 14px or larger, with 20px leads. Geist Mono stays for its existing uses. Martian Mono stays on the wordmark only. Alternative fonts are kept in the Figma file.
+- **Braces**: the signature render is 3D `{ }` in ASCII and 1-bit dither, scrubbed by scroll and playing in reverse when scrolled back. It holds what matters at each stop: the headline, the warm-up card, the lead figure, the countdown, and finally the flag. Art is masked around text.
+- **Category art**: an accordion with one category open. Each illustration shows what that category hunts for, and yellow marks the answer. Art is vector or canvas pixels, never text screenshots or blurred rasters.
+- **Pixel field**: yellow squares in three tones from `--accent-text`, so they hold up in light theme. They stream into the braces, rise off the How it works cards, drain through the week meter, sparkle on the histogram, and burst once on a solve.
+- **Motion**: sideways travel uses `cubic-bezier(0.77, 0, 0.175, 1)`. This revamp lifts the old rejection of ambient motion for the landing page only, subject to the accessibility rules below. Per-section fade-ups stay rejected.
+
+## Accessibility
+
+Target WCAG 2.2 AA. These hold everywhere, and the landing revamp must meet them before it ships.
+
+Measured contrast against `--bg` and `--surface` (dark, then light):
+
+| Pair | Dark | Light | Result |
+| --- | --- | --- | --- |
+| `--text` | 15.45, 14.52 | 16.98, 18.71 | passes 4.5:1 |
+| `--muted` | 6.97, 6.55 | 6.89, 7.59 | passes 4.5:1 |
+| `--faint` | 5.27, 4.95 | 4.92, 5.43 | passes 4.5:1 |
+| `--accent-text` | 13.08, 12.29 | 5.67, 6.25 | passes 4.5:1 |
+| `--line-strong` | 1.87, 1.76 | 1.81, 1.99 | fails 3:1 as a control boundary |
+| `--line` | 1.39 | 1.30 | decorative dividers only |
+
+- **Control boundaries**: an input or outlined button needs a 3:1 boundary. `--line-strong` alone does not meet this. This gap exists on the live site and needs a token decision.
+- **Motion**: anything that moves on its own for more than 5 seconds needs a visible, keyboard-operable pause control. Reduced motion stops travel, loops, and scrubbing. Nothing flashes more than three times per second. Decorative motion pauses off screen and in hidden tabs.
+- **Real text**: headlines are real text. Decorative lettering ships as a web font, not as an image. Canvas and art are hidden from assistive technology and hold no unique information; charts carry a text summary.
+- **Keyboard**: every pointer path has a keyboard path, focus is always visible, and a focused control is never hidden behind fixed chrome. Focus moves never change layout: accordions and tabs open on click, Enter, or Space.
+- **Scroll stages**: the sideways track must keep source order equal to visual order, bring focused controls into view, stay in sync when the browser scrolls for focus or find in page, and support hash links without `scrollIntoView`.
+- **Color**: state never relies on color alone. Difficulty pips, verdicts, and meters keep a written label.
+- **Live updates**: timers do not announce every tick. Only meaningful changes reach a live region.
+- **Reflow and targets**: content works at 200% zoom and 320px wide with no horizontal page scrolling. Targets are at least 24 by 24 CSS pixels, and 44 on touch where density allows.
 
 ## Data behind the visuals
 
