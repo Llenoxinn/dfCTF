@@ -77,6 +77,26 @@ test("network failures allow retry and expired sessions clear private connection
   mock.expire();await page.getByRole("button",{name:"Cancel request: echo_fox",exact:true}).click();await expect(page.getByRole("main").getByRole("alert")).toContainText("Sign in again");await expect(page.getByRole("heading",{name:"echo_fox",exact:true})).toHaveCount(0);
 });
 
+test("the connections loader stays inset on every tab at desktop and mobile widths",async({page})=>{
+  await fixture(page);
+  let release=()=>{};const held=new Promise<void>(resolve=>{release=resolve;});
+  await page.route(url=>url.pathname==="/api/v1/socials"&&url.searchParams.has("kind"),async route=>{await held;await route.fallback().catch(()=>{});});
+  await page.goto("/?view=socials");
+  const connections=page.getByRole("region",{name:"Your connections",exact:true}),loader=connections.locator(".loading");
+  for(const [width,inset] of [[1280,24],[390,20]] as const){
+    await page.setViewportSize({width,height:844});
+    for(const tab of ["Friends","Received","Sent"]){
+      await connections.getByRole("button",{name:tab,exact:true}).click();await expect(loader).toContainText("Loading players");
+      const panel=(await connections.boundingBox())!,meter=(await loader.locator(".pixel-scan").boundingBox())!,label=(await loader.locator(".mono").boundingBox())!;
+      expect(meter.x-panel.x-1).toBeCloseTo(inset,0);expect(label.x+label.width).toBeLessThanOrEqual(panel.x+panel.width-inset);
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    }
+    await page.screenshot({path:`test-results/socials-connections-loading-${width}.png`});
+  }
+  await connections.getByRole("button",{name:"Received",exact:true}).click();release();
+  await expect(connections.getByRole("link",{name:/pending_peer/})).toBeVisible();await expect(loader).toHaveCount(0);
+});
+
 test("directory and player profiles fit narrow screens in both site themes",async({page})=>{
   await fixture(page);await page.setViewportSize({width:390,height:844});await page.goto("/?view=socials");
   await expect(page.getByRole("heading",{name:"Socials",exact:true})).toBeVisible();await expect(page.getByRole("region",{name:"Find players",exact:true}).getByRole("link",{name:/echo_fox/})).toBeVisible();
