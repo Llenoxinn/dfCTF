@@ -69,6 +69,34 @@ test("a declined social callback offers recovery without exposing the provider d
   await expect(page.getByRole("button", { name: "Continue with GitHub", exact: true })).toBeEnabled();
 });
 
+test("registration asks the verification email to return to the destination with a confirmation", async ({ page }) => {
+  await mockSignIn(page);
+  await page.route("**/api/auth/sign-up/email", route => route.fulfill({ json: {} }));
+  await page.goto(`/?auth=signup&returnTo=${encodeURIComponent("/?view=leaderboard")}`);
+  await page.getByLabel("Email", { exact: true }).fill("visitor@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("Fictional-signup-passw0rd!");
+  const request = page.waitForRequest("**/api/auth/sign-up/email");
+  await page.locator("form").getByRole("button", { name: "Create account", exact: true }).click();
+  expect((await request).postDataJSON().callbackURL).toBe("http://127.0.0.1:3100/?view=leaderboard&verified=1");
+});
+
+test("verification links confirm success only when they worked and keep the destination", async ({ page }) => {
+  await mockSignIn(page);
+  const confirmation = page.getByText("Your email is verified. Sign in to continue.", { exact: true });
+  await page.goto("/?view=leaderboard&verified=1&error=TOKEN_EXPIRED");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("This link could not be used.");
+  await expect(confirmation).toHaveCount(0);
+  await page.goto("/?verified=1");
+  await expect(confirmation).toBeVisible();
+  await page.goto("/?view=leaderboard&verified=1");
+  await expect(confirmation).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "We’ll keep your place." })).toContainText("the full leaderboard");
+  await page.getByLabel("Email", { exact: true }).fill("visitor@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("fictional sign-in password");
+  await page.locator("form").getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL("/?view=leaderboard");
+});
+
 test("guests can reach privacy and private support before registering", async ({ page }) => {
   await mockSignIn(page);
   await page.setViewportSize({ width: 390, height: 844 });
