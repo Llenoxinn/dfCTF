@@ -2,9 +2,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { createStore } from "@/server/db";
-import { user, challenges, challengeVersions, solves, xpLedger } from "@/server/schema";
+import { allowlist, user, challenges, challengeVersions, solves, xpLedger } from "@/server/schema";
 import { getPlayerProfile, profileActivity, profileInput, savePlayerProfile } from "@/server/player-profile";
 import { getLeaderboard } from "@/server/community";
+import { viewPlayer } from "@/server/socials";
 import type { Viewer } from "@/lib/types";
 import * as access from "@/server/access";
 import * as database from "@/server/db";
@@ -81,6 +82,34 @@ describe("authoritative owner profile", () => {
     expect(next.items).toHaveLength(3);
     expect(new Set([...first.items,...next.items].map(item=>item.challengeId)).size).toBe(15);
     await expect(profileActivity(store.db,owner.id,"week",now,first.nextCursor!)).rejects.toMatchObject({code:"INVALID_CURSOR"});
+  });
+  it("keeps profile, activity, and card First Blood aligned with eligible solvers without rewriting awards", async () => {
+    const suspended=await player(),successor=await player();
+    const first=await capture(suspended,{at:new Date(now.getTime()-1000),award:100});
+    const solveId=randomUUID(),restriction=randomUUID();
+    await store.db.insert(solves).values({id:solveId,userId:successor.id,challengeId:first.id,versionId:first.version,createdAt:now});
+    await store.db.insert(xpLedger).values({id:randomUUID(),userId:successor.id,familyId:first.id,solveId,amount:50});
+    await store.db.insert(allowlist).values({id:restriction,email:suspended.email,revokedAt:now});
+    for(const scope of ["all","week"] as const) {
+      const profile=await getPlayerProfile(store.db,successor,scope,now);
+      expect(profile.stats).toMatchObject({points:50,solved:1,firstBloods:1});
+      expect(profile.activity.items[0].firstBlood).toBe(true);
+      expect(profile.card.firstBloods).toBe(1);
+      expect(profile.card.milestones.map(m=>m.id)).toContain("first-blood");
+    }
+    await expect(viewPlayer(store.db,successor.id,suspended.codename!,"all",now)).rejects.toMatchObject({status:404});
+    const visible=await viewPlayer(store.db,suspended.id,successor.codename!,"all",now);
+    expect(visible.stats.firstBloods).toBe(1);
+    expect(JSON.stringify(visible)).not.toMatch(/private\.test|PRIVATE_|"userId"|"email"|"card"|"solution"|"flagHash"/);
+    await store.db.update(allowlist).set({revokedAt:null}).where(eq(allowlist.id,restriction));
+    const restored=await getPlayerProfile(store.db,suspended,"all",now),later=await getPlayerProfile(store.db,successor,"all",now);
+    expect(restored.stats).toMatchObject({points:100,solved:1,firstBloods:1});
+    expect(later.stats).toMatchObject({points:50,solved:1,firstBloods:0});
+    expect(later.activity.items[0].firstBlood).toBe(false);
+    expect(later.card.firstBloods).toBe(0);
+    expect(later.card.milestones.map(m=>m.id)).not.toContain("first-blood");
+    expect(await store.db.select().from(solves).where(eq(solves.challengeId,first.id))).toHaveLength(2);
+    expect(await store.db.select().from(xpLedger).where(eq(xpLedger.familyId,first.id))).toHaveLength(2);
   });
   it("validates owner-only writes, rejects mass assignment and unsafe URLs, and isolates accounts", async () => {
     const owner = await player(), other = await player();

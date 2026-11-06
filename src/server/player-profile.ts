@@ -1,8 +1,9 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "./db";
-import { challenges, challengeVersions, playerProfiles, solves, xpLedger } from "./schema";
+import { challenges, challengeVersions, playerProfiles, solves, xpLedger, user } from "./schema";
 import { practiceStanding } from "./practice-standing";
+import { notSuspended } from "./player-eligibility";
 import { HttpError } from "./http";
 import { weekStart, weekEnd } from "@/lib/week";
 import { CATEGORIES, type Category, type Viewer } from "@/lib/types";
@@ -27,13 +28,16 @@ export async function savePlayerProfile(db: Database, owner: Viewer, input: z.in
   return { codename: owner.codename!, ...saved };
 }
 
-const firstSolves = sql`select distinct on (challenge_id) id from solves order by challenge_id,created_at,id`;
+const firstSolves = (now: Date) => sql`select distinct on (${solves.challengeId}) ${solves.id} from ${solves}
+  inner join ${user} on ${user.id}=${solves.userId} where ${notSuspended(now)}
+  order by ${solves.challengeId},${solves.createdAt},${solves.id}`;
 const accessible = sql`${challenges.status}='published' and ${challenges.visibility}='practice'`;
 const period = (scope: ProfileScope, now: Date) => scope === "all" ? "All-time practice" : `${new Intl.DateTimeFormat("en", { timeZone: "Asia/Manila", day: "numeric", month: "short" }).format(weekStart(now))} – ${new Intl.DateTimeFormat("en", { timeZone: "Asia/Manila", day: "numeric", month: "short", year: "numeric" }).format(weekEnd(now))} · PHT`;
 const inScope = (scope: ProfileScope, now: Date) => sql`${solves.createdAt}<=${now} and ${scope === "week" ? sql`${solves.createdAt}>=${weekStart(now)}` : sql`true`}`;
 const cursorSchema = z.object({ at: z.iso.datetime(), id: z.string().min(1).max(200), asOf: z.iso.datetime(), scope: z.enum(["all", "week"]) }).strict();
 
 export async function profileActivity(db: Database, ownerId: string, scope: ProfileScope, now = new Date(), cursor?: string): Promise<ProfileActivityPage> {
+  const eligibilityAt = now;
   let after: z.infer<typeof cursorSchema> | null = null;
   if (cursor) {
     try { after = cursorSchema.parse(JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"))); }
@@ -44,7 +48,7 @@ export async function profileActivity(db: Database, ownerId: string, scope: Prof
   const result = await db.execute(sql`select ${solves.id} as id,${solves.challengeId} as challenge_id,${solves.createdAt} as at,
     to_char(${solves.createdAt} at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_at,
     ${challengeVersions.title} as title,${challengeVersions.category} as category,coalesce(${xpLedger.amount},0) as points,
-    exists(select 1 from (${firstSolves}) firsts where firsts.id=${solves.id}) as first_blood
+    exists(select 1 from (${firstSolves(eligibilityAt)}) firsts where firsts.id=${solves.id}) as first_blood
     from ${solves} inner join ${challenges} on ${challenges.id}=${solves.challengeId}
     inner join ${challengeVersions} on ${challengeVersions.challengeId}=${challenges.id} and ${challengeVersions.version}=${challenges.currentVersion}
     left join ${xpLedger} on ${xpLedger.solveId}=${solves.id}
@@ -67,7 +71,7 @@ export async function getPlayerProfile(db: Database, owner: Pick<Viewer, "id" | 
       tx.execute(sql`select count(*) as solved,coalesce(sum(${xpLedger.amount}),0) as points,
         count(*) filter (where firsts.id is not null) as first_bloods
         from ${solves} left join ${xpLedger} on ${xpLedger.solveId}=${solves.id}
-        left join (${firstSolves}) firsts on firsts.id=${solves.id}
+        left join (${firstSolves(now)}) firsts on firsts.id=${solves.id}
         where ${solves.userId}=${owner.id} and ${inScope(scope,now)}`),
       tx.execute(sql`select ${challengeVersions.category} as category,count(*) as total,count(${solves.id}) as solved,coalesce(sum(${xpLedger.amount}),0) as points
         from ${challenges} inner join ${challengeVersions} on ${challengeVersions.challengeId}=${challenges.id} and ${challengeVersions.version}=${challenges.currentVersion}

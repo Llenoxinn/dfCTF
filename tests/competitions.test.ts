@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq,sql } from "drizzle-orm";
 import { createStore } from "@/server/db";
-import { user,competitionSolves,competitionSubmissions } from "@/server/schema";
+import { allowlist,user,competitionSolves,competitionSubmissions } from "@/server/schema";
 import { createChallenge,editChallenge,publishChallenge,listChallenges,challengeDetail,submitFlag,getProgress } from "@/server/challenges";
 import { saveArtifact,downloadArtifact } from "@/server/files";
 import { getCommunity } from "@/server/community";
@@ -92,6 +92,32 @@ describe("competition isolation and scoring",()=>{
     expect(await store.db.select().from(competitionSubmissions).where(eq(competitionSubmissions.competitionId,e.id))).toHaveLength(0);
     await setCompetitionStatus(store.db,admin,e.id,"archived");
     await expect(downloadArtifact(store.db,player,c.id,c.file.id,false,e.id)).rejects.toMatchObject({status:404});
+  });
+  it("hides suspended competitors, transfers First Blood, and restores their preserved results when reinstated",async()=>{
+    const {e,c}=await event();
+    const suspended={...player,id:randomUUID(),email:`${randomUUID()}@example.test`,codename:"suspended_competitor"};
+    await store.db.insert(user).values({...suspended,name:"Private suspended account"});
+    for(const entrant of [suspended,player,other])await joinCompetition(store.db,entrant,e.id);
+    vi.setSystemTime(start);await submitCompetitionFlag(store.db,suspended,e.id,c.id,flag);
+    vi.setSystemTime(new Date(start.getTime()+1000));await submitCompetitionFlag(store.db,player,e.id,c.id,flag);
+    const restriction=randomUUID();
+    await store.db.insert(allowlist).values({id:restriction,email:suspended.email,revokedAt:start});
+    await store.db.insert(allowlist).values({id:randomUUID(),email:other.email,expiresAt:new Date()});
+    try {
+      const board=await getCompetition(store.db,player,e.id);
+      expect(board.participants).toBe(1);
+      expect(board.standings).toEqual([{rank:1,codename:player.codename,points:250,solves:1}]);
+      expect(board.challenges[0].solveCount).toBe(1);
+      const detail=await competitionChallengeDetail(store.db,player,e.id,c.id);
+      expect(detail.solveCount).toBe(1);
+      expect(detail.solvers).toEqual([expect.objectContaining({codename:player.codename,firstBlood:true})]);
+      expect(await store.db.select().from(competitionSolves).where(eq(competitionSolves.competitionId,e.id))).toHaveLength(2);
+      await store.db.update(allowlist).set({revokedAt:null}).where(eq(allowlist.id,restriction));
+      const restored=await getCompetition(store.db,player,e.id);
+      expect(restored.participants).toBe(2);
+      expect(restored.standings.map(row=>[row.rank,row.codename])).toEqual([[1,suspended.codename],[2,player.codename]]);
+      expect((await competitionChallengeDetail(store.db,player,e.id,c.id)).solvers?.filter(row=>row.firstBlood)).toEqual([expect.objectContaining({codename:suspended.codename})]);
+    } finally { await store.db.delete(allowlist).where(eq(allowlist.email,other.email)); }
   });
   it.each([end,new Date(end.getTime()+60_000)])("keeps published-event challenges immutable and accessible after the event ends (%s)",async(at)=>{
     const {e,c}=await event();await joinCompetition(store.db,player,e.id);vi.setSystemTime(at);

@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import type { Bootstrap, ChallengeDetail, Leaderboard } from "../../src/lib/types";
+import type { Bootstrap, ChallengeDetail, Community, Leaderboard } from "../../src/lib/types";
 
 async function mockWorkspace(page: Page, handle?: (route: Route, url: URL) => Promise<boolean>) {
   const bootstrap: Bootstrap = {
@@ -22,7 +22,7 @@ async function mockWorkspace(page: Page, handle?: (route: Route, url: URL) => Pr
     else if (url.pathname === "/api/v1/leaderboard") response = board;
     else if (["/api/auth/list-accounts", "/api/auth/list-sessions"].includes(url.pathname)) response = [];
     else if (url.pathname === "/api/auth/get-session") response = { session: { id: "test-session" } };
-    else if (url.pathname === "/api/v1/community") response = { weekly: null };
+    else if (url.pathname === "/api/v1/community") response = { weekly: null, recent: [], top: [], topAll: [], activity: { start: new Date().toISOString(), days: [0] }, totals: { challenges: 0, categories: [] } } satisfies Community;
     else throw new Error(`Unexpected test request: ${route.request().method()} ${url.pathname}`);
     await route.fulfill({ json: response });
   });
@@ -36,6 +36,71 @@ function challenge(id: string, title: string): ChallengeDetail {
     solved: false, attempted: false, solveCount: 0, status: "published", author: "test_author", version: 1, files: [],
   };
 }
+
+test.describe("weekly reset details",()=>{
+  test.use({hasTouch:true,timezoneId:"America/Los_Angeles"});
+  test("shares the Manila deadline across hover, keyboard and touch without layout shifts or overflow",async({page,context})=>{
+    const {board}=await mockWorkspace(page);board.weekEndsAt="2026-11-08T15:59:59.999Z";
+    await page.clock.install({time:new Date("2026-11-05T04:00:00Z")});
+    for(const theme of ["dark","light"]){
+      await context.addCookies([{name:"dfctf-theme",value:theme,url:"http://127.0.0.1:3100"}]);
+      await page.setViewportSize({width:1440,height:900});await page.goto("/?view=practice");
+      const trigger=page.getByRole("button",{name:"Weekly reset details",exact:true}),tip=page.getByRole("tooltip");
+      const account=page.getByRole("button",{name:/^Account menu for/}),before=await account.boundingBox();
+      await expect(trigger).toContainText(theme==="dark"?"3d 11h 59m":"3d 11h 58m");
+      if(theme==="dark"){
+        await page.clock.fastForward(60_000);await expect(trigger).toContainText("3d 11h 58m");
+        const after=await account.boundingBox();expect(Math.abs(before!.x-after!.x)).toBeLessThan(.5);expect(before!.width).toBe(after!.width);
+      }
+      await trigger.hover();await expect(tip).toBeVisible();await expect(trigger).toHaveAttribute("aria-expanded","true");
+      await expect(tip).toContainText("Resets Monday, Nov 9, 2026 at 00:00");
+      await expect(tip).toContainText("Today: Thursday, Nov 5, 2026");
+      await expect(tip).toContainText("Monday, Nov 2, 2026 through Sunday, Nov 8, 2026");
+      await expect(tip).toContainText("Asia/Manila (UTC+08:00)");await expect(tip).toContainText("solves, and saved progress remain");
+      await tip.hover();await expect(tip).toBeVisible();
+      await page.getByRole("heading",{name:"Challenges",exact:true}).hover();await expect(tip).toBeHidden();
+      await trigger.focus();await expect(tip).toBeVisible();await expect(trigger).toHaveAccessibleDescription(/Resets Monday.*UTC\+08:00/);
+      await expect(trigger).toHaveAccessibleName("Weekly reset details");expect(await trigger.getAttribute("aria-live")).toBeNull();
+      await page.keyboard.press("Tab");await expect(tip).toBeHidden();await trigger.focus();await expect(tip).toBeVisible();
+      await page.keyboard.press("Escape");await expect(tip).toBeHidden();await expect(trigger).toHaveAttribute("aria-expanded","false");
+      await trigger.tap();await expect(tip).toBeVisible();
+      await page.getByRole("heading",{name:"Challenges",exact:true}).tap();await expect(tip).toBeHidden();
+      await page.setViewportSize({width:320,height:680});await trigger.tap();await expect(tip).toBeVisible();
+      expect(await tip.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=document.documentElement.clientWidth&&r.bottom<=innerHeight;})).toBe(true);
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+      await page.screenshot({path:`test-results/assigned-weekly-reset-${theme}.png`,animations:"disabled"});
+      await page.keyboard.press("Escape");
+      await page.setViewportSize({width:568,height:320});await page.evaluate(()=>document.documentElement.style.fontSize="200%");
+      await trigger.tap();await expect(tip).toBeVisible();
+      expect(await tip.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.top>=0&&r.right<=document.documentElement.clientWidth&&r.bottom<=innerHeight;})).toBe(true);
+      await page.touchscreen.tap(2,2);await expect(tip).toBeHidden();await expect(page).toHaveURL(/view=practice$/);
+    }
+  });
+});
+
+test("sign-out clears a protected destination only after success and preserves later intentional sign-in routes",async({page})=>{
+  let fail=true;
+  const {bootstrap}=await mockWorkspace(page,async(route,url)=>{
+    if(url.pathname!=="/api/auth/sign-out")return false;
+    if(fail){await route.fulfill({status:503,json:{error:{message:"Sign-out temporarily unavailable."}}});return true;}
+    bootstrap.user=null;bootstrap.hasAccess=false;bootstrap.staffVerified=false;
+    await route.fulfill({json:{success:true}});return true;
+  });
+  await page.goto("/?view=practice");await expect(page.getByRole("heading",{name:"Challenges",exact:true})).toBeVisible();
+  const account=page.getByRole("button",{name:/^Account menu for/});
+  await account.click();await page.getByRole("navigation",{name:"Account",exact:true}).getByRole("button",{name:"Sign out",exact:true}).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Sign-out temporarily unavailable.");
+  await expect(page).toHaveURL(/view=practice$/);await expect(account).toBeVisible();
+  fail=false;await account.click();await page.getByRole("navigation",{name:"Account",exact:true}).getByRole("button",{name:"Sign out",exact:true}).click();
+  await expect(page).toHaveURL("http://127.0.0.1:3100/");
+  await expect(page.getByRole("navigation",{name:"Sections",exact:true})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Sign in to dfCTF",exact:true})).toHaveCount(0);
+  await page.getByRole("button",{name:"Sign in for full leaderboard",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Sign in to dfCTF",exact:true})).toBeVisible();
+  await expect(page.getByRole("status").filter({hasText:"the full leaderboard"})).toBeVisible();
+  await expect(page).toHaveURL(/returnTo=.*leaderboard/);
+  await page.goto("/?view=practice");await expect(page.getByRole("status").filter({hasText:"the challenge library"})).toBeVisible();
+});
 
 test("compact navigation keeps personal pages and staff tools in an accessible account disclosure",async({page})=>{
   await mockWorkspace(page);await page.setViewportSize({width:1440,height:1000});await page.goto("/?view=practice");

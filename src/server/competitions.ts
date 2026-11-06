@@ -9,6 +9,7 @@ import { audit, challengeDetail, challengeRecord, consumeLimit } from "./challen
 import { requireCompetitionChallenge } from "./competition-access";
 import { rankStandings } from "./community";
 import { flagDigest, matchesFlag } from "./flags";
+import { notSuspended } from "./player-eligibility";
 
 const externalUrl = z.url().max(2000).refine(value => { const url=new URL(value); return url.protocol==="https:"&&!url.username&&!url.password; },"Use an HTTPS event URL without embedded credentials.");
 export const competitionInput = z.object({
@@ -90,13 +91,13 @@ export async function getCompetition(db:Database,viewer:Viewer,id:string,staff=f
   if(staff)admin(viewer);const event=await eventRecord(db,id,staff), now=new Date();
   const [registration,registrations,links,rows,myAttempts]=await Promise.all([
     db.select().from(competitionRegistrations).where(and(eq(competitionRegistrations.competitionId,id),eq(competitionRegistrations.userId,viewer.id))).limit(1),
-    db.select({total:count()}).from(competitionRegistrations).where(eq(competitionRegistrations.competitionId,id)),
+    db.select({total:count()}).from(competitionRegistrations).innerJoin(user,eq(user.id,competitionRegistrations.userId)).where(and(eq(competitionRegistrations.competitionId,id),notSuspended(now))),
     db.select({link:competitionChallenges,challenge:challenges,version:challengeVersions}).from(competitionChallenges)
       .innerJoin(challenges,eq(challenges.id,competitionChallenges.challengeId))
       .innerJoin(challengeVersions,and(eq(challengeVersions.challengeId,challenges.id),eq(challengeVersions.version,challenges.currentVersion)))
       .where(eq(competitionChallenges.competitionId,id)),
     db.select({userId:competitionSolves.userId,codename:user.codename,challengeId:competitionSolves.challengeId,at:competitionSolves.createdAt,points:competitionSolves.points}).from(competitionSolves)
-      .innerJoin(user,eq(user.id,competitionSolves.userId)).where(eq(competitionSolves.competitionId,id)).orderBy(competitionSolves.createdAt,competitionSolves.id),
+      .innerJoin(user,eq(user.id,competitionSolves.userId)).where(and(eq(competitionSolves.competitionId,id),notSuspended(now))).orderBy(competitionSolves.createdAt,competitionSolves.id),
     db.selectDistinct({id:competitionSubmissions.challengeId}).from(competitionSubmissions).where(and(eq(competitionSubmissions.competitionId,id),eq(competitionSubmissions.userId,viewer.id))),
   ]);
   const solved=new Set(rows.filter(r=>r.userId===viewer.id).map(r=>r.challengeId)),attempted=new Set(myAttempts.map(r=>r.id));
@@ -109,11 +110,12 @@ export async function getCompetition(db:Database,viewer:Viewer,id:string,staff=f
   };
 }
 export async function competitionChallengeDetail(db:Database,viewer:Viewer,eventId:string,id:string){
+  const now=new Date();
   const access=await requireCompetitionChallenge(db,viewer,id,eventId);
   const [detail,rows,attempts,record]=await Promise.all([
     challengeDetail(db,viewer,id,false,eventId),
     db.select({userId:competitionSolves.userId,codename:user.codename,solvedAt:competitionSolves.createdAt}).from(competitionSolves)
-      .innerJoin(user,eq(user.id,competitionSolves.userId)).where(and(eq(competitionSolves.competitionId,eventId),eq(competitionSolves.challengeId,id))).orderBy(competitionSolves.createdAt,competitionSolves.id),
+      .innerJoin(user,eq(user.id,competitionSolves.userId)).where(and(eq(competitionSolves.competitionId,eventId),eq(competitionSolves.challengeId,id),notSuspended(now))).orderBy(competitionSolves.createdAt,competitionSolves.id),
     db.select({id:competitionSubmissions.id}).from(competitionSubmissions).where(and(eq(competitionSubmissions.competitionId,eventId),eq(competitionSubmissions.challengeId,id),eq(competitionSubmissions.userId,viewer.id))).limit(1),
     challengeRecord(db,id),
   ]);

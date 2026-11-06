@@ -8,7 +8,7 @@ import { FormEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, use
 import type { Bootstrap, ChallengeDetail, ChallengeSummary, Leaderboard, Progress, Viewer } from "@/lib/types";
 import { CATEGORIES, DIFFICULTIES } from "@/lib/types";
 import { authDestination, safeReturnTo } from "@/lib/auth-navigation";
-import { countdownParts } from "@/lib/week";
+import { countdownParts, DAY_MS } from "@/lib/week";
 import { VIEW_MOTION_MS, viewKeyframes, viewMotion, type ViewSurface } from "@/lib/view-motion";
 import AsciiField from "./ascii-field";
 import AuthPanel, { LocalInbox, type AuthMode } from "./auth-panel";
@@ -221,7 +221,7 @@ export default function Workspace() {
   }
   async function signOut() {
     if (leaveGuard.current && !leaveGuard.current()) return;
-    try { await api("/api/auth/sign-out", { method: "POST", body: "{}" }); setChallenges([]); setProgress(null); setBoard(null); pushLocation("/"); setAuthMode(null); await refresh(); }
+    try { await api("/api/auth/sign-out", { method: "POST", body: "{}" }); setChallenges([]); setProgress(null); setBoard(null); pushLocation("/"); setAuthMode(null); setReturnTo(null); await refresh(); }
     catch (err) { setBootError(err instanceof Error ? err.message : "Could not sign out. Please try again."); }
   }
 
@@ -245,7 +245,7 @@ export default function Workspace() {
       <a href={hrefFor("home")} className="brand-link" aria-label="dfCTF home" onClick={e => inPlace(e, () => navigate("home"))}><Wordmark /></a>
       <nav className="tabs" aria-label="Main">{TABS.map(v=><a key={v.id} className="tab" href={hrefFor(v.id)} aria-current={activeView===v.id?"page":undefined} onClick={e=>inPlace(e,()=>navigate(v.id))}><span>{v.label}</span></a>)}</nav>
       <span className="spacer" />
-      {board?.weekEndsAt ? <WeekChip endsAt={board.weekEndsAt} onOpen={e => inPlace(e, () => navigate("leaderboard"))} /> : null}
+      {board?.weekEndsAt ? <WeekChip endsAt={board.weekEndsAt} /> : null}
       <ProfileMenu codename={codename} points={progress?.totalXp ?? 0} rank={board?.viewer?.rank} current={activeView} staff={staff} navigate={navigate} onSignOut={signOut} />
     </header>
     <main className="app-main" id="main-content" tabIndex={-1}>
@@ -307,10 +307,40 @@ function ProfileMenu({ codename, points, rank, current, staff, navigate, onSignO
   </div>;
 }
 
-/** When the weekly board resets, as a quiet link to the leaderboard. */
-function WeekChip({ endsAt, onOpen }: { endsAt: string; onOpen: (e: MouseEvent) => void }) {
+function WeekChip({ endsAt }: { endsAt: string }) {
   const left = useCountdownLabel(endsAt);
-  return left ? <a className="week-chip" href={hrefFor("leaderboard")} onClick={onOpen}>Week ends in <span className="mono">{left}</span></a> : null;
+  const [open, setOpen] = useState(false);
+  const id = useId(), details = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null);
+  const reset = new Date(new Date(endsAt).getTime() + 1);
+  const date = (value: Date) => value.toLocaleDateString("en-PH", { timeZone: "Asia/Manila", weekday: "long", year: "numeric", month: "short", day: "numeric" });
+  function position() {
+    const bubble = details.current, button = trigger.current;
+    if (!bubble || !button) return;
+    bubble.style.maxWidth = `${document.documentElement.clientWidth - 16}px`;
+    const rect = button.getBoundingClientRect();
+    const below = Math.max(0, window.innerHeight - rect.bottom - 8), above = Math.max(0, rect.top - 8);
+    bubble.style.maxHeight = `${Math.max(below, above)}px`;
+    bubble.style.left = `${Math.max(8, Math.min(rect.right - bubble.offsetWidth, document.documentElement.clientWidth - bubble.offsetWidth - 8))}px`;
+    bubble.style.top = `${above > below ? rect.top - bubble.offsetHeight : rect.bottom}px`;
+  }
+  function show() { details.current?.showPopover({ source: trigger.current ?? undefined }); position(); }
+  useEffect(() => { window.addEventListener("resize", position); return () => window.removeEventListener("resize", position); }, []);
+  return left ? <div className="week-reset" onMouseEnter={show} onMouseLeave={event => {
+    if (!event.currentTarget.contains(document.activeElement)) details.current?.hidePopover();
+  }} onBlur={event => {
+    if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) details.current?.hidePopover();
+  }}>
+    <button ref={trigger} type="button" className="week-chip" aria-label="Weekly reset details" aria-controls={id} aria-expanded={open} aria-describedby={open ? id : undefined} onFocus={show} onClick={show}>
+      <span>Weekly reset</span><strong className="mono" aria-hidden="true">{left}</strong>
+    </button>
+    <div ref={details} id={id} popover="auto" role="tooltip" className="week-reset-details" onToggle={event => setOpen(event.currentTarget.matches(":popover-open"))}>
+      <strong>Resets {date(reset)} at 00:00</strong>
+      <p>Asia/Manila (UTC+08:00)</p>
+      <p>Today: {date(new Date())}</p>
+      <p>Current week: {date(new Date(reset.getTime() - 7 * DAY_MS))} through {date(new Date(endsAt))}.</p>
+      <p>Weekly standings start fresh each Monday. Your eligible all-time points, solves, and saved progress remain. Weekly challenges stay in the library.</p>
+    </div>
+  </div> : null;
 }
 
 function useCountdownLabel(endsAt: string) {

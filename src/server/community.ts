@@ -4,6 +4,7 @@ import { challenges, challengeVersions, solves, xpLedger, user } from "./schema"
 import { CATEGORIES, type Category, type Community, type Difficulty, type Leaderboard, type SolveEvent, type Standing } from "@/lib/types";
 import { currentWeekly, DAY_MS, dayKey, dayStart, weekEnd, weekStart } from "@/lib/week";
 import { topPracticeStandings } from "./practice-standing";
+import { notSuspended } from "./player-eligibility";
 
 export type SolveRow = { userId: string; codename: string | null; challengeId: string; at: Date; points: number };
 type Ranked = Standing & { userId: string; reachedAt: number };
@@ -62,16 +63,16 @@ export function dailyCounts(dates: Date[], start: Date, now: Date) {
   return { start: start.toISOString(), days };
 }
 
-async function solveRows(db: Database, since?: Date): Promise<SolveRow[]> {
+async function solveRows(db: Database, now: Date, since?: Date): Promise<SolveRow[]> {
   const rows = await db.select({ userId: solves.userId, codename: user.codename, challengeId: solves.challengeId, at: solves.createdAt, points: sql<number>`coalesce(${xpLedger.amount}, 0)` })
     .from(solves).innerJoin(user, eq(user.id, solves.userId)).leftJoin(xpLedger, eq(xpLedger.solveId, solves.id))
-    .where(since ? gte(solves.createdAt, since) : undefined).orderBy(solves.createdAt);
+    .where(and(notSuspended(now), since ? gte(solves.createdAt, since) : undefined)).orderBy(solves.createdAt);
   return rows.map(r => ({ ...r, points: Number(r.points) }));
 }
 
-async function firstSolveRecords(db: Database) {
+async function firstSolveRecords(db: Database, now: Date) {
   const rows = await db.selectDistinctOn([solves.challengeId], { challengeId: solves.challengeId, id: solves.id, at: solves.createdAt })
-    .from(solves).orderBy(solves.challengeId, solves.createdAt, solves.id);
+    .from(solves).innerJoin(user, eq(user.id, solves.userId)).where(notSuspended(now)).orderBy(solves.challengeId, solves.createdAt, solves.id);
   return new Map(rows.map(r => [r.challengeId, { id: r.id, at: r.at.getTime() }]));
 }
 
@@ -80,8 +81,9 @@ async function publishedLibrary(db: Database) {
     .from(challenges).innerJoin(challengeVersions, current).where(and(eq(challenges.status, "published"),eq(challenges.visibility,"practice")));
 }
 
-async function solveCounts(db: Database) {
-  const rows = await db.select({ challengeId: solves.challengeId, total: sql<number>`count(*)` }).from(solves).groupBy(solves.challengeId);
+async function solveCounts(db: Database, now: Date) {
+  const rows = await db.select({ challengeId: solves.challengeId, total: sql<number>`count(*)` }).from(solves)
+    .innerJoin(user, eq(user.id, solves.userId)).where(notSuspended(now)).groupBy(solves.challengeId);
   return new Map(rows.map(r => [r.challengeId, Number(r.total)]));
 }
 
@@ -96,17 +98,17 @@ export async function getCommunity(db: Database, now = new Date()): Promise<Comm
   const start = weekStart(now), activityStart = new Date(start.getTime() - 19 * 7 * DAY_MS);
   const activityDay = sql<string>`to_char(${solves.createdAt} AT TIME ZONE 'Asia/Manila', 'YYYY-MM-DD')`;
   const [library, counts, firsts, top, topAll, recentRows, activityRows] = await Promise.all([
-    publishedLibrary(db), solveCounts(db), firstSolveRecords(db), topStandings(db, now, start), topStandings(db, now),
+    publishedLibrary(db), solveCounts(db, now), firstSolveRecords(db, now), topStandings(db, now, start), topStandings(db, now),
     db.select({ id: solves.id, at: solves.createdAt, challengeId: solves.challengeId, codename: user.codename, title: challengeVersions.title, points: sql<number>`coalesce(${xpLedger.amount}, 0)` })
       .from(solves).innerJoin(user, eq(user.id, solves.userId)).innerJoin(challengeVersions, eq(challengeVersions.id, solves.versionId)).leftJoin(xpLedger, eq(xpLedger.solveId, solves.id))
-      .orderBy(desc(solves.createdAt)).limit(12),
-    db.select({ day: activityDay, total: sql<number>`count(*)` }).from(solves)
-      .where(and(gte(solves.createdAt, activityStart), lte(solves.createdAt, now))).groupBy(activityDay),
+      .where(notSuspended(now)).orderBy(desc(solves.createdAt)).limit(12),
+    db.select({ day: activityDay, total: sql<number>`count(*)` }).from(solves).innerJoin(user, eq(user.id, solves.userId))
+      .where(and(notSuspended(now), gte(solves.createdAt, activityStart), lte(solves.createdAt, now))).groupBy(activityDay),
   ]);
   const weeklyRow = currentWeekly(library, now);
   let weekly: Community["weekly"] = null;
   if (weeklyRow) {
-    const solvers = await db.select({ codename: user.codename }).from(solves).innerJoin(user, eq(user.id, solves.userId)).where(eq(solves.challengeId, weeklyRow.id)).orderBy(desc(solves.createdAt)).limit(5);
+    const solvers = await db.select({ codename: user.codename }).from(solves).innerJoin(user, eq(user.id, solves.userId)).where(and(eq(solves.challengeId, weeklyRow.id), notSuspended(now))).orderBy(desc(solves.createdAt)).limit(5);
     weekly = { id: weeklyRow.id, title: weeklyRow.title, summary: weeklyRow.summary, category: weeklyRow.category as Category, difficulty: weeklyRow.difficulty as Difficulty, xp: weeklyRow.xp, solveCount: counts.get(weeklyRow.id) ?? 0, solvers: solvers.flatMap(s => (s.codename ? [s.codename] : [])), endsAt: weekEnd(now).toISOString() };
   }
   const recent: SolveEvent[] = recentRows.flatMap(r => (r.codename ? [{ at: r.at.toISOString(), codename: r.codename, title: r.title, points: Number(r.points), firstBlood: firsts.get(r.challengeId)?.id === r.id }] : []));
@@ -126,7 +128,7 @@ export async function getCommunity(db: Database, now = new Date()): Promise<Comm
 export async function getLeaderboard(db: Database, viewerId: string, range: "week" | "all", now = new Date()): Promise<Leaderboard> {
   const start = weekStart(now), mineStart = new Date(start.getTime() - 15 * 7 * DAY_MS);
   const [rangeRows, weekRows, firsts, library, counts, mySolves] = await Promise.all([
-    range === "week" ? solveRows(db, start) : solveRows(db), solveRows(db, start), firstSolveRecords(db), publishedLibrary(db), solveCounts(db),
+    solveRows(db, now, range === "week" ? start : undefined), solveRows(db, now, start), firstSolveRecords(db, now), publishedLibrary(db), solveCounts(db, now),
     db.select({ challengeId: solves.challengeId, at: solves.createdAt }).from(solves).where(eq(solves.userId, viewerId)),
   ]);
   const standings = rankStandings(rangeRows);

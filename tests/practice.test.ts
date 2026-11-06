@@ -27,6 +27,25 @@ async function ready(title:string){const record=await createChallenge(store.db,a
 beforeAll(async()=>{directory=await mkdtemp(path.join(os.tmpdir(),"dfctf-practice-"));process.env.ARTIFACT_DIR=directory;store=await createStore(undefined,true);await store.migrate();for(const v of [author,reviewer,admin,learner])await store.db.insert(user).values({...v,name:"Private account"});});
 afterAll(async()=>{await store?.close();await rm(directory,{recursive:true,force:true});delete process.env.ARTIFACT_DIR;});
 describe("private practice integrity",()=>{
+  it("preserves the first publication date when revising an old weekly challenge",async()=>{
+    const old=await createChallenge(store.db,author,{...draft("Old weekly publication"),tags:["weekly"]});
+    expect((await store.db.select().from(challenges).where(eq(challenges.id,old.id)))[0].publishedAt).toBeNull();
+    await editChallenge(store.db,author,old.id,{status:"review"});await publishChallenge(store.db,reviewer,old.id,flag);
+    expect((await store.db.select().from(challenges).where(eq(challenges.id,old.id)))[0].publishedAt).toBeInstanceOf(Date);
+    const original=new Date(Date.now()-60*86_400_000);
+    await store.db.update(challenges).set({publishedAt:original}).where(eq(challenges.id,old.id));
+    const current=await createChallenge(store.db,author,{...draft("Current weekly publication"),tags:["weekly"]});
+    await editChallenge(store.db,author,current.id,{status:"review"});await publishChallenge(store.db,reviewer,current.id,flag);
+    await editChallenge(store.db,admin,old.id,{title:"Corrected old weekly publication"});
+    expect((await store.db.select().from(challenges).where(eq(challenges.id,old.id)))[0].publishedAt).toEqual(original);
+    await publishChallenge(store.db,reviewer,old.id,flag);
+    expect((await store.db.select().from(challenges).where(eq(challenges.id,old.id)))[0].publishedAt).toEqual(original);
+    const library=await listChallenges(store.db,learner.id);
+    expect(library.find(c=>c.id===old.id)?.weeklyEndsAt).toBeUndefined();
+    expect(library.find(c=>c.id===current.id)?.weeklyEndsAt).toBeDefined();
+    expect((await getCommunity(store.db)).weekly?.id).toBe(current.id);
+    expect((await challengeDetail(store.db,learner,old.id)).weeklyEndsAt).toBeUndefined();
+  });
   it("downloads database-backed files without a local copy and supports legacy local files",async()=>{
     const shared=await ready("Shared artifact storage");
     const detail=await challengeDetail(store.db,learner,shared.id);
@@ -207,20 +226,26 @@ describe("private practice integrity",()=>{
   });
   it("requires fresh review for file-only revisions, preserves old files, and supports archived problems",async()=>{
     const c=await ready("File-only revision");
+    const publishedAt=new Date(Date.now()-60*86_400_000);
+    await store.db.update(challenges).set({publishedAt}).where(eq(challenges.id,c.id));
     const original=await challengeDetail(store.db,admin,c.id,true);
     await removeArtifact(store.db,admin,c.id,original.files[0].id);
     expect(await challengeDetail(store.db,admin,c.id,true)).toMatchObject({version:2,status:"review",files:[],canPublish:false});
+    expect((await store.db.select().from(challenges).where(eq(challenges.id,c.id)))[0].publishedAt).toEqual(publishedAt);
     expect(await store.db.select().from(artifacts).where(eq(artifacts.id,original.files[0].id))).toHaveLength(1);
     const added=await saveArtifact(store.db,admin,c.id,"replacement.txt",Buffer.from(flag));
     await expect(publishChallenge(store.db,admin,c.id,flag)).rejects.toMatchObject({code:"SELF_REVIEW"});
     await publishChallenge(store.db,reviewer,c.id,flag);
+    expect((await store.db.select().from(challenges).where(eq(challenges.id,c.id)))[0].publishedAt).toEqual(publishedAt);
     await editChallenge(store.db,admin,c.id,{status:"archived"});
     await saveArtifact(store.db,admin,c.id,"extra.txt",Buffer.from("New fictional evidence"));
+    expect((await store.db.select().from(challenges).where(eq(challenges.id,c.id)))[0].publishedAt).toEqual(publishedAt);
     const revised=await challengeDetail(store.db,admin,c.id,true);
     expect(revised).toMatchObject({version:3,status:"review",canPublish:false});
     expect(revised.files.map(f=>f.name).sort()).toEqual(["extra.txt","replacement.txt"]);
     expect(await store.db.select().from(artifacts).where(eq(artifacts.id,added.id))).toHaveLength(1);
     await publishChallenge(store.db,reviewer,c.id,flag);
+    expect((await store.db.select().from(challenges).where(eq(challenges.id,c.id)))[0].publishedAt).toEqual(publishedAt);
   });
   it("keeps a learner's existing solve and points through repeated revisions",async()=>{
     const c=await ready("Solved revision history"), player={...learner,id:randomUUID(),email:"revision-player@example.test",codename:"revision_player"};
